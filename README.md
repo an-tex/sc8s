@@ -1,2 +1,2 @@
 # sc8s
-Scala Development Accelerator
+Scala Development Accelerators

@@ -36,4 +36,5 @@ inThisBuild(Seq(
   githubRepository := "sc8s",
   envFileName := ".envrc",
   githubWorkflowJavaVersions := Seq("adopt@1.11"),
+  dynverSeparator := "-"
 ))

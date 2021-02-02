@@ -1,6 +1,20 @@
 import sbtghactions.GenerativePlugin.autoImport.githubWorkflowJavaVersions
 import sbtghpackages.GitHubPackagesPlugin.autoImport.githubRepository
 
+inThisBuild(List(
+  organization := "net.sc8s",
+  homepage := Some(url("https://github.com/an-tex/sc8s")),
+  licenses := List("MIT" -> url("https://opensource.org/licenses/MIT")),
+  developers := List(
+    Developer(
+      "an-tex",
+      "Andreas Gabor",
+      "andreas@sc8s.net",
+      url("https://rob.ag")
+    )
+  )
+))
+
 lazy val sc8s = (project in file("."))
   .settings(
     publishArtifact := false
@@ -32,8 +46,6 @@ lazy val `lagom-circe` = (project in file("lagom-circe"))
     )
   )
   .dependsOn(`akka-circe`)
-
-Global / organization := "net.sc8s"
 
 inThisBuild(Seq(
   scalaVersion := Dependencies.scala213,

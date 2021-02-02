@@ -47,7 +47,6 @@ lazy val `lagom-circe` = (project in file("lagom-circe"))
 
 inThisBuild(Seq(
   scalaVersion := Dependencies.scala213,
-  envFileName := ".envrc",
   githubWorkflowJavaVersions := Seq("adopt@1.11"),
   githubWorkflowTargetTags := Seq("*"),
   githubWorkflowPublish := Seq(WorkflowStep.Sbt(

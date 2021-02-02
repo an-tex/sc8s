@@ -29,3 +29,8 @@ lazy val circeLagom = (project in file("circe-lagom"))
 Global / organization := "sc8s.net"
 
 ThisBuild / scalaVersion := Dependencies.scala213
+
+ThisBuild / githubOwner := "an-text"
+ThisBuild / githubRepository := "sc8s"
+ThisBuild / githubWorkflowPublishTargetBranches := Nil
+ThisBuild / envFileName := ".envrc"

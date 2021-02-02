@@ -3,11 +3,11 @@ import sbtghpackages.GitHubPackagesPlugin.autoImport.githubRepository
 
 lazy val sc8s = (project in file("."))
   .aggregate(
-    circeAkka,
-    circeLagom
+    akkaCirce,
+    lagomCirce
   )
 
-lazy val circeAkka = (project in file("circe-akka"))
+lazy val akkaCirce = (project in file("akka-circe"))
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.akka.typed,
@@ -21,13 +21,13 @@ lazy val circeAkka = (project in file("circe-akka"))
     )
   )
 
-lazy val circeLagom = (project in file("circe-lagom"))
+lazy val lagomCirce = (project in file("lagom-circe"))
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.lagom.scaladslServer
     )
   )
-  .dependsOn(circeAkka)
+  .dependsOn(akkaCirce)
 
 Global / organization := "sc8s.net"
 

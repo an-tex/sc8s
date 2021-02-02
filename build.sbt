@@ -36,5 +36,6 @@ inThisBuild(Seq(
   githubRepository := "sc8s",
   githubWorkflowPublishTargetBranches := Nil,
   envFileName := ".envrc",
-  githubWorkflowJavaVersions := Seq("adopt@1.11")
+  githubWorkflowJavaVersions := Seq("adopt@1.11"),
+  githubWorkflowOSes := Seq("ubuntu-20.04")
 ))

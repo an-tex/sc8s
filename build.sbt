@@ -1,6 +1,3 @@
-import sbtghactions.GenerativePlugin.autoImport.githubWorkflowJavaVersions
-import sbtghpackages.GitHubPackagesPlugin.autoImport.githubRepository
-
 inThisBuild(List(
   organization := "net.sc8s",
   homepage := Some(url("https://github.com/an-tex/sc8s")),
@@ -50,9 +47,8 @@ lazy val `lagom-circe` = (project in file("lagom-circe"))
 inThisBuild(Seq(
   scalaVersion := Dependencies.scala213,
   envFileName := ".envrc",
-  githubOwner := "an-tex",
-  githubRepository := "sc8s",
   githubWorkflowJavaVersions := Seq("adopt@1.11"),
   githubWorkflowTargetTags := Seq("*"),
+  githubWorkflowPublish := Seq(WorkflowStep.Sbt(List("ci-release"))),
   githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
 ))

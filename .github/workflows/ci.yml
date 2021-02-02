@@ -12,6 +12,7 @@ on:
     branches: ['*']
   push:
     branches: ['*']
+    tags: ['*']
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,7 +56,7 @@ jobs:
         run: sbt ++${{ matrix.scala }} test
 
       - name: Compress target directories
-        run: tar cf targets.tar target circe-akka/target circe-lagom/target project/target
+        run: tar cf targets.tar target akka-circe/target lagom-circe/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v2

@@ -37,5 +37,6 @@ inThisBuild(Seq(
   githubOwner := "an-tex",
   githubRepository := "sc8s",
   githubWorkflowJavaVersions := Seq("adopt@1.11"),
-  githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))))
-)
+  githubWorkflowTargetTags := Seq("*"),
+  githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
+))

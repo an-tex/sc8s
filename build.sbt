@@ -1,3 +1,4 @@
+import sbtghactions.GenerativePlugin.autoImport.githubWorkflowJavaVersions
 import sbtghpackages.GitHubPackagesPlugin.autoImport.githubRepository
 
 lazy val sc8s = (project in file("."))
@@ -32,9 +33,9 @@ Global / organization := "sc8s.net"
 
 inThisBuild(Seq(
   scalaVersion := Dependencies.scala213,
-  githubOwner := "an-text",
-  githubRepository := "sc8s",
   envFileName := ".envrc",
+  githubOwner := "an-tex",
+  githubRepository := "sc8s",
   githubWorkflowJavaVersions := Seq("adopt@1.11"),
-  dynverSeparator := "-"
-))
+  githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))))
+)

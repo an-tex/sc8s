@@ -2,13 +2,17 @@ import sbtghactions.GenerativePlugin.autoImport.githubWorkflowJavaVersions
 import sbtghpackages.GitHubPackagesPlugin.autoImport.githubRepository
 
 lazy val sc8s = (project in file("."))
+  .settings(
+    publishArtifact := false
+  )
   .aggregate(
-    akkaCirce,
-    lagomCirce
+    `akka-circe`,
+    `lagom-circe`
   )
 
-lazy val akkaCirce = (project in file("akka-circe"))
+lazy val `akka-circe` = (project in file("akka-circe"))
   .settings(
+    name := "akka-circe",
     libraryDependencies ++= Seq(
       Dependencies.akka.typed,
       Dependencies.akka.stream,
@@ -21,15 +25,15 @@ lazy val akkaCirce = (project in file("akka-circe"))
     )
   )
 
-lazy val lagomCirce = (project in file("lagom-circe"))
+lazy val `lagom-circe` = (project in file("lagom-circe"))
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.lagom.scaladslServer
     )
   )
-  .dependsOn(akkaCirce)
+  .dependsOn(`akka-circe`)
 
-Global / organization := "sc8s.net"
+Global / organization := "net.sc8s"
 
 inThisBuild(Seq(
   scalaVersion := Dependencies.scala213,

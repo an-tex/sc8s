@@ -1,9 +1,9 @@
-package net.sc8s.circe.lagom
+package net.sc8s.lagom.circe
 
 import akka.actor.ActorSystem
-import akka.serialization.circe.CirceSerializerRegistry
 import com.lightbend.lagom.scaladsl.server.LagomApplication
 import com.typesafe.config.Config
+import net.sc8s.akka.circe.CirceSerializerRegistry
 import play.api.{Configuration, Environment}
 
 trait CirceAkkaSerializationComponents {

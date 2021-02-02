@@ -1,4 +1,4 @@
-package net.sc8s.circe.lagom
+package net.sc8s.lagom.circe
 
 import akka.NotUsed
 import akka.stream.scaladsl.Source

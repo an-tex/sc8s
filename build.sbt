@@ -30,10 +30,10 @@ lazy val `akka-circe` = (project in file("akka-circe"))
       Dependencies.akka.stream,
       Dependencies.circe.core.value,
       Dependencies.circe.parser.value,
+      Dependencies.circe.generic.value,
+      Dependencies.circe.genericExtras.value,
       Dependencies.scalaTest.value % Test,
       Dependencies.akka.testkitTyped % Test,
-      Dependencies.circe.generic.value % Test,
-      Dependencies.circe.genericExtras.value % Test,
     )
   )
 

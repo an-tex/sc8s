@@ -1,4 +1,4 @@
-package akka.serialization.circe
+package net.sc8s.akka.circe
 
 import akka.Done
 import akka.pattern.StatusReply

@@ -1,22 +1,20 @@
-package akka.serialization.circe
+package net.sc8s.akka.circe
 
-import akka.actor.ExtendedActorSystem
 import akka.actor.testkit.typed.scaladsl.{ScalaTestWithActorTestKit, TestProbe}
 import akka.actor.typed.ActorRef
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.serialization.Serialization
-import akka.serialization.circe.AkkaRefCodecs._
+import akka.serialization.circe.SerializationHelper
 import akka.stream.scaladsl.StreamRefs
 import akka.stream.{SinkRef, SourceRef}
 import io.circe.parser._
 import io.circe.syntax._
+import net.sc8s.akka.circe.AkkaRefCodecs._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 
-class CirceAkkaRefsSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLike with Matchers with BeforeAndAfterEach {
+class AkkaRefsCodecsSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLike with Matchers with BeforeAndAfterEach {
 
-  "CirceActorRefSerializerSpec should" - {
+  "AkkaRefCodecs should" - {
     "encode" - {
       "ActorRef" in {
         val probe = TestProbe[String]()
@@ -36,6 +34,5 @@ class CirceAkkaRefsSerializerSpec extends ScalaTestWithActorTestKit with AnyFree
     }
   }
 
-  override protected def beforeEach() =
-    Serialization.currentTransportInformation.value = testKit.system.toClassic.asInstanceOf[ExtendedActorSystem].provider.serializationInformation
+  override protected def beforeEach() = SerializationHelper.setCurrentTransportInformation(testKit.system)
 }

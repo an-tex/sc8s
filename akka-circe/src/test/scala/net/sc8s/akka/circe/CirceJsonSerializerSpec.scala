@@ -1,11 +1,10 @@
-package akka.serialization.circe
+package net.sc8s.akka.circe
 
 import akka.actor.ExtendedActorSystem
 import akka.actor.testkit.typed.scaladsl.{ScalaTestWithActorTestKit, TestProbe}
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.serialization.Serialization
-import AkkaRefCodecs._
+import akka.serialization.circe.SerializationHelper
 import akka.stream.scaladsl.StreamRefs
 import akka.stream.{SinkRef, SourceRef}
 import io.circe.Codec
@@ -14,10 +13,10 @@ import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import io.circe.generic.semiauto.deriveCodec
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
-import CirceJsonSerializerSpec.{ADT, ADT1, ADT2, ADTChild1, ADTChild2, SimpleCaseClass, WithSinkAndSourceRef, WithTypedActorRef}
+import net.sc8s.akka.circe.AkkaRefCodecs._
+import net.sc8s.akka.circe.CirceJsonSerializerSpec.{ADT, ADT1, ADT2, ADTChild1, ADTChild2, SimpleCaseClass, WithSinkAndSourceRef, WithTypedActorRef}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.freespec.AnyFreeSpecLike
-import org.scalatest.wordspec.AnyWordSpecLike
 
 import java.nio.charset.StandardCharsets
 
@@ -154,8 +153,7 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
 
   def manifest(clazz: Class[_]) = clazz.getName
 
-  override protected def beforeEach() =
-    Serialization.currentTransportInformation.value = testKit.system.toClassic.asInstanceOf[ExtendedActorSystem].provider.serializationInformation
+  override protected def beforeEach() = SerializationHelper.setCurrentTransportInformation(testKit.system)
 }
 
 object CirceJsonSerializerSpec {

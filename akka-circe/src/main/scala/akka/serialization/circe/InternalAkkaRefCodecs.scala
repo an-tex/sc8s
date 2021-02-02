@@ -1,3 +1,4 @@
+// needs to reside here due to protected access to akka.serialization.Serialization.currentTransportInformation
 package akka.serialization.circe
 
 import akka.actor.ExtendedActorSystem
@@ -7,9 +8,7 @@ import akka.serialization.Serialization
 import akka.stream.{SinkRef, SourceRef, StreamRefResolver}
 import io.circe.{Decoder, Encoder, HCursor, Json}
 
-object AkkaRefCodecs extends AkkaRefCodecs
-
-trait AkkaRefCodecs {
+trait InternalAkkaRefCodecs {
   implicit def actorRefEncoder[T: Encoder]: Encoder[ActorRef[T]] = (a: ActorRef[T]) => Json.fromString(ActorRefResolver(currentSystem().toTyped).toSerializationFormat(a))
 
   implicit def actorRefDecoder[T: Decoder]: Decoder[ActorRef[T]] = (c: HCursor) => c.value.as[String].map(ref => ActorRefResolver(currentSystem().toTyped).resolveActorRef(ref))

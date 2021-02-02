@@ -7,6 +7,12 @@ object Dependencies {
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.3")
   val scalamock = "org.scalamock" %% "scalamock" % "5.1.0" % Test
 
+  object play {
+    // same as lagom uses
+    private val version = "2.8.4"
+    val core = "com.typesafe.play" %% "play" % version
+  }
+
   object lagom {
     private val version = "1.6.4"
     val scaladslServer = "com.lightbend.lagom" %% "lagom-scaladsl-server" % version

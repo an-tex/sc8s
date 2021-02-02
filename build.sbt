@@ -1,3 +1,5 @@
+import sbtghpackages.GitHubPackagesPlugin.autoImport.githubRepository
+
 lazy val sc8s = (project in file("."))
   .aggregate(
     circeAkka,
@@ -28,9 +30,11 @@ lazy val circeLagom = (project in file("circe-lagom"))
 
 Global / organization := "sc8s.net"
 
-ThisBuild / scalaVersion := Dependencies.scala213
-
-ThisBuild / githubOwner := "an-text"
-ThisBuild / githubRepository := "sc8s"
-ThisBuild / githubWorkflowPublishTargetBranches := Nil
-ThisBuild / envFileName := ".envrc"
+inThisBuild(Seq(
+  scalaVersion := Dependencies.scala213,
+  githubOwner := "an-text",
+  githubRepository := "sc8s",
+  githubWorkflowPublishTargetBranches := Nil,
+  envFileName := ".envrc",
+  githubWorkflowJavaVersions := Seq("adopt@1.11")
+))

@@ -1,5 +1,4 @@
 # sc8s
-Scala Development Accelerators
 
 ### akka-circe
 [Akka](https://akka.io) serializers using [circe](https://github.com/circe/circe). Includes serializers for `ActorRefs` and `StreamRefs`

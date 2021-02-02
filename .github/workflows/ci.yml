@@ -21,9 +21,9 @@ jobs:
     name: Build and Test
     strategy:
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-latest]
         scala: [2.13.4]
-        java: [adopt@1.9]
+        java: [adopt@1.11]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout current branch (full)
@@ -71,7 +71,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         scala: [2.13.4]
-        java: [adopt@1.9]
+        java: [adopt@1.11]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout current branch (full)

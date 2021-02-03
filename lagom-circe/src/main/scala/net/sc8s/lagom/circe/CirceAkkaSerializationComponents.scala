@@ -9,7 +9,7 @@ import play.api.{Configuration, Environment}
 trait CirceAkkaSerializationComponents {
   _: LagomApplication =>
 
-  val circeSerializerRegistry: CirceSerializerRegistry
+  def circeSerializerRegistry: CirceSerializerRegistry
 
   override lazy val actorSystem: ActorSystem =
     ActorSystemProvider.start(config, environment, circeSerializerRegistry)

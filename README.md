@@ -16,3 +16,5 @@ libraryDependencies ++= Seq(
   "net.sc8s" %% "lagom-circe" % VERSION
 )
 ```
+
+You can find the latest version here on Github under [Releases](https://github.com/an-tex/sc8s/releases) or on [Maven Central](https://search.maven.org/search?q=g:net.sc8s)

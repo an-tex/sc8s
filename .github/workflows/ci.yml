@@ -56,7 +56,7 @@ jobs:
         run: sbt ++${{ matrix.scala }} test
 
       - name: Compress target directories
-        run: tar cf targets.tar target akka-circe/target lagom-circe/target lagom-circe-testkit/target project/target
+        run: tar cf targets.tar target lagom-api-circe/.jvm/target lagom-server-circe/target akka-circe/target lagom-api-circe/.js/target lagom-server-circe-testkit/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v2

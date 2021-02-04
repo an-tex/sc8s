@@ -16,6 +16,14 @@ object Dependencies {
   object lagom {
     private val version = "1.6.4"
     val scaladslServer = "com.lightbend.lagom" %% "lagom-scaladsl-server" % version
+    val scaladslApi = "com.lightbend.lagom" %% "lagom-scaladsl-api" % version
+
+    object js {
+      private val version = "0.4.0-1.6.4"
+
+      val scalaDslApi = Def.setting("com.github.mliarakos.lagomjs" %%% "lagomjs-scaladsl-api" % version)
+      val scalaDslClient = Def.setting("com.github.mliarakos.lagomjs" %%% "lagomjs-scaladsl-client" % version)
+    }
   }
 
   object akka {

@@ -8,7 +8,6 @@ import io.circe.parser._
 import io.circe.syntax.EncoderOps
 
 import java.nio.charset.StandardCharsets
-import scala.util.{Success, Try}
 
 private[circe] final class CirceJsonSerializer(
                                                 system: ExtendedActorSystem,
@@ -26,15 +25,13 @@ private[circe] final class CirceJsonSerializer(
       manifest(serializer.entityClass) -> serializer.asInstanceOf[CirceSerializer[AnyRef]]
     ).toMap
 
-  private val classLoaders = registry.serializers.map(_.entityClass.getClassLoader).distinct.to(LazyList)
-
   private val manifestRenames = serializers.values.flatMap(_.manifestRenames).toMap
 
   override def toBinary(o: AnyRef): Array[Byte] = {
     val manifest = this.manifest(o)
     log.debug(s"serializing $manifest")
 
-    val serializer = findSerializer(o.getClass)
+    val serializer = findCodecAndMigrater(manifest)
 
     printer.print(serializer.codec(o)).getBytes(charset)
   }
@@ -42,7 +39,7 @@ private[circe] final class CirceJsonSerializer(
   override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef = {
     log.debug(s"deserializing $manifest")
 
-    val serializer = findSerializer(manifest)
+    val serializer = findCodecAndMigrater(manifest)
 
     val json = parse(new String(bytes, charset)) match {
       case Left(value) =>
@@ -73,19 +70,9 @@ private[circe] final class CirceJsonSerializer(
     else manifest(clazz) +: interfaces.flatMap(allInterfaces)
   }
 
-  private def findSerializer(manifest: String): CirceSerializer[AnyRef] = {
-    def findClass =
-      classLoaders
-        .map(classLoader => Try(Class.forName(manifest, true, classLoader)))
-        .collectFirst {
-          case Success(clazz) => clazz
-        }
-        .getOrElse(throw new RuntimeException(s"Class for $manifest is missing in classpath"))
+  private def findCodecAndMigrater(manifest: String) = {
+    val clazz = manifestRenames.getOrElse(manifest, Class.forName(manifest, true, registry.getClass.getClassLoader))
 
-    findSerializer(manifestRenames.getOrElse(manifest, findClass))
-  }
-
-  private def findSerializer(clazz: Class[_]): CirceSerializer[AnyRef] = {
     val classManifests = allInterfaces(clazz)
     serializers.find {
       case (value, _) => classManifests.contains(value)

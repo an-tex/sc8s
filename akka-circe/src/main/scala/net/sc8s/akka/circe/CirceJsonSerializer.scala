@@ -71,7 +71,7 @@ private[circe] final class CirceJsonSerializer(
   }
 
   private def findCodecAndMigrater(manifest: String) = {
-    val clazz = manifestRenames.getOrElse(manifest, Class.forName(manifest, true, registry.getClass.getClassLoader))
+    val clazz = manifestRenames.getOrElse(manifest, Class.forName(manifest))
 
     val classManifests = allInterfaces(clazz)
     serializers.find {

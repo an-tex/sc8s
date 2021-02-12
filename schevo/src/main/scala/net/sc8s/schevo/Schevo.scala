@@ -2,17 +2,13 @@ package net.sc8s.schevo
 
 // define an object extending this trait
 trait Schevo {
-  // implement this as a trait
-  type Latest <: LatestBase
-
   // point this to your case class
-  type LatestCaseClass <: LatestBase
+  type LatestCaseClass <: Latest
 
-  trait LatestBase extends Revision {
+  trait Latest extends Revision {
     // esp. useful for _.copy
     def caseClass: LatestCaseClass
   }
-
 
   trait Revision extends Schevo.RevisionBase[Latest] {
     type LatestTrait = Latest

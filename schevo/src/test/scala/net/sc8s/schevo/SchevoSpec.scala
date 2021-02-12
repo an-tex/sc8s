@@ -1,12 +1,14 @@
 package net.sc8s.schevo
 
-import net.sc8s.schevo.SchevoSpec.Item.{ItemV1, ItemV3, Latest}
+import net.sc8s.schevo.SchevoSpec.Full
+import net.sc8s.schevo.SchevoSpec.Minimal
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
 class SchevoSpec extends AnyWordSpecLike with Matchers {
   "Schevo" should {
-    "evolve case class" in {
+    "evolve case class with minimal overrides" in {
+      import Minimal._
       val itemV1 = ItemV1("first", "last")
 
       val migrated = itemV1.evolve
@@ -15,9 +17,25 @@ class SchevoSpec extends AnyWordSpecLike with Matchers {
       migrated shouldBe ItemV3("first last", enabled = true)
       migrated.caseClass shouldBe a[ItemV3]
       // this just shows how you could obtain the latest trait when using e.g. circe
+    }
+    "evolve case class with full overrides" in {
+      import Full._
+      val itemV1 = ItemV1("first", "last")
+
+      val migrated = itemV1.evolve
+
+      migrated shouldBe
+      // no need to reference actual latest case class
+        Full.apply("first last", true)
+
+      // this just shows how you could obtain the latest trait when using e.g. circe
       migrated.caseClass.asTrait shouldBe a[Latest]
+
+      // common ancestor
+      migrated shouldBe a[SomeOtherBaseClassHigherUp]
     }
     "evolve using base trait" in {
+      import Minimal._
       val itemV1 = ItemV1("first", "last")
 
       Seq(itemV1: Any).collect {
@@ -28,8 +46,30 @@ class SchevoSpec extends AnyWordSpecLike with Matchers {
 }
 
 object SchevoSpec {
-  object Item extends Schevo {
-    trait Latest extends LatestBase {
+  object Minimal extends Schevo {
+    override type LatestCaseClass = ItemV3
+
+    case class ItemV3(name: String, enabled: Boolean) extends Latest {
+      override def caseClass = this
+
+      override def evolve = this
+    }
+
+    case class ItemV2(name: String) extends Revision {
+      override def evolve = ItemV3(name, enabled = true)
+    }
+
+    case class ItemV1(firstName: String, lastName: String) extends Revision {
+      override def evolve = ItemV2(s"$firstName $lastName").evolve
+    }
+  }
+
+  object Full extends Schevo {
+    sealed trait SomeOtherBaseClassHigherUp
+
+    def apply = ItemV3.apply _
+
+    trait Latest extends super.Latest {
       val name: String
       val enabled: Boolean
 
@@ -41,9 +81,11 @@ object SchevoSpec {
 
     override type LatestCaseClass = ItemV3
 
-    case class ItemV3(name: String, enabled: Boolean) extends Latest {
+    case class ItemV3(name: String, enabled: Boolean) extends Latest with Revision {
       override def caseClass = this
     }
+
+    trait Revision extends super.Revision with SomeOtherBaseClassHigherUp
 
     case class ItemV2(name: String) extends Revision {
       override def evolve = ItemV3(name, enabled = true)

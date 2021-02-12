@@ -9,7 +9,18 @@ lazy val sc8s = (project in file("."))
     `lagom-server-circe`,
     `lagom-server-circe-testkit`,
     `lagom-api-circe`.jvm,
-    `lagom-api-circe`.js
+    `lagom-api-circe`.js,
+    `schevo`.jvm,
+    `schevo`.js,
+  )
+
+lazy val `schevo` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("schevo"))
+  .settings(
+    libraryDependencies ++= Seq(
+      scalaTest.value % Test,
+    )
   )
 
 lazy val `akka-circe` = (project in file("akka-circe"))

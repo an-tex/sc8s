@@ -6,10 +6,10 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 class SchevoSpec extends AnyWordSpecLike with Matchers {
   "Schevo" should {
-    "migrate" in {
+    "evolve case class" in {
       val itemV1 = ItemV1("first", "last")
 
-      val migrated = itemV1.migrate
+      val migrated = itemV1.evolve
 
       migrated shouldBe a[Latest]
       migrated shouldBe ItemV3("first last", enabled = true)
@@ -17,12 +17,12 @@ class SchevoSpec extends AnyWordSpecLike with Matchers {
       // this just shows how you could obtain the latest trait when using e.g. circe
       migrated.caseClass.asTrait shouldBe a[Latest]
     }
-    "migrate using generic type" in {
+    "evolve using base trait" in {
       val itemV1 = ItemV1("first", "last")
 
       Seq(itemV1: Any).collect {
-        case item: Schevo.RevisionT[_] => item.migrate
-      } shouldBe Seq(itemV1.migrate)
+        case item: Schevo.RevisionBase[_] => item.evolve
+      } shouldBe Seq(itemV1.evolve)
     }
   }
 }
@@ -33,7 +33,7 @@ object SchevoSpec {
       val name: String
       val enabled: Boolean
 
-      override def migrate = this
+      override def evolve = this
 
       // optional but handy when using circe to make sure it uses the base trait for serialization instead of a concrete class
       def asTrait = this
@@ -46,11 +46,11 @@ object SchevoSpec {
     }
 
     case class ItemV2(name: String) extends Revision {
-      override def migrate = ItemV3(name, enabled = true)
+      override def evolve = ItemV3(name, enabled = true)
     }
 
     case class ItemV1(firstName: String, lastName: String) extends Revision {
-      override def migrate = ItemV2(s"$firstName $lastName").migrate
+      override def evolve = ItemV2(s"$firstName $lastName").evolve
     }
   }
 }

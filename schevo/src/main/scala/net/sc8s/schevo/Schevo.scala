@@ -14,14 +14,14 @@ trait Schevo {
   }
 
 
-  trait Revision extends Schevo.RevisionT[Latest] {
+  trait Revision extends Schevo.RevisionBase[Latest] {
     type LatestTrait = Latest
   }
 }
 
 object Schevo {
   // this indirection is mainly for generic migration using pattern matching
-  trait RevisionT[Latest] {
-    def migrate: Latest
+  trait RevisionBase[Latest] {
+    def evolve: Latest
   }
 }

@@ -39,7 +39,7 @@ class SchevoSpec extends AnyWordSpecLike with Matchers {
       val itemV1 = ItemV1("first", "last")
 
       Seq(itemV1: Any).collect {
-        case item: Schevo.RevisionBase[_] => item.evolve
+        case item: Schevo.VersionBase[_] => item.evolve
       } shouldBe Seq(itemV1.evolve)
     }
   }
@@ -55,11 +55,11 @@ object SchevoSpec {
       override def evolve = this
     }
 
-    case class ItemV2(name: String) extends Revision {
+    case class ItemV2(name: String) extends Version {
       override def evolve = ItemV3(name, enabled = true)
     }
 
-    case class ItemV1(firstName: String, lastName: String) extends Revision {
+    case class ItemV1(firstName: String, lastName: String) extends Version {
       override def evolve = ItemV2(s"$firstName $lastName").evolve
     }
   }
@@ -81,17 +81,17 @@ object SchevoSpec {
 
     override type LatestCaseClass = ItemV3
 
-    case class ItemV3(name: String, enabled: Boolean) extends Latest with Revision {
+    case class ItemV3(name: String, enabled: Boolean) extends Latest with Version {
       override def caseClass = this
     }
 
-    trait Revision extends super.Revision with SomeOtherBaseClassHigherUp
+    trait Version extends super.Version with SomeOtherBaseClassHigherUp
 
-    case class ItemV2(name: String) extends Revision {
+    case class ItemV2(name: String) extends Version {
       override def evolve = ItemV3(name, enabled = true)
     }
 
-    case class ItemV1(firstName: String, lastName: String) extends Revision {
+    case class ItemV1(firstName: String, lastName: String) extends Version {
       override def evolve = ItemV2(s"$firstName $lastName").evolve
     }
   }

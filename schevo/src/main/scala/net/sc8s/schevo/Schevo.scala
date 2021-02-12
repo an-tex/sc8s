@@ -1,16 +1,27 @@
 package net.sc8s.schevo
 
+// define an object extending this trait
 trait Schevo {
-  type Latest <: {
-    def caseClass: LatestCaseClass
+  // implement this as a trait
+  type Latest <: LatestBase
 
-    // add this to your trait in case you need trait based serialization e.g. with circe
-    //def asTrait : Latest = this
+  // point this to your case class
+  type LatestCaseClass <: LatestBase
+
+  trait LatestBase extends Revision {
+    // esp. useful for _.copy
+    def caseClass: LatestCaseClass
   }
 
-  type LatestCaseClass <: Latest
 
-  trait Previous {
+  trait Revision extends Schevo.RevisionT[Latest] {
+    type LatestTrait = Latest
+  }
+}
+
+object Schevo {
+  // this indirection is mainly for generic migration using pattern matching
+  trait RevisionT[Latest] {
     def migrate: Latest
   }
 }

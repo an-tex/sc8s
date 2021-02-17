@@ -11,8 +11,8 @@ import play.api.Environment
 abstract class ScalaTestWithActorTestKit(circeSerializerRegistry: CirceSerializerRegistry) extends akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit(ActorSystemProvider.start(
   PersistenceTestKitPlugin.config
     .withFallback(PersistenceTestKitSnapshotPlugin.config)
-    .withFallback(ApplicationTestConfig)
-    .withFallback(ConfigFactory.load()),
+    .withFallback(ConfigFactory.load())
+    .withFallback(ApplicationTestConfig),
   Environment.simple(),
   circeSerializerRegistry
 ).toTyped)

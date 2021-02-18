@@ -12,6 +12,8 @@ lazy val sc8s = (project in file("."))
     `lagom-api-circe`.js,
     `schevo`.jvm,
     `schevo`.js,
+    `common-circe`.jvm,
+    `common-circe`.js,
   )
 
 lazy val `schevo` = crossProject(JSPlatform, JVMPlatform)
@@ -36,7 +38,7 @@ lazy val `akka-circe` = (project in file("akka-circe"))
       scalaTest.value % Test,
       akka.testkitTyped % Test,
     )
-  )
+  ).dependsOn(`common-circe`.jvm)
 
 lazy val `lagom-server-circe` = (project in file("lagom-server-circe"))
   .settings(
@@ -67,6 +69,17 @@ lazy val `lagom-api-circe` = crossProject(JSPlatform, JVMPlatform)
       circe.core.value,
       circe.parser.value,
     )
+  )
+  .dependsOn(`common-circe`)
+
+lazy val `common-circe` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("common-circe"))
+  .settings(
+    libraryDependencies ++= Seq(
+      circe.genericExtras.value,
+    ),
+    skip in publish := true
   )
 
 inThisBuild(Seq(

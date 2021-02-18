@@ -78,8 +78,7 @@ lazy val `common-circe` = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++= Seq(
       circe.genericExtras.value,
-    ),
-    skip in publish := true
+    )
   )
 
 inThisBuild(Seq(

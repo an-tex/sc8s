@@ -4,7 +4,7 @@ import sbt._
 object Dependencies {
   val scala213 = "2.13.4"
 
-  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.4")
+  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.5")
   val scalamock = "org.scalamock" %% "scalamock" % "5.1.0" % Test
 
   object play {

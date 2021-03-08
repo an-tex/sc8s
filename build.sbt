@@ -14,6 +14,7 @@ lazy val sc8s = (project in file("."))
     `schevo`.js,
     `common-circe`.jvm,
     `common-circe`.js,
+    `logstage-elastic`
   )
 
 lazy val `schevo` = crossProject(JSPlatform, JVMPlatform)
@@ -78,6 +79,16 @@ lazy val `common-circe` = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++= Seq(
       circe.genericExtras.value,
+    )
+  )
+
+lazy val `logstage-elastic` = (project in file("logstage-elastic"))
+  .settings(
+    libraryDependencies ++= Seq(
+      slf4j,
+      logstage.core.value,
+      logstage.circe.value,
+      logstage.toSlf4j,
     )
   )
 

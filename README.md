@@ -22,7 +22,7 @@ Rendering policy for [Logstage](https://izumi.7mind.io/logstage/) for enhanced [
 
 Add the following to your `build.sbt`:
 
-`val sc8sVersion =` [![CHANGEME](https://img.shields.io/maven-central/v/net.sc8s/akka-circe_2.13?color=%23aaaaaa&label=%20&style=flat-square)](https://search.maven.org/search?q=g:net.sc8s)
+`val sc8sVersion =` [![CHANGEME](https://img.shields.io/maven-central/v/net.sc8s/akka-circe_2.13?color=%23000000&label=%20&style=flat-square)](https://search.maven.org/search?q=g:net.sc8s)
 ```sbt
 libraryDependencies ++= Seq(
   "net.sc8s" %% "akka-circe" % sc8sVersion,

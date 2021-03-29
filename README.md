@@ -1,4 +1,4 @@
-![tag](https://img.shields.io/github/v/tag/an-tex/sc8s?sort=semver&style=flat-square)
+![maven-central-version](https://img.shields.io/maven-central/v/net.sc8s/akka-circe_2.13)
 
 # sc8s
 

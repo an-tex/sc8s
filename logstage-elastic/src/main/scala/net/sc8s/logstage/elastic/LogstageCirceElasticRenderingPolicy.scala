@@ -4,15 +4,15 @@ import io.circe._
 import io.circe.syntax._
 import izumi.logstage.api.Log
 import izumi.logstage.api.Log.LogArg
-import izumi.logstage.api.rendering.{RenderedParameter, RenderingOptions}
 import izumi.logstage.api.rendering.json.LogstageCirceRenderingPolicy
 import izumi.logstage.api.rendering.json.LogstageCirceRenderingPolicy.Format
+import izumi.logstage.api.rendering.{RenderedParameter, RenderingOptions}
 import net.sc8s.logstage.elastic.LogstageCirceElasticRenderingPolicy.eventTagName
 
 import scala.collection.mutable
 
 /*
- The only difference to the original rendering policy is that all parameters (except for `tag`) are scoped (aka prefixed) with the logging classname. This way parameter name clashes of different types are avoided which leads to dropped events in elastic due to mixing of mapping types for the same path.
+ The only difference to the original rendering policy is that all parameters are scoped (aka prefixed) with the logging classname. This way parameter name clashes of different types are avoided which leads to dropped events in elastic due to mixing of mapping types for the same path.
  */
 class LogstageCirceElasticRenderingPolicy(
                                            loggerClass: String,
@@ -38,14 +38,17 @@ class LogstageCirceElasticRenderingPolicy(
     if (params.nonEmpty) {
       val paramsWithoutTag = params - eventTagName
 
-      // custom wrapper
+      // custom wrapper scoping parameters using tag and loggerClass
       val wrapped =
         if (paramsWithoutTag.isEmpty) params.asJson
         else {
           val wrappedEvent = params
             .get(eventTagName)
             .flatMap(_.asString)
-            .fold(paramsWithoutTag.asJsonObject)(tag => JsonObject(tag -> paramsWithoutTag.asJsonObject.asJson))
+            .fold(paramsWithoutTag.asJsonObject)(tag => JsonObject(
+              eventTagName -> tag.asJson,
+              tag -> paramsWithoutTag.asJsonObject.asJson
+            ))
           val jsonObject = JsonObject(loggerClass -> wrappedEvent.asJson)
           params.get(eventTagName).fold(jsonObject)(eventTag => jsonObject.add(eventTagName, eventTag)).asJson
         }
@@ -54,9 +57,8 @@ class LogstageCirceElasticRenderingPolicy(
     }
 
     if (ctx.nonEmpty) {
-      // if you want to scope context
-      //result += ContextKey -> JsonObject(loggerClass -> ctx.asJson).asJson
-      result += ContextKey -> ctx.asJson
+      // additionally scope context by loggerClass
+      result += ContextKey -> JsonObject(loggerClass -> ctx.asJson).deepMerge(ctx.asJsonObject).asJson
     }
 
     result ++= makeEventEnvelope(entry, formatted)

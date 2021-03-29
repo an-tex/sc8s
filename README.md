@@ -1,3 +1,5 @@
+![tag](https://img.shields.io/github/v/tag/an-tex/sc8s?sort=semver&style=flat-square)
+
 # sc8s
 
 ### akka-circe

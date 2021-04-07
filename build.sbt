@@ -2,7 +2,7 @@ import Dependencies._
 
 lazy val sc8s = (project in file("."))
   .settings(
-    skip in publish := true
+    publish / skip := true
   )
   .aggregate(
     `akka-circe`,

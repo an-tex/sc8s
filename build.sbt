@@ -118,4 +118,5 @@ inThisBuild(Seq(
     )
   )),
   githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))),
+  versionScheme := Some("early-semver")
 ))

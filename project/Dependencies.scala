@@ -14,7 +14,7 @@ object Dependencies {
   }
 
   object lagom {
-    private val lagomVersion = "1.6.4"
+    private val lagomVersion = "1.6.5"
     val scaladslServer = "com.lightbend.lagom" %% "lagom-scaladsl-server" % lagomVersion
     val scaladslApi = "com.lightbend.lagom" %% "lagom-scaladsl-api" % lagomVersion
 

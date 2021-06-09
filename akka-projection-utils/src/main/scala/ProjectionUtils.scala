@@ -90,7 +90,25 @@ object ProjectionUtils {
           EventSourcedProvider.eventsByTag[Event](system, CassandraReadJournal.Identifier, projectionId.key),
           flow(FlowWithContext[EventEnvelope[Event], ProjectionContext])
         )
+        .withStatusObserver(ProjectionsStatusObserver.statusObserver[Event](projectionId))
       )
+    )
+
+    def initDefaultProjectionWithEntityIdExtractor[Event, EntityIdT](
+                                                                      shardedDaemonProcess: ShardedDaemonProcess,
+                                                                      shardedDaemonProcessName: String = s"$projectionName-projection",
+                                                                    )(
+                                                                      entityIdExtractor: String => EntityIdT
+                                                                    )(
+                                                                      pf: PartialFunction[(Event, EntityIdT), Future[Done]]
+                                                                    )(
+                                                                      implicit system: ActorSystem[_]
+                                                                    ) = initCassandraProjection[Event](shardedDaemonProcess, shardedDaemonProcessName)(
+      _
+        .map { envelope =>
+          envelope.event -> entityIdExtractor(envelope.persistenceId)
+        }
+        .mapAsync(1)(pf.lift(_).getOrElse(Future.successful(Done)))
     )
 
     type EntityId = String
@@ -102,14 +120,12 @@ object ProjectionUtils {
                                       pf: PartialFunction[(Event, EntityId), Future[Done]]
                                     )(
                                       implicit system: ActorSystem[_]
-                                    ) = initCassandraProjection[Event](shardedDaemonProcess, shardedDaemonProcessName)(
-      _
-        .map { envelope =>
-          envelope.event -> (envelope.persistenceId match {
-            case s"$_|$entityId" => entityId
-          })
-        }
-        .mapAsync(1)(pf.lift(_).getOrElse(Future.successful(Done)))
-    )
+                                    ) =
+      initDefaultProjectionWithEntityIdExtractor[Event, EntityId](
+        shardedDaemonProcess,
+        shardedDaemonProcessName
+      ) {
+        case s"$_|$entityId" => entityId
+      }(pf)
   }
 }

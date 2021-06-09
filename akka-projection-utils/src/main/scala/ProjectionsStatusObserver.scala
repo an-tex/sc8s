@@ -8,7 +8,7 @@ import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.scaladsl.adapter.{ClassicActorSystemOps, TypedActorSystemOps}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.persistence.query.Offset
 import akka.projection.eventsourced.EventEnvelope
 import akka.projection.{HandlerRecoveryStrategy, ProjectionId, StatusObserver}
@@ -23,6 +23,7 @@ import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.circe.CodecConfiguration._
 import net.sc8s.logstage.elastic.Logging
 
+import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
 class ProjectionsStatusObserver private(actorContext: ActorContext[Command], projectionId: ProjectionId) extends Logging {
@@ -122,9 +123,9 @@ object ProjectionsStatusObserver {
     CirceSerializer[SerializableResponse](),
   )
 
-  def apply(projectionId: ProjectionId) = Behaviors.setup[Command](new ProjectionsStatusObserver(_, projectionId).behavior(ProjectionStatus.Initializing))
+  def apply(projectionId: ProjectionId): Behavior[Command] = Behaviors.setup[Command](new ProjectionsStatusObserver(_, projectionId).behavior(ProjectionStatus.Initializing))
 
-  def statusObserver[Event](projectionId: ProjectionId)(implicit actorSystem: ActorSystem[_]) = {
+  def statusObserver[Event](projectionId: ProjectionId)(implicit actorSystem: ActorSystem[_]): StatusObserver[EventEnvelope[Event]] = {
     val actorRef = actorSystem.toClassic.spawn(apply(projectionId), s"projectionStatusObserver-${projectionId.id}")
     new StatusObserver[EventEnvelope[Event]] {
       override def started(projectionId: ProjectionId) =
@@ -148,7 +149,7 @@ object ProjectionsStatusObserver {
     }
   }
 
-  def projectionsStatus(implicit system: ActorSystem[_]) = {
+  def projectionsStatus(implicit system: ActorSystem[_]): Future[Seq[ProjectionsStatus]] = {
     implicit val timeout = Timeout(3.seconds)
     import system.executionContext
     system

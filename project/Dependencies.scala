@@ -33,7 +33,7 @@ object Dependencies {
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion
     val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % akkaVersion
     val http = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
-    val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.0.4"
+    val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.0.5"
     val persistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion
     val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akkaVersion
     val stream = "com.typesafe.akka" %% "akka-stream" % akkaVersion

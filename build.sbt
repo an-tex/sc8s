@@ -6,15 +6,18 @@ lazy val sc8s = (project in file("."))
   )
   .aggregate(
     `akka-circe`,
-    `lagom-server-circe`,
-    `lagom-server-circe-testkit`,
-    `lagom-api-circe`.jvm,
-    `lagom-api-circe`.js,
-    `schevo`.jvm,
-    `schevo`.js,
-    `common-circe`.jvm,
+    `akka-projection-utils`,
+    `akka-projection-utils-api`.js,
+    `akka-projection-utils-api`.jvm,
     `common-circe`.js,
-    `logstage-elastic`
+    `common-circe`.jvm,
+    `lagom-api-circe`.js,
+    `lagom-api-circe`.jvm,
+    `lagom-server-circe-testkit`,
+    `lagom-server-circe`,
+    `logstage-elastic`,
+    `schevo`.js,
+    `schevo`.jvm,
   )
 
 lazy val `schevo` = crossProject(JSPlatform, JVMPlatform)
@@ -23,12 +26,12 @@ lazy val `schevo` = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++= Seq(
       scalaTest.value % Test,
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.schevo")
   )
 
 lazy val `akka-circe` = (project in file("akka-circe"))
   .settings(
-    name := "akka-circe",
     libraryDependencies ++= Seq(
       akka.typed,
       akka.stream,
@@ -38,14 +41,41 @@ lazy val `akka-circe` = (project in file("akka-circe"))
       circe.genericExtras.value,
       scalaTest.value % Test,
       akka.testkitTyped % Test,
-    )
+    ),
   ).dependsOn(`common-circe`.jvm)
+
+lazy val `akka-projection-utils` = (project in file("akka-projection-utils"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.clusterShardingTyped,
+      akka.persistenceCassandra,
+      akka.projection.cassandra,
+      akka.projection.eventsourced,
+      circe.core.value,
+      circe.generic.value,
+      circe.genericExtras.value,
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.projection")
+  ).dependsOn(`akka-circe`, `akka-projection-utils-api`.jvm, `logstage-elastic`)
+
+lazy val `akka-projection-utils-api` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("akka-projection-utils-api"))
+  .settings(
+    libraryDependencies ++= Seq(
+      circe.core.value,
+      circe.generic.value,
+      circe.genericExtras.value
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.projection.api")
+  ).dependsOn(`common-circe`)
 
 lazy val `lagom-server-circe` = (project in file("lagom-server-circe"))
   .settings(
     libraryDependencies ++= Seq(
       lagom.scaladslServer
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.lagom.circe")
   )
   .dependsOn(`akka-circe`)
 
@@ -56,7 +86,8 @@ lazy val `lagom-server-circe-testkit` = (project in file("lagom-server-circe-tes
       akka.persistenceTyped,
       akka.persistenceTestkit,
       scalaTest.value
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.lagom.circe.testkit")
   )
   .dependsOn(`lagom-server-circe`)
 
@@ -69,7 +100,8 @@ lazy val `lagom-api-circe` = crossProject(JSPlatform, JVMPlatform)
     libraryDependencies ++= Seq(
       circe.core.value,
       circe.parser.value,
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.lagom.circe")
   )
   .dependsOn(`common-circe`)
 
@@ -79,7 +111,8 @@ lazy val `common-circe` = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++= Seq(
       circe.genericExtras.value,
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.circe")
   )
 
 lazy val `logstage-elastic` = (project in file("logstage-elastic"))
@@ -89,7 +122,8 @@ lazy val `logstage-elastic` = (project in file("logstage-elastic"))
       logstage.core.value,
       logstage.circe.value,
       logstage.toSlf4j,
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.logstage.elastic")
   )
 
 inThisBuild(Seq(

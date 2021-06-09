@@ -31,16 +31,17 @@ object Dependencies {
     private val akkaHttpVersion = "10.1.13"
 
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion
-    val stream = "com.typesafe.akka" %% "akka-stream" % akkaVersion
+    val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % akkaVersion
     val http = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
-    val typed = "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
-    val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akkaVersion
-    val persistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion
     val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.0.4"
+    val persistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion
+    val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akkaVersion
+    val stream = "com.typesafe.akka" %% "akka-stream" % akkaVersion
+    val streamTestkit = "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test
     val streamTyped = "com.typesafe.akka" %% "akka-stream-typed" % akkaVersion
     val testkit = "com.typesafe.akka" %% "akka-testkit" % akkaVersion
     val testkitTyped = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion
-    val streamTestkit = "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test
+    val typed = "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
 
     val httpCirce = "de.heikoseeberger" %% "akka-http-circe" % "1.35.3"
 
@@ -72,6 +73,13 @@ object Dependencies {
         "akka-slf4j",
         "akka-stream"
       ).map("com.typesafe.akka" %% _ % akkaVersion)
+
+    object projection {
+      private val projectionVersion = "1.2.1"
+
+      val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
+      val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion
+    }
   }
 
   object macwire {

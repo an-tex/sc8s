@@ -13,8 +13,8 @@ import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import io.circe.generic.semiauto.deriveCodec
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
-import net.sc8s.akka.circe.implicits._
 import net.sc8s.akka.circe.CirceJsonSerializerSpec.{ADT, ADT1, ADT2, ADTChild1, ADTChild2, SimpleCaseClass, WithSinkAndSourceRef, WithTypedActorRef}
+import net.sc8s.akka.circe.implicits._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.freespec.AnyFreeSpecLike
 

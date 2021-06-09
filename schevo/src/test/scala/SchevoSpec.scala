@@ -1,7 +1,6 @@
 package net.sc8s.schevo
 
-import net.sc8s.schevo.SchevoSpec.Full
-import net.sc8s.schevo.SchevoSpec.Minimal
+import net.sc8s.schevo.SchevoSpec.{Full, Minimal}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
@@ -25,7 +24,7 @@ class SchevoSpec extends AnyWordSpecLike with Matchers {
       val migrated = itemV1.evolve
 
       migrated shouldBe
-      // no need to reference actual latest case class
+        // no need to reference actual latest case class
         Full.apply("first last", true)
 
       // this just shows how you could obtain the latest trait when using e.g. circe

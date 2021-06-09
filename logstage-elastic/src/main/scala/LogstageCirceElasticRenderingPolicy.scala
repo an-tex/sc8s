@@ -1,5 +1,7 @@
 package net.sc8s.logstage.elastic
 
+import LogstageCirceElasticRenderingPolicy.eventTagName
+
 import io.circe._
 import io.circe.syntax._
 import izumi.logstage.api.Log
@@ -7,7 +9,6 @@ import izumi.logstage.api.Log.LogArg
 import izumi.logstage.api.rendering.json.LogstageCirceRenderingPolicy
 import izumi.logstage.api.rendering.json.LogstageCirceRenderingPolicy.Format
 import izumi.logstage.api.rendering.{RenderedParameter, RenderingOptions}
-import net.sc8s.logstage.elastic.LogstageCirceElasticRenderingPolicy.eventTagName
 
 import scala.collection.mutable
 

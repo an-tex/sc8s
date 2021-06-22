@@ -16,7 +16,7 @@ trait Schevo {
 }
 
 object Schevo {
-  // this indirection is mainly for generic evolution using pattern matching
+  // this indirection is mainly for generic evolution from Any to Latest using pattern matching, compare "SchevoSpec/evolve using base trait"
   trait VersionBase[Latest] {
     def evolve: Latest
   }

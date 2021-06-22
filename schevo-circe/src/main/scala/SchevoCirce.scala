@@ -23,9 +23,6 @@ trait SchevoCirce {
   // if you migrate from a simple case class to a Versioned trait, use sth like `implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)`
   implicit val codec : Codec[Latest]
 
-  // if you migrate from a simple case class to a Versioned trait, use sth like `implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)`
-  implicit val codec : Codec[Latest]
-
   def evolvingCodec(
                      version0: Class[_ <: Version]
                    )(

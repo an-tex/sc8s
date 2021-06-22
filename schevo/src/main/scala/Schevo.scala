@@ -10,9 +10,7 @@ trait Schevo {
     def caseClass: LatestCaseClass
   }
 
-  trait VersionT extends Schevo.VersionBase[LatestT] {
-    type LatestTrait = LatestT
-  }
+  trait VersionT extends Schevo.VersionBase[LatestT]
 }
 
 object Schevo {

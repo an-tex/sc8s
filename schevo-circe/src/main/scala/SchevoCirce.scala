@@ -18,9 +18,7 @@ trait SchevoCirce {
     def caseClass: LatestCaseClass
   }
 
-  trait VersionT extends Schevo.VersionBase[Latest] {
-    type LatestTrait = Latest
-  }
+  trait VersionT extends Schevo.VersionBase[Latest]
 
   // if you migrate from a simple case class to a Versioned trait, use sth like `implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)`
   implicit val codec : Codec[Latest]

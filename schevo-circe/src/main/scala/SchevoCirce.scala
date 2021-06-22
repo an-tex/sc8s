@@ -16,6 +16,9 @@ trait SchevoCirce {
   trait LatestT extends VersionT {
     // esp. useful for _.copy
     def caseClass: LatestCaseClass
+
+    // helper for atd based serialization
+    lazy val asLatest : Latest = evolve
   }
 
   trait VersionT extends Schevo.VersionBase[Latest]

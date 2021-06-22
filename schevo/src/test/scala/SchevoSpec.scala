@@ -21,17 +21,17 @@ class SchevoSpec extends AnyWordSpecLike with Matchers {
       import Full._
       val itemV1 = ItemV1("first", "last")
 
-      val migrated = itemV1.evolve
+      val evolved = itemV1.evolve
 
-      migrated shouldBe
+      evolved shouldBe
         // no need to reference actual latest case class
         Full.apply("first last", true)
 
       // this just shows how you could obtain the latest trait when using e.g. circe
-      migrated.caseClass.asTrait shouldBe a[Latest]
+      evolved.caseClass shouldBe Full.apply("first last", true)
 
       // common ancestor
-      migrated shouldBe a[SomeOtherBaseClassHigherUp]
+      evolved shouldBe a[SomeOtherBaseClassHigherUp]
     }
     "evolve using base trait" in {
       import Minimal._
@@ -73,9 +73,6 @@ object SchevoSpec {
       val enabled: Boolean
 
       override def evolve = this
-
-      // optional but handy when using circe to make sure it uses the base trait for serialization instead of a concrete class
-      def asTrait = this
     }
 
     override type LatestCaseClass = ItemV3

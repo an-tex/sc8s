@@ -50,7 +50,7 @@ object SchevoCirceSpec extends SchevoCirce {
     override def evolve = Version1(s"moin${int.toString}").evolve
   }
 
-  implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)
+  override implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)
 
   case class Other(versioned: Latest)
   object Other {

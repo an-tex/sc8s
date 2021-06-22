@@ -17,7 +17,7 @@ class SchevoCirceSpec extends AnyWordSpecLike with Matchers with EitherValues {
       parse("""{"int":3}""").value.as[SchevoCirceSpec.Latest].value shouldBe Version2("moin3", "moin3")
     }
     "serialize from Latest trait including class discriminator" in {
-      Version2("sup", "sup").asInstanceOf[Latest].asJson.noSpaces shouldBe """{"string":"sup","string2":"sup","class":"Version2"}"""
+      Version2("sup", "sup").asLatest.asJson.noSpaces shouldBe """{"string":"sup","string2":"sup","class":"Version2"}"""
     }
     // can't get the to work due to stack overflow in the encoder :(
     //"serialize from LatestCaseClass including class discriminator" in {

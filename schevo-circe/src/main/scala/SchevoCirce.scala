@@ -27,8 +27,22 @@ trait SchevoCirce {
   implicit val codec: Codec[Latest]
 
   /**
-   * create codec which automatically evolves a Versioned sealed trait. use this if the Version trait is at the top of the serialization,
-   * otherwise add the originalClassname
+   * create codec which automatically evolves a Versioned sealed trait.
+   * use this if schevo is introduced from the start
+   */
+  def evolvingCodec(
+                     implicit codec: Codec[Version]
+                   ): Codec[Latest] = {
+    Codec.from[Latest](
+      codec.map(_.evolve),
+      codec.contramap[Latest](a => a.asInstanceOf[Version])
+    )
+  }
+
+  /**
+   * create codec which automatically evolves a Versioned sealed trait.
+   * use this if the Version trait is at the top of the serialization
+   * and if schevo was introduced after a case class has already been used
    *
    * @param version0: initial version
    */
@@ -48,7 +62,7 @@ trait SchevoCirce {
         .map(_.evolve),
       codec.contramap[Latest](a => a.asInstanceOf[Version])
     )
-  }
+}
 
   /**
    * create codec which automatically evolves a Versioned sealed trait. use this if the Version trait is extending another trait which is serialized.

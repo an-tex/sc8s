@@ -57,7 +57,7 @@ object SchevoCirceSpec extends SchevoCirce {
 
   override implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)
 
-  val codecExpectingDiscriminator: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)
+  val codecExpectingDiscriminator: Codec[Latest] = evolvingCodec(deriveConfiguredCodec[Version])
 
   val renamedClassCodec: Codec[Latest] = evolvingCodec(classOf[Version0], "Version")(deriveConfiguredCodec)
 

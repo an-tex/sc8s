@@ -18,16 +18,22 @@ trait SchevoCirce {
     def caseClass: LatestCaseClass
 
     // helper for atd based serialization
-    lazy val asLatest : Latest = evolve
+    lazy val asLatest: Latest = evolve
   }
 
   trait VersionT extends Schevo.VersionBase[Latest]
 
   // if you migrate from a simple case class to a Versioned trait, use sth like `implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)`
-  implicit val codec : Codec[Latest]
+  implicit val codec: Codec[Latest]
 
+  /**
+   * create codec which automatically evolves a Versioned sealed trait. use this if the Version trait is at the top of the serialization,
+   * otherwise add the originalClassname
+   *
+   * @param version0: initial version
+   */
   def evolvingCodec(
-                     version0: Class[_ <: Version]
+                     version0: Class[_ <: Version],
                    )(
                      implicit codec: Codec[Version]
                    ): Codec[Latest] = {
@@ -35,8 +41,32 @@ trait SchevoCirce {
       codec
         .prepare(_.withFocus(_.mapObject { obj =>
           if (!obj.contains(discriminator)) {
-            obj.+:(discriminator -> version0.getSimpleName.asJson)
+            obj.add(discriminator, version0.getSimpleName.asJson)
           }
+          else obj
+        }))
+        .map(_.evolve),
+      codec.contramap[Latest](a => a.asInstanceOf[Version])
+    )
+  }
+
+  /**
+   * create codec which automatically evolves a Versioned sealed trait. use this if the Version trait is extending another trait which is serialized.
+   *
+   * @param version0: initial version
+   * @param originalClassName: original class name before introduction of schevo
+   */
+  def evolvingCodec(
+                     version0: Class[_ <: Version],
+                     originalClassName: String
+                   )(
+                     implicit codec: Codec[Version]
+                   ): Codec[Latest] = {
+    Codec.from[Latest](
+      codec
+        .prepare(_.withFocus(_.mapObject { obj =>
+          if (obj(discriminator).flatMap(_.asString).contains(originalClassName))
+            obj.add(discriminator, version0.getSimpleName.asJson)
           else obj
         }))
         .map(_.evolve),

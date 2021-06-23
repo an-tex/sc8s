@@ -1,20 +1,22 @@
 package net.sc8s.schevo.circe
 
-import SchevoCirceSpec.{Latest, Other, Version2}
-
 import io.circe.generic.extras.semiauto._
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Decoder}
 import net.sc8s.circe.CodecConfiguration._
+import net.sc8s.schevo.circe.SchevoCirceSpec.{Other, Version2, renamedClassCodec}
 import org.scalatest.EitherValues
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
 class SchevoCirceSpec extends AnyWordSpecLike with Matchers with EitherValues {
   "CirceEvolution" should {
-    "evolve from Version0" in {
+    "evolve from Version0 without discriminator" in {
       parse("""{"int":3}""").value.as[SchevoCirceSpec.Latest].value shouldBe Version2("moin3", "moin3")
+    }
+    "evolve from Version0 with discriminator from renamed class" in {
+      parse("""{"int":3,"class":"Version"}""").value.as[SchevoCirceSpec.Latest](renamedClassCodec).value shouldBe Version2("moin3", "moin3")
     }
     "serialize from Latest trait including class discriminator" in {
       Version2("sup", "sup").asLatest.asJson.noSpaces shouldBe """{"string":"sup","string2":"sup","class":"Version2"}"""
@@ -51,6 +53,8 @@ object SchevoCirceSpec extends SchevoCirce {
   }
 
   override implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)
+
+  val renamedClassCodec: Codec[Latest] = evolvingCodec(classOf[Version0], "Version")(deriveConfiguredCodec)
 
   case class Other(versioned: Latest)
   object Other {

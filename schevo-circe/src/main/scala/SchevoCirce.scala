@@ -65,17 +65,36 @@ trait SchevoCirce {
 }
 
 object SchevoCirce {
+  def evolvingCodec[T](
+                        implicit codec: Codec[T]
+                      ): Codec[T] =
+    evolvingCodecWithRenames[T](
+      Map.empty[Class[_ <: T], Class[_ <: T]]
+    )(codec)
+
   /**
    * create codec which automatically evolves a Versioned sealed trait inherited from a parent trait T
    */
-  def evolvingCodec[T](
-                        implicit codec: Codec[T]
-                      ): Codec[T] = {
+  def evolvingCodecWithRenames[T](
+                                   classRenames: Map[Class[_ <: T], Class[_ <: T]]
+                                 )(
+                                   implicit codec: Codec[T]
+                                 ): Codec[T] = {
+    val simpleClassRenames = classRenames.map {
+      case (from, to) => from.getSimpleName -> to.getSimpleName
+    }
     Codec.from[T](
-      codec.map {
-        case version: Schevo.VersionBase[_] => version.evolve.asInstanceOf[T]
-        case nonVersion => nonVersion
-      },
+      codec
+        .prepare(_.withFocus(_.mapObject { obj =>
+          (for {
+            clazz <- obj(discriminator).flatMap(_.asString)
+            renamedTo <- simpleClassRenames.get(clazz)
+          } yield obj.add(discriminator, renamedTo.asJson)).getOrElse(obj)
+        }))
+        .map {
+          case version: Schevo.VersionBase[_] => version.evolve.asInstanceOf[T]
+          case nonVersion => nonVersion
+        },
       codec.contramap[T](identity)
     )
   }

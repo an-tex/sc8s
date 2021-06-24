@@ -9,6 +9,8 @@ import org.scalatest.EitherValues
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
+import scala.annotation.nowarn
+
 class SchevoCirceSpec extends AnyWordSpecLike with Matchers with EitherValues {
   "CirceEvolution" should {
     import SchevoCirceSpec._
@@ -32,9 +34,10 @@ class SchevoCirceSpec extends AnyWordSpecLike with Matchers with EitherValues {
     "Migrated" should {
       import Migrated._
       val version2 = Version2(firstName, lastName, age)
+      @nowarn
       val unversionedJson = Unversioned(age).asJson
 
-      "evolve from Version0" in {
+      "evolve from Unversioned" in {
         unversionedJson.as[Latest].value shouldBe version2
       }
       "serialize from Latest trait" in {
@@ -45,9 +48,9 @@ class SchevoCirceSpec extends AnyWordSpecLike with Matchers with EitherValues {
         parse(s"""{"versioned":${unversionedJson.noSpaces}}""").value.as[Other].value shouldBe Other(version2)
       }
     }
-    "Inherited" should {
-      import Inherited._
-      import Inherited.VersionedChild._
+    "InheritedSimple" should {
+      import InheritedSimple.VersionedChild._
+      import InheritedSimple._
       val version2 = Version2(firstName, lastName, age)
       val version0Json = (Version0(age): Version).asJson(deriveConfiguredCodec)
 
@@ -55,10 +58,27 @@ class SchevoCirceSpec extends AnyWordSpecLike with Matchers with EitherValues {
         version0Json.as[Parent].value shouldBe version2
       }
       "serialize from Parent trait" in {
-        (version2 : Parent).asJson.as[Parent].value shouldBe version2
+        (version2: Parent).asJson.as[Parent].value shouldBe version2
       }
       "evolve in nested class" in {
         parse(s"""{"parent":${version0Json.noSpaces}}""").value.as[Other].value shouldBe Other(version2)
+      }
+    }
+    "InheritedMigrated" should {
+      import InheritedMigrated.VersionedChild._
+      import InheritedMigrated._
+      val version2 = Version2(firstName, lastName, age)
+      @nowarn
+      val unversionedChildJson = (UnversionedChild(age): Parent).asJson
+
+      "evolve from UnversionedChild" in {
+        unversionedChildJson.as[Parent].value shouldBe version2
+      }
+      "serialize from Parent trait" in {
+        (version2: Parent).asJson.as[Parent].value shouldBe version2
+      }
+      "evolve in nested class" in {
+        parse(s"""{"parent":${unversionedChildJson.noSpaces}}""").value.as[Other].value shouldBe Other(version2)
       }
     }
   }
@@ -103,7 +123,7 @@ object SchevoCirceSpec {
     @deprecated("use Version0")
     case class Unversioned(age: Int)
     object Unversioned {
-      implicit val codec : Codec[Unversioned] = deriveConfiguredCodec
+      implicit val codec: Codec[Unversioned] = deriveConfiguredCodec
     }
 
     sealed trait Latest extends LatestT with Version
@@ -132,11 +152,9 @@ object SchevoCirceSpec {
     }
   }
 
-  // example when there is a parent trait and (some) children are versioned (e.g. State/Event traits)
-  object Inherited {
+  // example when there is a parent trait and (some) children are versioned (e.g. State/Event traits) from the start
+  object InheritedSimple {
     sealed trait Parent
-
-    case class UnversionedChild() extends Parent
 
     object VersionedChild extends SchevoCirce {
       sealed trait Latest extends LatestT with Version
@@ -159,6 +177,47 @@ object SchevoCirceSpec {
     }
 
     implicit val codec: Codec[Parent] = SchevoCirce.evolvingCodec(deriveConfiguredCodec[Parent])
+
+    case class Other(parent: Parent)
+    object Other {
+      implicit val decoder: Decoder[Other] = deriveConfiguredDecoder
+    }
+  }
+
+  // example when there is a parent trait and (some) children are versioned (e.g. State/Event traits) in retrospect
+  object InheritedMigrated {
+    sealed trait Parent
+
+    // assume there used to be only Unversioned which becomes Version0
+    @deprecated("use VersionedChild")
+    case class UnversionedChild(age: Int) extends Parent
+    object UnversionedChild {
+      implicit val codec: Codec[UnversionedChild] = deriveConfiguredCodec
+    }
+
+    object VersionedChild extends SchevoCirce {
+      sealed trait Latest extends LatestT with Version
+
+      override type LatestCaseClass = Version2
+
+      case class Version2(firstName: String, lastName: String, age: Int) extends Latest {
+        override def caseClass = this
+      }
+
+      case class Version1(firstName: String, age: Int) extends Version {
+        override def evolve = Version2(firstName, lastName, age).evolve
+      }
+
+      case class Version0(age: Int) extends Version {
+        override def evolve = Version1(firstName, age).evolve
+      }
+
+      sealed trait Version extends VersionT with Parent
+    }
+
+    implicit val codec: Codec[Parent] = SchevoCirce.evolvingCodecWithRenames[Parent](Map(
+      classOf[UnversionedChild] -> classOf[VersionedChild.Version0]
+    ))(deriveConfiguredCodec[Parent])
 
     case class Other(parent: Parent)
     object Other {

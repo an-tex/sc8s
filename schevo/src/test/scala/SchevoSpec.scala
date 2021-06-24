@@ -50,8 +50,6 @@ object SchevoSpec {
 
     case class ItemV3(name: String, enabled: Boolean) extends LatestT {
       override def caseClass = this
-
-      override def evolve = this
     }
 
     case class ItemV2(name: String) extends VersionT {

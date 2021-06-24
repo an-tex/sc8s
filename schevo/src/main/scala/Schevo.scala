@@ -8,6 +8,8 @@ trait Schevo {
   trait LatestT extends VersionT {
     // esp. useful for _.copy
     def caseClass: LatestCaseClass
+
+    override def evolve = this
   }
 
   trait VersionT extends Schevo.VersionBase[LatestT]

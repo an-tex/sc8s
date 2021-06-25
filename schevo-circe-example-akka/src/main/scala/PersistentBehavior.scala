@@ -38,7 +38,7 @@ object PersistentBehavior {
 
   sealed trait Command
   object Command {
-    // commands are special as they are not de/serialized within the same JVM. so you're safer off removing the existing case class, moving it to a V0 and adding a rename to the SchevoCirce.evolvingCodec. This way you're forced at compile time to use the Latest version. Old versions (e.g. coming from other JVMs during rolling deployment) are still evolved as they are de/serialized. we keep it here to test the evolution
+    // commands are special as they are not de/serialized within the same JVM. so you're safer off moving (non refactor move) the existing case class to a V0 and adding a manifestRename to the CirceSerializer. This way you're forced at compile time to use the Latest version. Old versions (e.g. coming from other JVMs during rolling deployment) are still evolved as they are de/serialized. we keep it here to test the evolution
     case class Add(data: String) extends Command
 
     object Add extends SchevoCirce {
@@ -69,7 +69,7 @@ object PersistentBehavior {
 
     case object Clear extends Command
 
-    implicit val codec: Codec[Command] = SchevoCirce.evolvingCodec("Add" -> "AddV0")(deriveConfiguredCodec)
+    implicit val codec: Codec[Command] = SchevoCirce.evolvingCodec()(deriveConfiguredCodec)
   }
 
   sealed trait Event
@@ -136,12 +136,13 @@ object PersistentBehavior {
       sealed trait Version extends State with VersionT
     }
 
-    @nowarn
     implicit val codec: Codec[State] = SchevoCirce.evolvingCodec[State]()(deriveConfiguredCodec)
   }
 
   val serializers = Seq(
-    CirceSerializer[Command](),
+    CirceSerializer[Command](manifestRenames = Map(
+      "net.sc8s.schevo.circe.example.akka.PersistentBehavior$Command$Add" -> classOf[Command.Add.AddV0]
+    )),
     CirceSerializer[Event](),
     CirceSerializer[State]()
   )

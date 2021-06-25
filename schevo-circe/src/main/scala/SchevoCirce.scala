@@ -69,6 +69,8 @@ object SchevoCirce {
 
   /**
    * create codec which automatically evolves a Versioned sealed trait inherited from a parent trait T
+   *
+   * @param classRenames: define classRenames in case you've renamed/moved a case class
    */
   def evolvingCodec[T](
                         classRenames: (SimpleClassName, SimpleClassName)*

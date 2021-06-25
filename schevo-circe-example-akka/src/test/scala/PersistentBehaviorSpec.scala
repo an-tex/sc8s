@@ -1,6 +1,6 @@
 package net.sc8s.schevo.circe.example.akka
 
-import PersistentBehavior.{Command, Event, State, serializers}
+import PersistentBehavior.{Command, Event, State}
 
 import akka.actor.setup.ActorSystemSetup
 import akka.actor.testkit.typed.scaladsl.ActorTestKit.ApplicationTestConfig

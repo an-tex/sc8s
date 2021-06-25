@@ -20,6 +20,7 @@ lazy val sc8s = (project in file("."))
     `schevo`.jvm,
     `schevo-circe`.js,
     `schevo-circe`.jvm,
+    `schevo-circe-example-akka`
   )
 
 lazy val `schevo` = crossProject(JSPlatform, JVMPlatform)
@@ -45,6 +46,23 @@ lazy val `schevo-circe` = crossProject(JSPlatform, JVMPlatform)
     ),
     idePackagePrefix := Some("net.sc8s.schevo.circe")
   ).dependsOn(`common-circe`, `schevo`)
+
+lazy val `schevo-circe-example-akka` = (project in file("schevo-circe-example-akka"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.typed,
+      akka.stream,
+      akka.persistenceTyped,
+      circe.core.value,
+      circe.parser.value,
+      circe.generic.value,
+      circe.genericExtras.value,
+      scalaTest.value % Test,
+      akka.testkitTyped % Test,
+      akka.persistenceTestkit % Test
+    ),
+    idePackagePrefix := Some("net.sc8s.schevo.circe.example.akka")
+  ).dependsOn(`common-circe`.jvm, `akka-circe`, `schevo-circe`.jvm)
 
 lazy val `akka-circe` = (project in file("akka-circe"))
   .settings(

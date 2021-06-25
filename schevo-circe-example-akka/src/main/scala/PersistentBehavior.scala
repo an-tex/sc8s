@@ -141,6 +141,7 @@ object PersistentBehavior {
 
   val serializers = Seq(
     CirceSerializer[Command](manifestRenames = Map(
+      // as usually it's recommended to delete to original case class for commands, you need to explicitly tell the serializer about it's "rename"
       "net.sc8s.schevo.circe.example.akka.PersistentBehavior$Command$Add" -> classOf[Command.Add.AddV0]
     )),
     CirceSerializer[Event](),

@@ -5,8 +5,8 @@ import io.circe.Codec
 import scala.reflect.ClassTag
 
 case class CirceSerializer[T: ClassTag : Codec](
-                                                 migrate: PartialFunction[T, T] = PartialFunction.empty,
-                                                 manifestRenames: Map[String, Class[_]] = Map.empty[String, Class[_]]
+                                                 manifestRenames: Map[String, Class[_]] = Map.empty[String, Class[_]],
+                                                 migrate: PartialFunction[T, T] = PartialFunction.empty
                                                ) {
   val entityClass: Class[T] = implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]]
 

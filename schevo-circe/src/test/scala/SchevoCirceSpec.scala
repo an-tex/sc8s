@@ -121,7 +121,10 @@ object SchevoCirceSpec {
   object Migrated extends SchevoCirce {
     // assume there used to be only Unversioned which becomes Version0
     @deprecated("use Version0")
-    case class Unversioned(age: Int)
+    case class Unversioned(age: Int) extends Version {
+      override def evolve = Version1(firstName, age).evolve
+    }
+
     object Unversioned {
       implicit val codec: Codec[Unversioned] = deriveConfiguredCodec
     }
@@ -138,13 +141,10 @@ object SchevoCirceSpec {
       override def evolve = Version2(firstName, lastName, age).evolve
     }
 
-    case class Version0(age: Int) extends Version {
-      override def evolve = Version1(firstName, age).evolve
-    }
-
     sealed trait Version extends VersionT
 
-    implicit val codec: Codec[Latest] = evolvingCodec(classOf[Version0])(deriveConfiguredCodec)
+    @nowarn
+    implicit val codec: Codec[Latest] = evolvingCodec(classOf[Unversioned])(deriveConfiguredCodec)
 
     case class Other(versioned: Latest)
     object Other {
@@ -176,7 +176,7 @@ object SchevoCirceSpec {
       sealed trait Version extends VersionT with Parent
     }
 
-    implicit val codec: Codec[Parent] = SchevoCirce.evolvingCodec(deriveConfiguredCodec[Parent])
+    implicit val codec: Codec[Parent] = SchevoCirce.evolvingCodec()(deriveConfiguredCodec[Parent])
 
     case class Other(parent: Parent)
     object Other {
@@ -190,7 +190,9 @@ object SchevoCirceSpec {
 
     // assume there used to be only Unversioned which becomes Version0
     @deprecated("use VersionedChild")
-    case class UnversionedChild(age: Int) extends Parent
+    case class UnversionedChild(age: Int) extends Parent with VersionedChild.Version {
+      override def evolve = VersionedChild.Version1(firstName, age).evolve
+    }
     object UnversionedChild {
       implicit val codec: Codec[UnversionedChild] = deriveConfiguredCodec
     }
@@ -208,16 +210,10 @@ object SchevoCirceSpec {
         override def evolve = Version2(firstName, lastName, age).evolve
       }
 
-      case class Version0(age: Int) extends Version {
-        override def evolve = Version1(firstName, age).evolve
-      }
-
       sealed trait Version extends VersionT with Parent
     }
 
-    implicit val codec: Codec[Parent] = SchevoCirce.evolvingCodecWithRenames[Parent](Map(
-      classOf[UnversionedChild] -> classOf[VersionedChild.Version0]
-    ))(deriveConfiguredCodec[Parent])
+    implicit val codec: Codec[Parent] = SchevoCirce.evolvingCodec[Parent]()(deriveConfiguredCodec[Parent])
 
     case class Other(parent: Parent)
     object Other {

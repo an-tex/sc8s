@@ -119,8 +119,7 @@ object SchevoCirceSpec {
 
   // example when schevo is introduced in retrospect
   object Migrated extends SchevoCirce {
-    // assume there used to be only Unversioned which becomes Version0
-    @deprecated("use Version0")
+    @deprecated("use versioned")
     case class Unversioned(age: Int) extends Version {
       override def evolve = Version1(firstName, age).evolve
     }
@@ -188,7 +187,6 @@ object SchevoCirceSpec {
   object InheritedMigrated {
     sealed trait Parent
 
-    // assume there used to be only Unversioned which becomes Version0
     @deprecated("use VersionedChild")
     case class UnversionedChild(age: Int) extends Parent with VersionedChild.Version {
       override def evolve = VersionedChild.Version1(firstName, age).evolve

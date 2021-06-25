@@ -54,14 +54,16 @@ class PersistentBehaviorSpec extends
       @nowarn
       val elem1Added = Event.Added(elem1)
       eventSourcedTestKit.persistenceTestKit.persistForRecovery(persistenceId.id, Seq(elem1Added, Event.Added.Latest(elem2, clearBeforeAdd = false)))
+      eventSourcedTestKit.restart()
 
-      eventually(eventSourcedTestKit.getState() shouldBe State.NonEmpty.Latest(Seq(elem1, elem2), 2))
+      eventSourcedTestKit.getState() shouldBe State.NonEmpty.Latest(Seq(elem1, elem2), 2)
     }
     "evolve state" in new Context {
       @nowarn
       val unversionedNonEmpty = State.NonEmpty(Seq(elem1, elem2))
 
       snapshotTestKit.persistForRecovery(persistenceId.id, SnapshotMeta(1) -> unversionedNonEmpty)
+      eventSourcedTestKit.restart()
 
       eventSourcedTestKit.getState() shouldBe State.NonEmpty.Latest(unversionedNonEmpty.history, unversionedNonEmpty.history.length)
     }

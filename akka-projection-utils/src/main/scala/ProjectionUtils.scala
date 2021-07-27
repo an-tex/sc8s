@@ -6,7 +6,7 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.projection.cassandra.scaladsl.CassandraProjection
 import akka.projection.eventsourced.EventEnvelope
 import akka.projection.eventsourced.scaladsl.EventSourcedProvider
-import akka.projection.scaladsl.ProjectionManagement
+import akka.projection.scaladsl.{Handler, ProjectionManagement}
 import akka.projection.{ProjectionBehavior, ProjectionContext, ProjectionId}
 import akka.stream.scaladsl.FlowWithContext
 import akka.{Done, NotUsed}
@@ -24,6 +24,45 @@ object ProjectionUtils {
     }
 
     def generateTag(tagIndex: Int): String = s"$tagPrefix$tagIndex"
+  }
+
+  trait ManagedProjection[Event, EntityIdT] {
+    val projectionName: String
+    val tagGenerator: TagGenerator
+    val entityIdExtractor: String => EntityIdT
+
+    val projectionIds = (0 until tagGenerator.eventProcessorParallelism).map(tagIndex =>
+      ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
+    )
+
+    def handle: PartialFunction[(Event, EntityIdT), Future[Done]]
+
+    def handler = new Handler[EventEnvelope[Event]] {
+      override def process(envelope: EventEnvelope[Event]) = {
+        val entityId = entityIdExtractor(envelope.persistenceId)
+        handle.lift(envelope.event, entityId).getOrElse(Future.successful(Done))
+      }
+    }
+
+    def init(
+              shardedDaemonProcess: ShardedDaemonProcess,
+              shardedDaemonProcessName: String = s"$projectionName-projection"
+            )(implicit actorSystem: ActorSystem[_]) = shardedDaemonProcess.init[ProjectionBehavior.Command](
+      shardedDaemonProcessName,
+      tagGenerator.eventProcessorParallelism,
+      tagIndex => {
+        val projectionId = projectionIds(tagIndex)
+        ProjectionBehavior(CassandraProjection
+          .atLeastOnce(
+            projectionId,
+            EventSourcedProvider.eventsByTag[Event](actorSystem, CassandraReadJournal.Identifier, projectionId.key),
+            () => handler
+          )
+          .withStatusObserver(ProjectionsStatusObserver.statusObserver[Event](projectionId))
+        )
+      },
+      ProjectionBehavior.Stop
+    )
   }
 
   case class TaggedProjection(

@@ -26,11 +26,11 @@ object ProjectionUtils {
     def generateTag(tagIndex: Int): String = s"$tagPrefix$tagIndex"
   }
 
-  trait ManagedProjection[Event, EntityIdT] {
-    val projectionName: String
-    val tagGenerator: TagGenerator
-    val entityIdExtractor: String => EntityIdT
-
+  abstract class ManagedProjection[Event, EntityIdT](
+                                                      projectionName: String,
+                                                      tagGenerator: TagGenerator,
+                                                      entityIdExtractor: String => EntityIdT
+                                                    ) {
     val projectionIds = (0 until tagGenerator.eventProcessorParallelism).map(tagIndex =>
       ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
     )

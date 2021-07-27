@@ -27,7 +27,7 @@ object ProjectionUtils {
   }
 
   abstract class ManagedProjection[Event, EntityIdT](
-                                                      projectionName: String,
+                                                      val projectionName: String,
                                                       tagGenerator: TagGenerator,
                                                       entityIdExtractor: String => EntityIdT
                                                     ) extends Logging {
@@ -52,7 +52,7 @@ object ProjectionUtils {
     final def init(
                     shardedDaemonProcess: ShardedDaemonProcess,
                     shardedDaemonProcessName: String = s"$projectionName-projection"
-                  )(implicit actorSystem: ActorSystem[_]) = shardedDaemonProcess.init[ProjectionBehavior.Command](
+                  ) = shardedDaemonProcess.init[ProjectionBehavior.Command](
       shardedDaemonProcessName,
       tagGenerator.eventProcessorParallelism,
       tagIndex => {

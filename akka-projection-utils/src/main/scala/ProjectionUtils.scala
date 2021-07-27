@@ -30,39 +30,58 @@ object ProjectionUtils {
                                                       projectionName: String,
                                                       tagGenerator: TagGenerator,
                                                       entityIdExtractor: String => EntityIdT
-                                                    ) {
-    val projectionIds = (0 until tagGenerator.eventProcessorParallelism).map(tagIndex =>
+                                                    ) extends Logging {
+
+    implicit val actorSystem: ActorSystem[_]
+
+    final val projectionIds = (0 until tagGenerator.eventProcessorParallelism).map(tagIndex =>
       ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
     )
 
+    final val projectionStatusObservers = projectionIds.map(ProjectionsStatusObserverActor[Event])
+
     def handle: PartialFunction[(Event, EntityIdT), Future[Done]]
 
-    def handler = new Handler[EventEnvelope[Event]] {
+    final def handler = new Handler[EventEnvelope[Event]] {
       override def process(envelope: EventEnvelope[Event]) = {
         val entityId = entityIdExtractor(envelope.persistenceId)
         handle.lift(envelope.event, entityId).getOrElse(Future.successful(Done))
       }
     }
 
-    def init(
-              shardedDaemonProcess: ShardedDaemonProcess,
-              shardedDaemonProcessName: String = s"$projectionName-projection"
-            )(implicit actorSystem: ActorSystem[_]) = shardedDaemonProcess.init[ProjectionBehavior.Command](
+    final def init(
+                    shardedDaemonProcess: ShardedDaemonProcess,
+                    shardedDaemonProcessName: String = s"$projectionName-projection"
+                  )(implicit actorSystem: ActorSystem[_]) = shardedDaemonProcess.init[ProjectionBehavior.Command](
       shardedDaemonProcessName,
       tagGenerator.eventProcessorParallelism,
       tagIndex => {
         val projectionId = projectionIds(tagIndex)
+        val projectionStatusObserver = projectionStatusObservers(tagIndex)
+
         ProjectionBehavior(CassandraProjection
           .atLeastOnce(
             projectionId,
             EventSourcedProvider.eventsByTag[Event](actorSystem, CassandraReadJournal.Identifier, projectionId.key),
             () => handler
           )
-          .withStatusObserver(ProjectionsStatusObserver.statusObserver[Event](projectionId))
+          .withStatusObserver(projectionStatusObserver.statusObserver)
         )
       },
       ProjectionBehavior.Stop
     )
+
+    final def rebuildProjections()(
+      implicit actorSystem: ActorSystem[_],
+      executionContext: ExecutionContext
+    ): Future[Done] = {
+      log.info(s"${"rebuildingProjection" -> "tag"} ${projectionIds.map(_.id) -> "projectionIds"}")
+      projectionIds
+        .map(ProjectionManagement(actorSystem).clearOffset)
+        .toList
+        .sequence
+        .map(_ => Done)
+    }
   }
 
   case class TaggedProjection(
@@ -129,7 +148,7 @@ object ProjectionUtils {
           EventSourcedProvider.eventsByTag[Event](system, CassandraReadJournal.Identifier, projectionId.key),
           flow(FlowWithContext[EventEnvelope[Event], ProjectionContext])
         )
-        .withStatusObserver(ProjectionsStatusObserver.statusObserver[Event](projectionId))
+        .withStatusObserver(ProjectionsStatusObserverActor[Event](projectionId).statusObserver)
       )
     )
 

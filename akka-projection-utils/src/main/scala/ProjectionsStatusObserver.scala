@@ -4,7 +4,6 @@ import ProjectionsStatusObserver.Command.GetStatus
 import ProjectionsStatusObserver.{Command, serviceKey}
 import api.ProjectionService.{ProjectionStatus, ProjectionsStatus}
 
-import akka.Done
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.scaladsl.adapter.{ClassicActorSystemOps, TypedActorSystemOps}
@@ -12,7 +11,6 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.persistence.query.Offset
 import akka.projection.eventsourced.EventEnvelope
-import akka.projection.scaladsl.ProjectionManagement
 import akka.projection.{HandlerRecoveryStrategy, ProjectionId, StatusObserver}
 import akka.util.Timeout
 import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
@@ -33,10 +31,6 @@ class ProjectionsStatusObserver private(actorContext: ActorContext[Command], pro
   log.info(s"${"initializing" -> "tag"}")
 
   actorContext.system.receptionist ! Receptionist.Register(serviceKey, actorContext.self)
-
-  private lazy val projectionManagement = ProjectionManagement(actorContext.system)
-
-  import actorContext.executionContext
 
   def behavior(projectionStatus: ProjectionStatus): Behaviors.Receive[Command] = Behaviors.receiveMessagePartial {
     case Command.Started =>
@@ -74,13 +68,6 @@ class ProjectionsStatusObserver private(actorContext: ActorContext[Command], pro
           log.error(s"${"gotErrorWhileNotRunning" -> "tag"} $invalidProjectionStatus")
           invalidProjectionStatus
       })
-
-    case Command.ClearOffset(replyTo) =>
-      log.info(s"${"clearingOffset" -> "tag"}")
-      projectionManagement
-        .clearOffset(projectionId)
-        .foreach(replyTo.tell)
-      Behaviors.same
   }
 
   override protected lazy val logContext = CustomContext(
@@ -107,7 +94,6 @@ object ProjectionsStatusObserver {
     object GetStatus {
       case class Response(projectionId: ProjectionId, projectionStatus: ProjectionStatus) extends SerializableResponse
     }
-    case class ClearOffset(replyTo: ActorRef[Done]) extends SerializableCommand
 
     implicit val codec: Codec[SerializableCommand] = {
       import SerializableResponse.projectionIdCodec
@@ -139,10 +125,8 @@ object ProjectionsStatusObserver {
 
   def apply(projectionId: ProjectionId): Behavior[Command] = Behaviors.setup[Command](new ProjectionsStatusObserver(_, projectionId).behavior(ProjectionStatus.Initializing))
 
-  private val actorNamePrefix = "projectionStatusObserver-"
-
   def statusObserver[Event](projectionId: ProjectionId)(implicit actorSystem: ActorSystem[_]): StatusObserver[EventEnvelope[Event]] = {
-    val actorRef = actorSystem.toClassic.spawn(apply(projectionId), s"$actorNamePrefix${projectionId.id}")
+    val actorRef = actorSystem.toClassic.spawn(apply(projectionId), s"projectionStatusObserver-${projectionId.id}")
     new StatusObserver[EventEnvelope[Event]] {
       override def started(projectionId: ProjectionId) =
         actorRef ! Command.Started
@@ -182,24 +166,5 @@ object ProjectionsStatusObserver {
               response.projectionId.key -> response.projectionStatus
             }.toMap)
         }.toSeq)
-  }
-
-  def clearOffsets(projectionKey: String)(implicit system: ActorSystem[_]) = {
-    implicit val timeout = Timeout(3.seconds)
-    import system.executionContext
-    system
-      .receptionist
-      .ask[Receptionist.Listing](Receptionist.Find(ProjectionsStatusObserver.serviceKey, _))
-      .flatMap {
-        case ProjectionsStatusObserver.serviceKey.Listing(reachable) =>
-          reachable
-            .collect {
-              case actorRef if actorRef.path.name.startsWith(s"$actorNamePrefix$projectionKey-") =>
-                actorRef.ask(ProjectionsStatusObserver.Command.ClearOffset)
-            }
-            .toList
-            .sequence
-      }
-      .map(_ => Done)
   }
 }

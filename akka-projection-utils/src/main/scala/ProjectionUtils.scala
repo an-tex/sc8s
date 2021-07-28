@@ -38,7 +38,7 @@ object ProjectionUtils {
       ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
     )
 
-    final val projectionStatusObservers = projectionIds.map(ProjectionsStatusObserverActor[Event])
+    final val projectionStatusObservers = projectionIds.map(ProjectionStatusObserverActor[Event])
 
     def handle: PartialFunction[(Event, EntityIdT), Future[Done]]
 
@@ -148,7 +148,7 @@ object ProjectionUtils {
           EventSourcedProvider.eventsByTag[Event](system, CassandraReadJournal.Identifier, projectionId.key),
           flow(FlowWithContext[EventEnvelope[Event], ProjectionContext])
         )
-        .withStatusObserver(ProjectionsStatusObserverActor[Event](projectionId).statusObserver)
+        .withStatusObserver(ProjectionStatusObserverActor[Event](projectionId).statusObserver)
       )
     )
 

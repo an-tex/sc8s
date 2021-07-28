@@ -6,7 +6,6 @@ lazy val sc8s = (project in file("."))
   )
   .aggregate(
     `akka-circe`,
-    `akka-stream-utils`,
     `akka-projection-utils`,
     `akka-projection-utils-api`.js,
     `akka-projection-utils-api`.jvm,

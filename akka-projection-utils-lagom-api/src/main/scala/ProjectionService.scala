@@ -4,13 +4,13 @@ import akka.{Done, NotUsed}
 import com.lightbend.lagom.scaladsl.api.transport.Method
 import com.lightbend.lagom.scaladsl.api.{Service, ServiceCall}
 
-trait ProjectionService {
+trait ProjectionService extends Service {
+  val apiPrefix: String
+
   def rebuildProjection(projectionName: String): ServiceCall[NotUsed, Done]
 
-  def projectionServiceCalls(apiPrefix: String) = {
+  abstract override def descriptor = super.descriptor.addCalls({
     import Service._
-    Seq(
-      restCall(Method.POST, s"$apiPrefix/projection/:projectionName/rebuild", rebuildProjection _),
-    )
-  }
+    restCall(Method.POST, s"$apiPrefix/projection/:projectionName/rebuild", rebuildProjection _)
+  })
 }

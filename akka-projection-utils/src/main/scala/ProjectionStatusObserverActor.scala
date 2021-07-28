@@ -1,7 +1,7 @@
 package net.sc8s.akka.projection
 
-import ProjectionsStatusObserverActor.Command.GetStatus
-import ProjectionsStatusObserverActor.{Command, serviceKey}
+import ProjectionStatusObserverActor.Command.GetStatus
+import ProjectionStatusObserverActor.{Command, serviceKey}
 import api.ProjectionService.{ProjectionStatus, ProjectionsStatus}
 
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
@@ -26,7 +26,7 @@ import net.sc8s.logstage.elastic.Logging
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
-class ProjectionsStatusObserverActor private(actorContext: ActorContext[Command], projectionId: ProjectionId) extends Logging {
+class ProjectionStatusObserverActor private(actorContext: ActorContext[Command], projectionId: ProjectionId) extends Logging {
 
   log.info(s"${"initializing" -> "tag"}")
 
@@ -77,18 +77,18 @@ class ProjectionsStatusObserverActor private(actorContext: ActorContext[Command]
   )
 }
 
-object ProjectionsStatusObserverActor {
+object ProjectionStatusObserverActor {
 
   val serviceKey = ServiceKey[Command]("projectionStatusObserver")
 
   sealed trait Command
   sealed trait SerializableCommand extends Command
   object Command {
-    private[ProjectionsStatusObserverActor] case object Started extends Command
-    private[ProjectionsStatusObserverActor] case class Failed(cause: Throwable) extends Command
-    private[ProjectionsStatusObserverActor] case object Stopped extends Command
-    private[ProjectionsStatusObserverActor] case class OffsetProgress(sequenceNr: Long, offset: Offset) extends Command
-    private[ProjectionsStatusObserverActor] case class Error(sequenceNr: Long, cause: Throwable, recoveryStrategy: HandlerRecoveryStrategy) extends Command
+    private[ProjectionStatusObserverActor] case object Started extends Command
+    private[ProjectionStatusObserverActor] case class Failed(cause: Throwable) extends Command
+    private[ProjectionStatusObserverActor] case object Stopped extends Command
+    private[ProjectionStatusObserverActor] case class OffsetProgress(sequenceNr: Long, offset: Offset) extends Command
+    private[ProjectionStatusObserverActor] case class Error(sequenceNr: Long, cause: Throwable, recoveryStrategy: HandlerRecoveryStrategy) extends Command
 
     case class GetStatus(replyTo: ActorRef[GetStatus.Response]) extends SerializableCommand
     object GetStatus {
@@ -126,7 +126,7 @@ object ProjectionsStatusObserverActor {
   def apply[Event](projectionId: ProjectionId)(implicit actorSystem: ActorSystem[_]): ProjectionStatusObserver[Event] =
     new ProjectionStatusObserver[Event] {
       override val actorRef = actorSystem.toClassic.spawn(Behaviors.setup[Command](
-        new ProjectionsStatusObserverActor(_, projectionId).behavior(ProjectionStatus.Initializing)
+        new ProjectionStatusObserverActor(_, projectionId).behavior(ProjectionStatus.Initializing)
       ), s"projectionStatusObserver-${projectionId.id}")
 
       override val statusObserver = new StatusObserver[EventEnvelope[Event]] {
@@ -156,10 +156,10 @@ object ProjectionsStatusObserverActor {
     import system.executionContext
     system
       .receptionist
-      .ask[Receptionist.Listing](Receptionist.Find(ProjectionsStatusObserverActor.serviceKey, _))
+      .ask[Receptionist.Listing](Receptionist.Find(ProjectionStatusObserverActor.serviceKey, _))
       .flatMap {
-        case ProjectionsStatusObserverActor.serviceKey.Listing(reachable) =>
-          reachable.map(_.ask(ProjectionsStatusObserverActor.Command.GetStatus(_))).toList.sequence
+        case ProjectionStatusObserverActor.serviceKey.Listing(reachable) =>
+          reachable.map(_.ask(ProjectionStatusObserverActor.Command.GetStatus(_))).toList.sequence
       }
       .map(
         _.groupBy(_.projectionId.name).map {
@@ -172,6 +172,6 @@ object ProjectionsStatusObserverActor {
 }
 
 trait ProjectionStatusObserver[Event] {
-  val actorRef: ActorRef[ProjectionsStatusObserverActor.SerializableCommand]
+  val actorRef: ActorRef[ProjectionStatusObserverActor.SerializableCommand]
   val statusObserver: StatusObserver[EventEnvelope[Event]]
 }

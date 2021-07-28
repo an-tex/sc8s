@@ -6,9 +6,13 @@ lazy val sc8s = (project in file("."))
   )
   .aggregate(
     `akka-circe`,
+    `akka-stream-utils`,
     `akka-projection-utils`,
     `akka-projection-utils-api`.js,
     `akka-projection-utils-api`.jvm,
+    `akka-projection-utils-lagom-api`.js,
+    `akka-projection-utils-lagom-api`.jvm,
+    `akka-projection-utils-lagom-server`,
     `common-circe`.js,
     `common-circe`.jvm,
     `lagom-api-circe`.js,
@@ -103,6 +107,29 @@ lazy val `akka-projection-utils-api` = crossProject(JSPlatform, JVMPlatform)
     ),
     idePackagePrefix := Some("net.sc8s.akka.projection.api")
   ).dependsOn(`common-circe`)
+
+lazy val `akka-projection-utils-lagom-api` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("akka-projection-utils-lagom-api"))
+  .jvmSettings(libraryDependencies += lagom.scaladslApi)
+  .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
+  .settings(
+    libraryDependencies ++= Seq(
+      circe.core.value,
+      circe.parser.value,
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.projection.lagom.api")
+  )
+  .dependsOn(`common-circe`)
+
+lazy val `akka-projection-utils-lagom-server` = (project in file("akka-projection-utils-lagom-server"))
+  .settings(
+    libraryDependencies ++= Seq(
+      lagom.scaladslServer
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.projection.lagom")
+  )
+  .dependsOn(`akka-projection-utils-lagom-api`.jvm, `akka-projection-utils`)
 
 lazy val `lagom-server-circe` = (project in file("lagom-server-circe"))
   .settings(

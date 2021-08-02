@@ -1,5 +1,8 @@
 package net.sc8s.akka.projection
 
+import api.ProjectionService.ProjectionsStatus
+
+import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{EntityContext, ShardedDaemonProcess}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
@@ -12,8 +15,10 @@ import akka.stream.scaladsl.FlowWithContext
 import akka.{Done, NotUsed}
 import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
 import cats.instances.list._
+import izumi.logstage.api.Log.CustomContext
 import net.sc8s.logstage.elastic.Logging
 
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 object ProjectionUtils {
@@ -34,11 +39,13 @@ object ProjectionUtils {
 
     implicit val actorSystem: ActorSystem[_]
 
+    import actorSystem.executionContext
+
     final val projectionIds = (0 until tagGenerator.eventProcessorParallelism).map(tagIndex =>
       ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
     )
 
-    final val projectionStatusObservers = projectionIds.map(ProjectionStatusObserverActor[Event])
+    private val projectionStatusObservers = projectionIds.map(ProjectionStatusObserverActor[Event])
 
     def handle: PartialFunction[(Event, EntityIdT), Future[Done]]
 
@@ -71,17 +78,38 @@ object ProjectionUtils {
       ProjectionBehavior.Stop
     )
 
-    final def rebuildProjections()(
-      implicit actorSystem: ActorSystem[_],
-      executionContext: ExecutionContext
-    ): Future[Done] = {
-      log.info(s"${"rebuildingProjection" -> "tag"} ${projectionIds.map(_.id) -> "projectionIds"}")
+    final def rebuild(): Future[Done] = operation("rebuild", _.clearOffset)
+
+    final def pause(): Future[Done] = operation("pause", _.pause)
+
+    final def resume(): Future[Done] = operation("resume", _.resume)
+
+    private def operation(tagPrefix: String, operation: ProjectionManagement => ProjectionId => Future[Done]) = {
+      log.info(s"${tagPrefix + "Projections" -> "tag"}")
       projectionIds
-        .map(ProjectionManagement(actorSystem).clearOffset)
+        .map(operation(ProjectionManagement(actorSystem)))
         .toList
         .sequence
         .map(_ => Done)
     }
+
+    final def status = {
+      projectionStatusObservers
+        .map(_.actorRef.ask(ProjectionStatusObserverActor.Command.GetStatus(_))(3.seconds, implicitly))
+        .toList
+        .sequence
+        .map { responses =>
+          val keysStatus = responses.map(response => response.projectionId.id -> response.projectionStatus).toMap
+          ProjectionsStatus(
+            projectionName,
+            keysStatus
+          )
+        }
+    }
+
+    override protected lazy val logContext = CustomContext(
+      "projectionIds" -> projectionIds.map(_.id)
+    )
   }
 
   case class TaggedProjection(

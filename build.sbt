@@ -119,7 +119,7 @@ lazy val `akka-projection-utils-lagom-api` = crossProject(JSPlatform, JVMPlatfor
     ),
     idePackagePrefix := Some("net.sc8s.akka.projection.lagom.api")
   )
-  .dependsOn(`common-circe`)
+  .dependsOn(`common-circe`, `akka-projection-utils-api`, `lagom-api-circe`)
 
 lazy val `akka-projection-utils-lagom-server` = (project in file("akka-projection-utils-lagom-server"))
   .settings(

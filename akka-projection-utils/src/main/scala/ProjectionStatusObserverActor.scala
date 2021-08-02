@@ -1,19 +1,16 @@
 package net.sc8s.akka.projection
 
+import ProjectionStatusObserverActor.Command
 import ProjectionStatusObserverActor.Command.GetStatus
-import ProjectionStatusObserverActor.{Command, serviceKey}
-import api.ProjectionService.{ProjectionStatus, ProjectionsStatus}
+import api.ProjectionService.ProjectionStatus
 
-import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
-import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
+import akka.actor.typed.receptionist.ServiceKey
 import akka.actor.typed.scaladsl.adapter.{ClassicActorSystemOps, TypedActorSystemOps}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.persistence.query.Offset
 import akka.projection.eventsourced.EventEnvelope
 import akka.projection.{HandlerRecoveryStrategy, ProjectionId, StatusObserver}
-import akka.util.Timeout
-import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
 import io.circe._
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import io.circe.syntax.EncoderOps
@@ -23,14 +20,9 @@ import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.circe.CodecConfiguration._
 import net.sc8s.logstage.elastic.Logging
 
-import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
-
 class ProjectionStatusObserverActor private(actorContext: ActorContext[Command], projectionId: ProjectionId) extends Logging {
 
   log.info(s"${"initializing" -> "tag"}")
-
-  actorContext.system.receptionist ! Receptionist.Register(serviceKey, actorContext.self)
 
   def behavior(projectionStatus: ProjectionStatus): Behaviors.Receive[Command] = Behaviors.receiveMessagePartial {
     case Command.Started =>
@@ -150,25 +142,6 @@ object ProjectionStatusObserverActor {
           actorRef ! Command.Error(env.sequenceNr, cause, recoveryStrategy)
       }
     }
-
-  def projectionsStatus(implicit system: ActorSystem[_]): Future[Seq[ProjectionsStatus]] = {
-    implicit val timeout = Timeout(3.seconds)
-    import system.executionContext
-    system
-      .receptionist
-      .ask[Receptionist.Listing](Receptionist.Find(ProjectionStatusObserverActor.serviceKey, _))
-      .flatMap {
-        case ProjectionStatusObserverActor.serviceKey.Listing(reachable) =>
-          reachable.map(_.ask(ProjectionStatusObserverActor.Command.GetStatus(_))).toList.sequence
-      }
-      .map(
-        _.groupBy(_.projectionId.name).map {
-          case (projectionName, keysStatus) =>
-            ProjectionsStatus(projectionName, keysStatus.map { response =>
-              response.projectionId.key -> response.projectionStatus
-            }.toMap)
-        }.toSeq)
-  }
 }
 
 trait ProjectionStatusObserver[Event] {

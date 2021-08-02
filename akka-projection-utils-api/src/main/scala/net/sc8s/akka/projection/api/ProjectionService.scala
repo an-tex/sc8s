@@ -18,7 +18,8 @@ object ProjectionService {
     }
   }
 
-  case class ProjectionsStatus(projectionName: String, keysStatus: Map[String, ProjectionStatus])
+  type ProjectionId = String
+  case class ProjectionsStatus(projectionName: String, keysStatus: Map[ProjectionId, ProjectionStatus])
   object ProjectionsStatus {
     implicit val codec: Codec[ProjectionsStatus] = deriveConfiguredCodec
   }

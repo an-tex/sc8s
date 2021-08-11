@@ -43,7 +43,7 @@ object ProjectionUtils {
       ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
     )
 
-    private val projectionStatusObserver = new ProjectionStatusObserver
+    private lazy val projectionStatusObserver = new ProjectionStatusObserver
 
     def handle: PartialFunction[(Event, EntityIdT), Future[Done]]
 

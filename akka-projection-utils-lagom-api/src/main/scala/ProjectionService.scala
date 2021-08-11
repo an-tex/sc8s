@@ -17,7 +17,7 @@ trait ProjectionService extends Service {
 
   def projectionStatus(projectionName: String): ServiceCall[NotUsed, ProjectionsStatus]
 
-  def projectionsStatus: ServiceCall[NotUsed, Seq[ProjectionsStatus]]
+  def projectionsStatus: ServiceCall[NotUsed, List[ProjectionsStatus]]
 
   abstract override def descriptor = {
     import Service._

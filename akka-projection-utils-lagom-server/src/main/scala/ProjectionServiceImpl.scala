@@ -26,7 +26,7 @@ trait ProjectionServiceImpl extends ProjectionService {
 
   override def projectionStatus(projectionName: String) = projectionOperation(projectionName, _.status)
 
-  override def projectionsStatus = ServiceCall(_ => projections.map(_.status).toList.sequence.map(_.toSeq))
+  override def projectionsStatus = ServiceCall(_ => projections.map(_.status).toList.sequence)
 
   private def projectionOperation[T](projectionName: String, operation: ManagedProjection[_, _] => Future[T]) = ServiceCall[NotUsed, T] { _ =>
     projections.find(_.projectionName == projectionName) match {

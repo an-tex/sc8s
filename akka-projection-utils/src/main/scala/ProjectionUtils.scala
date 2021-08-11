@@ -2,7 +2,6 @@ package net.sc8s.akka.projection
 
 import api.ProjectionService.ProjectionsStatus
 
-import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{EntityContext, ShardedDaemonProcess}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
@@ -18,7 +17,6 @@ import cats.instances.list._
 import izumi.logstage.api.Log.CustomContext
 import net.sc8s.logstage.elastic.Logging
 
-import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 object ProjectionUtils {
@@ -45,7 +43,7 @@ object ProjectionUtils {
       ProjectionId(projectionName, tagGenerator.generateTag(tagIndex))
     )
 
-    private val projectionStatusObservers = projectionIds.map(ProjectionStatusObserverActor[Event])
+    private val projectionStatusObserver = new ProjectionStatusObserver
 
     def handle: PartialFunction[(Event, EntityIdT), Future[Done]]
 
@@ -56,27 +54,28 @@ object ProjectionUtils {
       }
     }
 
-    final def init(
-                    shardedDaemonProcess: ShardedDaemonProcess,
-                    shardedDaemonProcessName: String = s"$projectionName-projection"
-                  ) = shardedDaemonProcess.init[ProjectionBehavior.Command](
-      shardedDaemonProcessName,
-      tagGenerator.eventProcessorParallelism,
-      tagIndex => {
-        val projectionId = projectionIds(tagIndex)
-        val projectionStatusObserver = projectionStatusObservers(tagIndex)
+    private val shardedDaemonProcess = ShardedDaemonProcess(actorSystem)
 
-        ProjectionBehavior(CassandraProjection
-          .atLeastOnce(
-            projectionId,
-            EventSourcedProvider.eventsByTag[Event](actorSystem, CassandraReadJournal.Identifier, projectionId.key),
-            () => handler
+    final def init(shardedDaemonProcessName: String = s"$projectionName-projection") = {
+      log.info(s"${"initializingProjection" -> "tag"} $projectionName with ${projectionIds.map(_.id) -> "projectionIds"}")
+      shardedDaemonProcess.init[ProjectionBehavior.Command](
+        shardedDaemonProcessName,
+        tagGenerator.eventProcessorParallelism,
+        tagIndex => {
+          val projectionId = projectionIds(tagIndex)
+
+          ProjectionBehavior(CassandraProjection
+            .atLeastOnce(
+              projectionId,
+              EventSourcedProvider.eventsByTag[Event](actorSystem, CassandraReadJournal.Identifier, projectionId.key),
+              () => handler
+            )
+            .withStatusObserver(projectionStatusObserver.statusObserver)
           )
-          .withStatusObserver(projectionStatusObserver.statusObserver)
-        )
-      },
-      ProjectionBehavior.Stop
-    )
+        },
+        ProjectionBehavior.Stop
+      )
+    }
 
     final def rebuild(): Future[Done] = operation("rebuild", _.clearOffset)
 
@@ -94,17 +93,19 @@ object ProjectionUtils {
     }
 
     final def status = {
-      projectionStatusObservers
-        .map(_.actorRef.ask(ProjectionStatusObserverActor.Command.GetStatus(_))(3.seconds, implicitly))
+
+      projectionIds
+        .map(projectionId => projectionStatusObserver.status(projectionId).map(projectionId.id -> _))
         .toList
         .sequence
-        .map { responses =>
-          val keysStatus = responses.map(response => response.projectionId.id -> response.projectionStatus).toMap
+        .map(_.toMap.collect { case (key, Some(value)) => key -> value })
+        .map(
           ProjectionsStatus(
             projectionName,
-            keysStatus
+            _
+
           )
-        }
+        )
     }
 
     override protected lazy val logContext = CustomContext(
@@ -112,6 +113,7 @@ object ProjectionUtils {
     )
   }
 
+  @deprecated("use ManagedProjection", "v0.34.0")
   case class TaggedProjection(
                                projectionName: String,
                                tagGenerator: TagGenerator
@@ -176,7 +178,6 @@ object ProjectionUtils {
           EventSourcedProvider.eventsByTag[Event](system, CassandraReadJournal.Identifier, projectionId.key),
           flow(FlowWithContext[EventEnvelope[Event], ProjectionContext])
         )
-        .withStatusObserver(ProjectionStatusObserverActor[Event](projectionId).statusObserver)
       )
     )
 

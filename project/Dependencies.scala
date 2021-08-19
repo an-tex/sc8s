@@ -27,7 +27,7 @@ object Dependencies {
   }
 
   object akka {
-    private val akkaVersion = "2.6.15"
+    private val akkaVersion = "2.6.16"
     private val akkaHttpVersion = "10.1.13"
 
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion

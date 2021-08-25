@@ -114,21 +114,3 @@ class ProjectionStatusObserver(implicit actorSystem: ActorSystem[_]) extends Log
         throw new Exception(s"tag=fetchingStatusFailed got response=$response")
     }
 }
-
-object ProjectionStatusObserver {
-
-  implicit val projectionIdCodec: Codec[ProjectionId] = Codec.from(
-    (c: HCursor) => for {
-      name <- c.downField("name").as[String]
-      key <- c.downField("key").as[String]
-    } yield ProjectionId.of(name, key),
-    (projectionId: ProjectionId) => Json.obj(
-      "name" -> projectionId.name.asJson,
-      "key" -> projectionId.key.asJson,
-    )
-  )
-
-  val serializers = Seq(
-    CirceSerializer[ProjectionId](),
-  )
-}

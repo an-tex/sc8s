@@ -1,7 +1,5 @@
 package net.sc8s.akka.projection
 
-import api.ProjectionService.ProjectionStatus
-
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.cluster.ddata.typed.scaladsl.Replicator.{GetResponse, UpdateResponse}
@@ -15,6 +13,7 @@ import izumi.logstage.api.IzLogger
 import izumi.logstage.api.Log.CustomContext
 import net.sc8s.akka.circe.AkkaRefCodecs._
 import net.sc8s.akka.circe.CirceSerializer
+import net.sc8s.akka.projection.api.ProjectionService.ProjectionStatus
 import net.sc8s.circe.CodecConfiguration._
 import net.sc8s.logstage.elastic.Logging
 

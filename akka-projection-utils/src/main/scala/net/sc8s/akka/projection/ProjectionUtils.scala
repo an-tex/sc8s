@@ -1,7 +1,5 @@
 package net.sc8s.akka.projection
 
-import api.ProjectionService.ProjectionsStatus
-
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{EntityContext, ShardedDaemonProcess}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
@@ -15,6 +13,7 @@ import akka.{Done, NotUsed}
 import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
 import cats.instances.list._
 import izumi.logstage.api.Log.CustomContext
+import net.sc8s.akka.projection.api.ProjectionService.ProjectionsStatus
 import net.sc8s.logstage.elastic.Logging
 
 import scala.concurrent.{ExecutionContext, Future}

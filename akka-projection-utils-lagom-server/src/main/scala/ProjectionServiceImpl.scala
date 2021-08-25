@@ -7,7 +7,9 @@ import akka.actor.typed.ActorSystem
 import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
 import com.lightbend.lagom.scaladsl.api.ServiceCall
 import com.lightbend.lagom.scaladsl.api.transport.BadRequest
+import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.projection.ProjectionUtils.ManagedProjection
+import net.sc8s.akka.projection.api.ProjectionService.ProjectionStatus
 
 import scala.concurrent.Future
 
@@ -36,4 +38,10 @@ trait ProjectionServiceImpl extends ProjectionService {
         Future.failed(BadRequest(s"projectionName=$projectionName not found, validProjectionNames=${projections.map(_.projectionName).mkString(";")}"))
     }
   }
+}
+
+object ProjectionServiceImpl {
+  val serializers = Seq(
+    CirceSerializer[ProjectionStatus](),
+  )
 }

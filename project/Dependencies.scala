@@ -29,6 +29,7 @@ object Dependencies {
   object akka {
     private val akkaVersion = "2.6.15"
     private val akkaHttpVersion = "10.1.13"
+    private val akkaJs = "2.2.6.14"
 
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion
     val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % akkaVersion
@@ -79,6 +80,10 @@ object Dependencies {
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion
+    }
+
+    object js {
+      val stream = Def.setting("org.akka-js" %%% "akkajsactorstream" % akkaJs)
     }
   }
 

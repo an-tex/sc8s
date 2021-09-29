@@ -1,4 +1,5 @@
 import Dependencies._
+import sbtcrossproject.CrossType
 
 lazy val sc8s = (project in file("."))
   .settings(
@@ -185,18 +186,26 @@ lazy val `logstage-elastic` = (project in file("logstage-elastic"))
     idePackagePrefix := Some("net.sc8s.logstage.elastic")
   )
 
-lazy val `akka-stream-utils` = (project in file("akka-stream-utils"))
-  .settings(
+lazy val `akka-stream-utils` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .in(file("akka-stream-utils"))
+  .jvmSettings(
     libraryDependencies ++= Seq(
       akka.stream,
       akka.streamTyped,
       akka.streamTestkit,
-      scalaTest.value % Test,
       akka.testkitTyped % Test,
+    )
+  )
+  .jsSettings(libraryDependencies += akka.js.stream.value)
+  .settings(
+    libraryDependencies ++= Seq(
+      logstage.core.value,
+      cats.core.value,
+      scalaTest.value % Test
     ),
     idePackagePrefix := Some("net.sc8s.akka.stream")
   )
-  .dependsOn(`logstage-elastic`)
 
 inThisBuild(Seq(
   scalaVersion := scala213,

@@ -1,7 +1,5 @@
 package net.sc8s.akka.projection
 
-import api.ProjectionService.ProjectionStatus
-
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.cluster.ddata.typed.scaladsl.Replicator.{GetResponse, UpdateResponse}
@@ -15,6 +13,7 @@ import izumi.logstage.api.IzLogger
 import izumi.logstage.api.Log.CustomContext
 import net.sc8s.akka.circe.AkkaRefCodecs._
 import net.sc8s.akka.circe.CirceSerializer
+import net.sc8s.akka.projection.api.ProjectionService.ProjectionStatus
 import net.sc8s.circe.CodecConfiguration._
 import net.sc8s.logstage.elastic.Logging
 
@@ -114,22 +113,4 @@ class ProjectionStatusObserver(implicit actorSystem: ActorSystem[_]) extends Log
         log.error(s"${"fetchingStatusFailed" -> "tag"} got $response")
         throw new Exception(s"tag=fetchingStatusFailed got response=$response")
     }
-}
-
-object ProjectionStatusObserver {
-
-  implicit val projectionIdCodec: Codec[ProjectionId] = Codec.from(
-    (c: HCursor) => for {
-      name <- c.downField("name").as[String]
-      key <- c.downField("key").as[String]
-    } yield ProjectionId.of(name, key),
-    (projectionId: ProjectionId) => Json.obj(
-      "name" -> projectionId.name.asJson,
-      "key" -> projectionId.key.asJson,
-    )
-  )
-
-  val serializers = Seq(
-    CirceSerializer[ProjectionId](),
-  )
 }

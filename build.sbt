@@ -92,7 +92,6 @@ lazy val `akka-projection-utils` = (project in file("akka-projection-utils"))
       circe.generic.value,
       circe.genericExtras.value,
     ),
-    idePackagePrefix := Some("net.sc8s.akka.projection")
   ).dependsOn(`akka-circe`, `akka-projection-utils-api`.jvm, `logstage-elastic`)
 
 lazy val `akka-projection-utils-api` = crossProject(JSPlatform, JVMPlatform)

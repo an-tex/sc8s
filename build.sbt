@@ -199,6 +199,7 @@ inThisBuild(Seq(
       url("https://rob.ag")
     )
   ),
+  libraryDependencySchemes += "org.scala-lang.modules" %% "scala-java8-compat" % "always",
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq("adopt@1.11"),
   githubWorkflowTargetTags := Seq("*"),

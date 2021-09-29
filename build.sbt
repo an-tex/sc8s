@@ -185,6 +185,19 @@ lazy val `logstage-elastic` = (project in file("logstage-elastic"))
     idePackagePrefix := Some("net.sc8s.logstage.elastic")
   )
 
+lazy val `akka-stream-utils` = (project in file("akka-stream-utils"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.stream,
+      akka.streamTyped,
+      akka.streamTestkit,
+      scalaTest.value % Test,
+      akka.testkitTyped % Test,
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.stream")
+  )
+  .dependsOn(`logstage-elastic`)
+
 inThisBuild(Seq(
   scalaVersion := scala213,
   organization := "net.sc8s",

@@ -56,7 +56,7 @@ jobs:
         run: sbt ++${{ matrix.scala }} test
 
       - name: Compress target directories
-        run: tar cf targets.tar target schevo/.js/target lagom-api-circe/.jvm/target common-circe/.js/target akka-projection-utils-api/.js/target akka-projection-utils/target schevo-circe/.js/target akka-projection-utils-api/.jvm/target lagom-server-circe/target schevo/.jvm/target akka-projection-utils-lagom-api/.js/target akka-stream-utils/target common-circe/.jvm/target akka-circe/target lagom-api-circe/.js/target lagom-server-circe-testkit/target schevo-circe-example-akka/target akka-projection-utils-lagom-server/target schevo-circe/.jvm/target logstage-elastic/target akka-projection-utils-lagom-api/.jvm/target project/target
+        run: tar cf targets.tar target schevo/.js/target lagom-api-circe/.jvm/target common-circe/.js/target akka-projection-utils-api/.js/target akka-stream-utils/jvm/target akka-projection-utils/target akka-stream-utils/js/target schevo-circe/.js/target akka-projection-utils-api/.jvm/target lagom-server-circe/target schevo/.jvm/target akka-projection-utils-lagom-api/.js/target common-circe/.jvm/target akka-circe/target lagom-api-circe/.js/target lagom-server-circe-testkit/target schevo-circe-example-akka/target akka-projection-utils-lagom-server/target schevo-circe/.jvm/target logstage-elastic/target akka-projection-utils-lagom-api/.jvm/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v2

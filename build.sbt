@@ -17,6 +17,7 @@ lazy val sc8s = (project in file("."))
     `akka-stream-utils`.jvm,
     `common-circe`.js,
     `common-circe`.jvm,
+    `common-tzdb`.js,
     `lagom-api-circe`.js,
     `lagom-api-circe`.jvm,
     `lagom-server-circe-testkit`,
@@ -208,6 +209,16 @@ lazy val `akka-stream-utils` = crossProject(JSPlatform, JVMPlatform)
     ),
     idePackagePrefix := Some("net.sc8s.akka.stream")
   )
+
+// empty project to avoid regeneration in other projects https://github.com/cquiroz/sbt-tzdb/issues/88
+lazy val `common-tzdb` = crossProject(JSPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("common-tzdb"))
+  .jsSettings(
+    libraryDependencies += scalaJavaTime.value,
+    zonesFilter := { (z: String) => z == "Europe/Berlin" || z == "UTC" || z == "GMT" },
+  )
+  .enablePlugins(ScalaJSPlugin, TzdbPlugin)
 
 inThisBuild(Seq(
   scalaVersion := scala213,

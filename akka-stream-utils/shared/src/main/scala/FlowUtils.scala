@@ -87,10 +87,10 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): Source[F[Out2], Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
-    implicit class SourceEitherFilterOpsF[OutL, OutR, Mat](
-                                                            val s: Source[Either[OutL, OutR], Mat]
-                                                              with FlowOps[Either[OutL, OutR], Mat]
-                                                          ) {
+    implicit class SourceEitherOpsF[OutL, OutR, Mat](
+                                                      val s: Source[Either[OutL, OutR], Mat]
+                                                        with FlowOps[Either[OutL, OutR], Mat]
+                                                    ) {
       def filterOrElseF(p: OutR => Boolean, zero: => OutL): Source[Either[OutL, OutR], Mat] = s.map(_.filterOrElse(p, zero))
 
       def collectF[OutR2](pf: PartialFunction[OutR, OutR2])(zero: => OutL): Source[Either[OutL, OutR2], Mat] = s.map(_.flatMap {
@@ -103,19 +103,19 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceOptionFilterOpsF[Out, Mat](
-                                                     val s: Source[Option[Out], Mat]
-                                                       with FlowOps[Option[Out], Mat]
-                                                   ) {
+    implicit class SourceOptionOpsF[Out, Mat](
+                                               val s: Source[Option[Out], Mat]
+                                                 with FlowOps[Option[Out], Mat]
+                                             ) {
       def flattenF: Source[Out, Mat] = s.collect {
         case Some(value) => value
       }
     }
 
-    implicit class SourceTryFilterOpsF[Out, Mat](
-                                                  val s: Source[Try[Out], Mat]
-                                                    with FlowOps[Try[Out], Mat]
-                                                ) {
+    implicit class SourceTryOpsF[Out, Mat](
+                                            val s: Source[Try[Out], Mat]
+                                              with FlowOps[Try[Out], Mat]
+                                          ) {
       def filterOrElseF(p: Out => Boolean, zero: => Throwable): Source[Try[Out], Mat] = s.map(_.flatMap {
         case value if p(value) => Success(value)
         case _ => Failure(zero)
@@ -128,6 +128,11 @@ object FlowUtils {
 
       def flattenF: Source[Out, Mat] = s.collect {
         case Success(value) => value
+      }
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Try[Out2], Mat] = s.mapConcat {
+        case Failure(exception) => Seq(Failure(exception))
+        case Success(value) => f(value).iterator.map(Success(_))
       }
     }
 
@@ -175,10 +180,10 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
-    implicit class SourceEitherFilterOpsF[OutL, OutR, Ctx, Mat](
-                                                                 val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
-                                                                   with FlowWithContextOps[Either[OutL, OutR], Ctx, Mat]
-                                                               ) {
+    implicit class SourceEitherOpsF[OutL, OutR, Ctx, Mat](
+                                                           val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
+                                                             with FlowWithContextOps[Either[OutL, OutR], Ctx, Mat]
+                                                         ) {
       def filterOrElseF(p: OutR => Boolean, zero: => OutL): SourceWithContext[Either[OutL, OutR], Ctx, Mat] = s.map(_.filterOrElse(p, zero))
 
       def collectF[OutR2](pf: PartialFunction[OutR, OutR2])(zero: => OutL): SourceWithContext[Either[OutL, OutR2], Ctx, Mat] = s.map(_.flatMap {
@@ -187,10 +192,10 @@ object FlowUtils {
       })
     }
 
-    implicit class SourceTryFilterOpsF[Out, Ctx, Mat](
-                                                       val s: SourceWithContext[Try[Out], Ctx, Mat]
-                                                         with FlowWithContextOps[Try[Out], Ctx, Mat]
-                                                     ) {
+    implicit class SourceTryOpsF[Out, Ctx, Mat](
+                                                 val s: SourceWithContext[Try[Out], Ctx, Mat]
+                                                   with FlowWithContextOps[Try[Out], Ctx, Mat]
+                                               ) {
       def filterOrElseF(p: Out => Boolean, zero: => Throwable): SourceWithContext[Try[Out], Ctx, Mat] = s.map(_.flatMap {
         case value if p(value) => Success(value)
         case _ => Failure(zero)
@@ -246,10 +251,10 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): Flow[In, F[Out2], Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
-    implicit class FlowEitherFilterOpsF[In, OutL, OutR, Mat](
-                                                              val s: Flow[In, Either[OutL, OutR], Mat]
-                                                                with FlowOps[Either[OutL, OutR], Mat]
-                                                            ) {
+    implicit class FlowEitherOpsF[In, OutL, OutR, Mat](
+                                                        val s: Flow[In, Either[OutL, OutR], Mat]
+                                                          with FlowOps[Either[OutL, OutR], Mat]
+                                                      ) {
       def filterOrElseF(p: OutR => Boolean, zero: => OutL): Flow[In, Either[OutL, OutR], Mat] = s.map(_.filterOrElse(p, zero))
 
       def collectF[Out2](pf: PartialFunction[OutR, Out2])(zero: => OutL): Flow[In, Either[OutL, Out2], Mat] = s.map(_.flatMap {
@@ -258,10 +263,10 @@ object FlowUtils {
       })
     }
 
-    implicit class FlowTryFilterOpsF[In, Out, Mat](
-                                                    val s: Flow[In, Try[Out], Mat]
-                                                      with FlowOps[Try[Out], Mat]
-                                                  ) {
+    implicit class FlowTryOpsF[In, Out, Mat](
+                                              val s: Flow[In, Try[Out], Mat]
+                                                with FlowOps[Try[Out], Mat]
+                                            ) {
       def filterOrElseF(p: Out => Boolean, zero: => Throwable): Flow[In, Try[Out], Mat] = s.map(_.flatMap {
         case value if p(value) => Success(value)
         case _ => Failure(zero)
@@ -271,6 +276,11 @@ object FlowUtils {
         case value if pf.isDefinedAt(value) => Success(pf(value))
         case _ => Failure(zero)
       })
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Flow[In, Try[Out2], Mat] = s.mapConcat {
+        case Failure(exception) => Seq(Failure(exception))
+        case Success(value) => f(value).iterator.map(Success(_))
+      }
     }
 
     implicit class FlowOpsS[In, Out, Mat, F[_]](
@@ -317,10 +327,10 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
-    implicit class FlowWithContextEitherFilterOpsF[In, CtxIn, OutL, OutR, CtxOut, Mat](
-                                                                                        val s: FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat]
-                                                                                          with FlowWithContextOps[Either[OutL, OutR], CtxOut, Mat]
-                                                                                      ) {
+    implicit class FlowWithContextEitherOpsF[In, CtxIn, OutL, OutR, CtxOut, Mat](
+                                                                                  val s: FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat]
+                                                                                    with FlowWithContextOps[Either[OutL, OutR], CtxOut, Mat]
+                                                                                ) {
       def filterOrElseF(p: OutR => Boolean, zero: => OutL): FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat] = s.map(_.filterOrElse(p, zero))
 
       def collectF[Out2](pf: PartialFunction[OutR, Out2])(zero: => OutL): FlowWithContext[In, CtxIn, Either[OutL, Out2], CtxOut, Mat] = s.map(_.flatMap {
@@ -329,10 +339,10 @@ object FlowUtils {
       })
     }
 
-    implicit class FlowWithContextTryFilterOpsF[In, CtxIn, Out, CtxOut, Mat](
-                                                                              val s: FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat]
-                                                                                with FlowWithContextOps[Try[Out], CtxOut, Mat]
-                                                                            ) {
+    implicit class FlowWithContextTryOpsF[In, CtxIn, Out, CtxOut, Mat](
+                                                                        val s: FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat]
+                                                                          with FlowWithContextOps[Try[Out], CtxOut, Mat]
+                                                                      ) {
       def filterOrElseF(p: Out => Boolean, zero: => Throwable): FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat] = s.map(_.flatMap {
         case value if p(value) => Success(value)
         case _ => Failure(zero)

@@ -149,6 +149,9 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
             case 2 => "moin"
           },
           Seq(Failure(exception), Success("moin"))
+        ), (
+          _.mapConcatF(element => Seq(element, element)),
+          Seq(Success(1), Success(1), Failure(exception), Success(2), Success(2))
         )
       )
 

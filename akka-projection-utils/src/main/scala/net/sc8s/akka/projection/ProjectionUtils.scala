@@ -20,10 +20,12 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object ProjectionUtils {
   case class TagGenerator(tagPrefix: String, eventProcessorParallelism: Int = 4) {
-    def generateTag(entityContext: EntityContext[_]): String = {
-      val tagIndex = math.abs(entityContext.entityId.hashCode % eventProcessorParallelism)
+    def generateTag(entityId: String): String = {
+      val tagIndex = math.abs(entityId.hashCode % eventProcessorParallelism)
       generateTag(tagIndex)
     }
+
+    def generateTag(entityContext: EntityContext[_]): String = generateTag(entityContext.entityId)
 
     def generateTag(tagIndex: Int): String = s"$tagPrefix$tagIndex"
   }
@@ -53,7 +55,7 @@ object ProjectionUtils {
       }
     }
 
-    private val shardedDaemonProcess = ShardedDaemonProcess(actorSystem)
+    private lazy val shardedDaemonProcess = ShardedDaemonProcess(actorSystem)
 
     final def init(shardedDaemonProcessName: String = s"$projectionName-projection") = {
       log.info(s"${"initializingProjection" -> "tag"} $projectionName with ${projectionIds.map(_.id) -> "projectionIds"}")

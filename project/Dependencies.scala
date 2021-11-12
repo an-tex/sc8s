@@ -9,6 +9,8 @@ object Dependencies {
   val slf4j = "org.slf4j" % "slf4j-api" % "1.7.32"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.3.0")
 
+  val overrides = akka.overrides
+
   object play {
     // same as lagom uses
     val core = "com.typesafe.play" %% "play" % "2.8.8"

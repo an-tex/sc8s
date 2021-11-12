@@ -18,6 +18,7 @@ lazy val sc8s = (project in file("."))
     `common-circe`.js,
     `common-circe`.jvm,
     `common-tzdb`.js,
+    `lagom-akka-components`,
     `lagom-api-circe`.js,
     `lagom-api-circe`.jvm,
     `lagom-server-circe-testkit`,
@@ -133,6 +134,20 @@ lazy val `akka-projection-utils-lagom-server` = (project in file("akka-projectio
   )
   .dependsOn(`akka-projection-utils-lagom-api`.jvm, `akka-projection-utils`)
 
+lazy val `lagom-akka-components` = (project in file("lagom-akka-components"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.persistenceTyped,
+      akka.persistenceTestkit,
+      lagom.scaladslServer,
+      scalaTest.value,
+      scalamock,
+      macwire.macros
+    ),
+    idePackagePrefix := Some("net.sc8s.lagom.akka.components")
+  )
+  .dependsOn(`akka-circe`, `akka-projection-utils`, `lagom-server-circe`, `akka-projection-utils-lagom-server`)
+
 lazy val `lagom-server-circe` = (project in file("lagom-server-circe"))
   .settings(
     libraryDependencies ++= Seq(
@@ -247,7 +262,8 @@ inThisBuild(Seq(
     )
   )),
   githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))),
-  versionScheme := Some("early-semver")
+  versionScheme := Some("early-semver"),
+  dependencyOverrides ++= Dependencies.overrides,
 ))
 
 Global / excludeLintKeys += idePackagePrefix

@@ -13,6 +13,7 @@ import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionC
 import com.softwaremill.macwire._
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
+import izumi.logstage.api.Log.CustomContext
 import net.sc8s.akka.circe.CirceSerializer
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.freespec.AnyFreeSpecLike
@@ -34,7 +35,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
         object Component {
           def create(dependency: Dependency) = ClusterComponent.Singleton[Command](
             "singleton",
-            actorContext => Behaviors.receiveMessage {
+            componentContext => Behaviors.receiveMessage {
               case Command() => Behaviors.same
             },
             CirceSerializer()
@@ -58,10 +59,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
       }
       "persistence" - {
         "minimal" in {
-          ClusterComponent.Singleton[Command, Event, State](
+          ClusterComponent.Singleton.EventSourced[Command, Event, State](
             "singleton",
-            (actorContext, persistenceId) => EventSourcedBehavior(
-              persistenceId,
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
               State(),
               {
                 case (state, command) => Effect.none
@@ -75,10 +76,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
           )
         }
         "with snapshots" in {
-          ClusterComponent.Singleton[Command, Event, State](
+          ClusterComponent.Singleton.EventSourced[Command, Event, State](
             "singleton",
-            (actorContext, persistenceId) => EventSourcedBehavior(
-              persistenceId,
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
               State(),
               {
                 case (state, command) => Effect.none
@@ -92,10 +93,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
           ).withSnapshots(RetentionCriteria.snapshotEvery(100, 3), CirceSerializer())
         }
         "with projections" in {
-          ClusterComponent.Singleton[Command, Event, State](
+          ClusterComponent.Singleton.EventSourced[Command, Event, State](
             "singleton",
-            (actorContext, persistenceId) => EventSourcedBehavior(
-              persistenceId,
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
               State(),
               {
                 case (state, command) => Effect.none
@@ -124,8 +125,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
         object Component {
           def create(dependency: Dependency) = ClusterComponent.Sharded.StringEntityId[Command](
             "sharded",
-            (actorContext, entityId) => Behaviors.receiveMessage {
-              case Command() => Behaviors.same
+            componentContext => Behaviors.receiveMessage {
+              case Command() =>
+                Behaviors.same
             },
             CirceSerializer()
           )
@@ -146,7 +148,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
       "custom EntityId" in {
         ClusterComponent.Sharded[Command, CompositeEntityId](
           "sharded",
-          (actorContext, entityId) => Behaviors.receiveMessage {
+          componentContext => Behaviors.receiveMessage {
             case Command() => Behaviors.same
           },
           CirceSerializer()
@@ -154,10 +156,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
       }
       "persistence" - {
         "minimal" in {
-          ClusterComponent.Sharded[Command, Event, State](
+          ClusterComponent.Sharded.EventSourcedStringEntityId[Command, Event, State](
             "sharded",
-            (actorContext, entityId, persistenceId) => EventSourcedBehavior(
-              persistenceId,
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
               State(),
               {
                 case (state, command) => Effect.none
@@ -171,10 +173,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
           )
         }
         "with snapshots" in {
-          ClusterComponent.Sharded[Command, Event, State](
+          ClusterComponent.Sharded.EventSourcedStringEntityId[Command, Event, State](
             "sharded",
-            (actorContext, entityId, persistenceId) => EventSourcedBehavior(
-              persistenceId,
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
               State(),
               {
                 case (state, command) => Effect.none
@@ -188,10 +190,33 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
           ).withSnapshots(RetentionCriteria.snapshotEvery(100, 3), CirceSerializer())
         }
         "with projections" in {
-          ClusterComponent.Sharded[Command, Event, State](
+          ClusterComponent.Sharded.EventSourcedStringEntityId[Command, Event, State](
             "sharded",
-            (actorContext, entityId, persistenceId) => EventSourcedBehavior(
-              persistenceId,
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
+              State(),
+              {
+                case (state, command) => Effect.none
+              },
+              {
+                case (state, event) => state
+              }
+            ),
+            CirceSerializer(),
+            CirceSerializer(),
+          ).withProjections(
+            ClusterComponent.Sharded.Projection(
+              "projection",
+              { case (event, entityId) => Future.successful(Done)
+              }
+            )
+          )
+        }
+        "with custom EntityId" in {
+          ClusterComponent.Sharded.EventSourced[Command, Event, State, CompositeEntityId](
+            "sharded",
+            componentContext => EventSourcedBehavior(
+              componentContext.persistenceId,
               State(),
               {
                 case (state, command) => Effect.none
@@ -233,6 +258,10 @@ object ClusterComponentSpec {
 
   case class CompositeEntityId(id1: String, id2: String) extends ClusterComponent.Sharded.EntityId {
     override val entityId = s"$id1-$id2"
+    override val logContext = CustomContext(
+      "id1" -> id1,
+      "id2" -> id2,
+    )
   }
   object CompositeEntityId {
     implicit val entityIdParser: EntityIdParser[CompositeEntityId] = (entityId: String) => entityId.split('-').toList match {

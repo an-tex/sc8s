@@ -140,6 +140,7 @@ lazy val `lagom-akka-components` = (project in file("lagom-akka-components"))
       akka.persistenceTyped,
       akka.persistenceTestkit,
       lagom.scaladslServer,
+      chimney.value,
       scalaTest.value,
       scalamock,
       macwire.macros

@@ -9,12 +9,12 @@ import izumi.logstage.api.rendering.{RenderingOptions, StringRenderingPolicy}
 import izumi.logstage.sink.slf4j.LogSinkLegacySlf4jImpl
 
 trait Logging {
-  protected lazy val logContext: CustomContext = CustomContext()
+  protected def logContext: CustomContext = CustomContext()
 
   // used for event parameters & context prefixes
   protected lazy val loggerClass = this.getClass.getName.takeWhile(_ != '$')
 
-  protected implicit lazy val log = {
+  implicit lazy val log = {
     val renderPolicy =
       if (sys.props.get("logger.izumi.sink").contains("json"))
         LogstageCirceElasticRenderingPolicy(loggerClass)

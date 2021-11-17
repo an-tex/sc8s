@@ -4,6 +4,7 @@ import sbt._
 object Dependencies {
   val scala213 = "2.13.7"
 
+  val chimney = Def.setting("io.scalaland" %%% "chimney" % "0.6.1")
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.10")
   val scalamock = "org.scalamock" %% "scalamock" % "5.1.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "1.7.32"

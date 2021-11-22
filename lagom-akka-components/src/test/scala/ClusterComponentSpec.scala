@@ -3,7 +3,7 @@ package net.sc8s.lagom.akka.components
 import ClusterComponent.EntityIdParser
 import ClusterComponent.Sharded.StringEntityId
 import ClusterComponentSpec.CompositeEntityId._
-import ClusterComponentSpec.{Command, CompositeEntityId, Event, State}
+import ClusterComponentSpec.{Command, Command2, CompositeEntityId, Event, State}
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -127,6 +127,8 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
             "sharded",
             componentContext => Behaviors.receiveMessage {
               case Command() =>
+                // that's how you can obtain an entity of this component itself as you can't dependency inject the component itself
+                componentContext.entityRef("entityId")
                 Behaviors.same
             },
             CirceSerializer()
@@ -134,7 +136,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
         }
 
         class Service(component: ClusterComponent.ShardedComponent[Command, StringEntityId]) {
-          component.entityRefFor("entityId") ! Command()
+          component.entityRef("entityId") ! Command()
         }
 
         object ApplicationLoader {
@@ -144,6 +146,48 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLik
 
           val service = wire[Service]
         }
+      }
+      "minimal with wiring containing circular dependency" in {
+        class Dependency
+
+        object Component {
+          def create(dependency: Dependency, clusterComponent: ClusterComponent.ShardedComponent[Command2, StringEntityId]) = ClusterComponent.Sharded.StringEntityId[Command](
+            "sharded1",
+            componentContext => Behaviors.receiveMessage {
+              case Command() =>
+                Behaviors.same
+            },
+            CirceSerializer()
+          )
+
+          def create2(clusterComponent: ClusterComponent.ShardedComponent[Command, StringEntityId]) = ClusterComponent.Sharded.StringEntityId[Command2](
+            "sharded2",
+            componentContext => Behaviors.receiveMessage {
+              case Command2() =>
+                Behaviors.same
+            },
+            CirceSerializer()
+          )
+        }
+
+        class Service(
+                       component1: ClusterComponent.ShardedComponent[Command, StringEntityId],
+                       component2: ClusterComponent.ShardedComponent[Command2, StringEntityId],
+                     ) {
+          component1.entityRef("entityId1") ! Command()
+          component2.entityRef("entityId2") ! Command2()
+        }
+
+        object ApplicationLoader {
+          val dependency = wire[Dependency]
+
+          lazy val component1: ClusterComponent.ShardedComponent[Command, StringEntityId] = wireWith(Component.create _).init()
+          lazy val component2: ClusterComponent.ShardedComponent[Command2, StringEntityId] = wireWith(Component.create2 _).init()
+
+          val service = wire[Service]
+        }
+
+        ApplicationLoader.service shouldBe a[Service]
       }
       "custom EntityId" in {
         ClusterComponent.Sharded[Command, CompositeEntityId](
@@ -244,6 +288,11 @@ object ClusterComponentSpec {
   case class Command()
   object Command {
     implicit val codec: Codec[Command] = deriveCodec
+  }
+
+  case class Command2()
+  object Command2 {
+    implicit val codec: Codec[Command2] = deriveCodec
   }
 
   case class Event()

@@ -3,7 +3,7 @@ package net.sc8s.lagom.akka.components
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
-import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityTypeKey}
+import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityRef, EntityTypeKey}
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
@@ -63,6 +63,8 @@ object ClusterComponent {
 
     trait Sharded[Command, EntityId <: ClusterComponent.Sharded.EntityId] extends ComponentContext[Command] {
       val entityId: EntityId
+
+      def entityRef(entityId: EntityId): EntityRef[Command]
 
       override protected def logContext = super.logContext + entityId.logContext
     }
@@ -284,7 +286,7 @@ object ClusterComponent {
 
     override type ComponentContextS <: ShardedComponentContext[Command, EntityId]
 
-    def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityId.entityId)
+    def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityId.entityId)
 
     private[components] val component: ShardedT[Command, EntityId, ComponentContextS]
   }
@@ -337,6 +339,8 @@ object ClusterComponent {
       override val entityId = _entityId
       override val actorContext = _actorContext
 
+      override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityId.entityId)
+
       override protected def logContext = super.logContext + self.logContext
     }
 
@@ -382,6 +386,8 @@ object ClusterComponent {
         override val entityId = _entityId
         override val persistenceId = PersistenceId(typeKey.name, entityId.entityId)
         override val actorContext = _actorContext
+
+        override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityId.entityId)
 
         override protected def logContext = super.logContext + self.logContext
       }

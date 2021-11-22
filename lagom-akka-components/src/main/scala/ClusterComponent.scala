@@ -29,7 +29,7 @@ ClusterComponents is taken by com.lightbend.lagom.scaladsl.cluster.ClusterCompon
 trait WiredClusterComponents extends CirceAkkaSerializationComponents with ProjectionComponents {
   _: LagomApplication =>
 
-  private lazy val components: Set[ClusterComponent.ComponentT[_, _]] = wireSet[ClusterComponent.Component[_]].map(_.component)
+  private lazy val components: Set[ClusterComponent.ComponentT[_, _, _]] = wireSet[ClusterComponent.Component[_]].map(_.component)
 
   override def circeSerializerRegistry = super.circeSerializerRegistry ++ new CirceSerializerRegistry {
     override def serializers = {
@@ -61,16 +61,20 @@ object ClusterComponent {
       )
     }
 
-    trait Sharded[Command, EntityId <: ClusterComponent.Sharded.EntityId] extends ComponentContext[Command] {
+    trait Sharded[Command, SerializableCommand <: Command, EntityId <: ClusterComponent.Sharded.EntityId] extends ComponentContext[Command] {
       val entityId: EntityId
 
-      def entityRef(entityId: EntityId): EntityRef[Command]
+      def entityRef(entityId: EntityId): EntityRef[SerializableCommand]
 
       override protected def logContext = super.logContext + entityId.logContext
     }
   }
 
-  private[components] trait ComponentT[Command, ComponentContextT <: ComponentContext[Command]] {
+  private[components] trait ComponentT[
+    Command,
+    SerializableCommand <: Command,
+    ComponentContextT <: ComponentContext[Command],
+  ] {
 
     val name: String
 
@@ -80,9 +84,9 @@ object ClusterComponent {
 
     def behavior: ComponentContextS => BehaviorS
 
-    def init(): Component[Command]
+    def init(): Component[SerializableCommand]
 
-    val commandSerializer: CirceSerializer[Command]
+    val commandSerializer: CirceSerializer[SerializableCommand]
 
     val actorSystem: ActorSystem[_]
 
@@ -98,20 +102,21 @@ object ClusterComponent {
   private[components] object ComponentT {
     sealed trait EventSourced[
       Command,
+      SerializableCommand <: Command,
       Event,
       State,
       ComponentContextT <: ComponentContext[Command] with ComponentContext.EventSourced[Command],
       ProjectionT,
-    ] extends ComponentT[Command, ComponentContextT] {
+    ] extends ComponentT[Command, SerializableCommand, ComponentContextT] {
       val eventSerializer: CirceSerializer[Event]
 
-      def withSnapshots(retentionCriteria: RetentionCriteria, stateSerializer: CirceSerializer[State]): EventSourced[Command, Event, State, ComponentContextT, ProjectionT] with EventSourced.Snapshots[Command, Event, State, ComponentContextT, ProjectionT]
+      def withSnapshots(retentionCriteria: RetentionCriteria, stateSerializer: CirceSerializer[State]): EventSourced[Command, SerializableCommand, Event, State, ComponentContextT, ProjectionT] with EventSourced.Snapshots[Command, SerializableCommand, Event, State, ComponentContextT, ProjectionT]
 
       override private[components] def serializers = super.serializers :+ eventSerializer
 
       override type BehaviorS = EventSourcedBehavior[Command, Event, State]
 
-      type EventSourcedS = EventSourced[Command, Event, State, ComponentContextS, ProjectionT]
+      type EventSourcedS = EventSourced[Command, SerializableCommand, Event, State, ComponentContextS, ProjectionT]
 
       private[components] def addProjections(
                                               behavior: ComponentContextS => EventSourcedBehavior[Command, Event, State],
@@ -135,7 +140,7 @@ object ClusterComponent {
     }
 
     object EventSourced {
-      sealed trait Snapshots[Command, Event, State, ComponentContextT <: ComponentContext[Command] with ComponentContext.EventSourced[Command], ProjectionT] extends EventSourced[Command, Event, State, ComponentContextT, ProjectionT] {
+      sealed trait Snapshots[Command, SerializableCommand <: Command, Event, State, ComponentContextT <: ComponentContext[Command] with ComponentContext.EventSourced[Command], ProjectionT] extends EventSourced[Command, SerializableCommand, Event, State, ComponentContextT, ProjectionT] {
         val retentionCriteria: RetentionCriteria
 
         val stateSerializer: CirceSerializer[State]
@@ -145,19 +150,19 @@ object ClusterComponent {
     }
   }
 
-  private[components] sealed trait Component[Command] {
-    type ComponentContextS <: ComponentContext[Command]
-
-    private[components] val component: ComponentT[Command, ComponentContextS]
+  private[components] sealed trait Component[SerializableCommand] {
+    private[components] val component: ComponentT[_, _, _]
   }
 
-  trait SingletonComponent[Command] extends Component[Command] {
-    val actorRef: ActorRef[Command]
-
-    private[components] val component: SingletonT[Command, ComponentContextS]
+  trait SingletonComponent[SerializableCommand] extends Component[SerializableCommand] {
+    val actorRef: ActorRef[SerializableCommand]
   }
 
-  private[components] sealed trait SingletonT[Command, ComponentContextT <: ComponentContext[Command]] extends ComponentT[Command, ComponentContextT] {
+  private[components] sealed trait SingletonT[
+    Command,
+    SerializableCommandT <: Command,
+    ComponentContextT <: ComponentContext[Command]
+  ] extends ComponentT[Command, SerializableCommandT, ComponentContextT] {
     self =>
     lazy val clusterSingleton: ClusterSingleton = ClusterSingleton(actorSystem)
 
@@ -165,16 +170,14 @@ object ClusterComponent {
 
     def fromActorContext(actorContext: ActorContext[Command]): ComponentContextS
 
-    def init(): SingletonComponent[Command] = {
+    def init(): SingletonComponent[SerializableCommandT] = {
       initProjections()
 
-      new SingletonComponent[Command] {
-
-        override type ComponentContextS = self.ComponentContextS
+      new SingletonComponent[SerializableCommandT] {
 
         override val actorRef = clusterSingleton.init(SingletonActor(
           Behaviors
-            .supervise(Behaviors.setup[Command](fromActorContext(_).pipe(behavior)))
+            .supervise(Behaviors.setup[Command](fromActorContext(_).pipe(behavior)).narrow[SerializableCommandT])
             .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
           name
         ))
@@ -184,12 +187,12 @@ object ClusterComponent {
     }
   }
 
-  case class Singleton[Command: ClassTag](
-                                           name: String,
-                                           behavior: ComponentContext[Command] => Behavior[Command],
-                                           commandSerializer: CirceSerializer[Command],
-                                           logContext: CustomContext = CustomContext()
-                                         )(implicit val actorSystem: ActorSystem[_]) extends SingletonT[Command, ComponentContext[Command]] {
+  case class Singleton[Command: ClassTag, SerializableCommand <: Command](
+                                                                           name: String,
+                                                                           behavior: ComponentContext[Command] => Behavior[Command],
+                                                                           commandSerializer: CirceSerializer[SerializableCommand],
+                                                                           logContext: CustomContext = CustomContext()
+                                                                         )(implicit val actorSystem: ActorSystem[_]) extends SingletonT[Command, SerializableCommand, ComponentContext[Command]] {
     self =>
 
     override def fromActorContext(_actorContext: ActorContext[Command]) = new ComponentContext[Command] {
@@ -202,9 +205,10 @@ object ClusterComponent {
   }
 
   object Singleton {
+
     case class Projection[Event](name: String, handler: PartialFunction[Event, Future[Done]])
 
-    private[components] abstract class EventSourcedT[Command: ClassTag, Event, State] extends SingletonT[Command, ComponentContext[Command] with ComponentContext.EventSourced[Command]] with ComponentT.EventSourced[Command, Event, State, ComponentContext[Command] with ComponentContext.EventSourced[Command], Projection[Event]] {
+    private[components] abstract class EventSourcedT[Command: ClassTag, SerializableCommand <: Command, Event, State] extends SingletonT[Command, SerializableCommand, ComponentContext[Command] with ComponentContext.EventSourced[Command]] with ComponentT.EventSourced[Command, SerializableCommand, Event, State, ComponentContext[Command] with ComponentContext.EventSourced[Command], Projection[Event]] {
       self =>
       implicit val actorSystem: ActorSystem[_]
 
@@ -230,17 +234,17 @@ object ClusterComponent {
       override def generateTag(context: EventSourcedT.this.ComponentContextS) = tagGenerator.generateTag(0)
     }
 
-    case class EventSourced[Command: ClassTag, Event, State](
-                                                              name: String,
-                                                              behavior: ComponentContext[Command] with ComponentContext.EventSourced[Command] => EventSourcedBehavior[Command, Event, State],
-                                                              commandSerializer: CirceSerializer[Command],
-                                                              eventSerializer: CirceSerializer[Event],
-                                                              projections: Seq[Projection[Event]] = Nil,
-                                                              logContext: CustomContext = CustomContext()
-                                                            )(implicit val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, Event, State] {
+    case class EventSourced[Command: ClassTag, SerializableCommand <: Command, Event, State](
+                                                                                              name: String,
+                                                                                              behavior: ComponentContext[Command] with ComponentContext.EventSourced[Command] => EventSourcedBehavior[Command, Event, State],
+                                                                                              commandSerializer: CirceSerializer[SerializableCommand],
+                                                                                              eventSerializer: CirceSerializer[Event],
+                                                                                              projections: Seq[Projection[Event]] = Nil,
+                                                                                              logContext: CustomContext = CustomContext()
+                                                                                            )(implicit val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, SerializableCommand, Event, State] {
       self =>
       def withSnapshots(retentionCriteria: RetentionCriteria, stateSerializer: CirceSerializer[State]) =
-        this.into[EventSourcedWithSnapshots[Command, Event, State]]
+        this.into[EventSourcedWithSnapshots[Command, SerializableCommand, Event, State]]
           .withFieldConst(_.retentionCriteria, retentionCriteria)
           .withFieldConst(_.stateSerializer, stateSerializer)
           .transform
@@ -254,16 +258,16 @@ object ClusterComponent {
       )
     }
 
-    case class EventSourcedWithSnapshots[Command: ClassTag, Event, State] private[components](
-                                                                                               name: String,
-                                                                                               behavior: ComponentContext[Command] with ComponentContext.EventSourced[Command] => EventSourcedBehavior[Command, Event, State],
-                                                                                               commandSerializer: CirceSerializer[Command],
-                                                                                               eventSerializer: CirceSerializer[Event],
-                                                                                               retentionCriteria: RetentionCriteria,
-                                                                                               stateSerializer: CirceSerializer[State],
-                                                                                               projections: Seq[Projection[Event]] = Nil,
-                                                                                               logContext: CustomContext = CustomContext()
-                                                                                             )(implicit val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, Event, State] with ComponentT.EventSourced.Snapshots[Command, Event, State, ComponentContext[Command] with ComponentContext.EventSourced[Command], Projection[Event]] {
+    case class EventSourcedWithSnapshots[Command: ClassTag, SerializableCommand <: Command, Event, State] private[components](
+                                                                                                                               name: String,
+                                                                                                                               behavior: ComponentContext[Command] with ComponentContext.EventSourced[Command] => EventSourcedBehavior[Command, Event, State],
+                                                                                                                               commandSerializer: CirceSerializer[SerializableCommand],
+                                                                                                                               eventSerializer: CirceSerializer[Event],
+                                                                                                                               retentionCriteria: RetentionCriteria,
+                                                                                                                               stateSerializer: CirceSerializer[State],
+                                                                                                                               projections: Seq[Projection[Event]] = Nil,
+                                                                                                                               logContext: CustomContext = CustomContext()
+                                                                                                                             )(implicit val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, SerializableCommand, Event, State] with ComponentT.EventSourced.Snapshots[Command, SerializableCommand, Event, State, ComponentContext[Command] with ComponentContext.EventSourced[Command], Projection[Event]] {
 
       override def withSnapshots(retentionCriteria: RetentionCriteria, stateSerializer: CirceSerializer[State]) = copy(retentionCriteria = retentionCriteria, stateSerializer = stateSerializer)
 
@@ -277,26 +281,18 @@ object ClusterComponent {
     }
   }
 
-  private[components] type ShardedComponentContext[Command, EntityId <: Sharded.EntityId] = ComponentContext[Command] with ComponentContext.Sharded[Command, EntityId]
+  private[components] type ShardedComponentContext[Command, SerializableCommand <: Command, EntityId <: Sharded.EntityId] = ComponentContext[Command] with ComponentContext.Sharded[Command, SerializableCommand, EntityId]
 
-  trait ShardedComponent[Command, EntityId <: Sharded.EntityId] extends Component[Command] {
-    private[components] val typeKey: EntityTypeKey[Command]
-
-    private[components] val clusterSharding: ClusterSharding
-
-    override type ComponentContextS <: ShardedComponentContext[Command, EntityId]
-
-    def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityId.entityId)
-
-    private[components] val component: ShardedT[Command, EntityId, ComponentContextS]
+  trait ShardedComponent[SerializableCommand, EntityId <: Sharded.EntityId] extends Component[SerializableCommand] {
+    def entityRef(entityId: EntityId): EntityRef[SerializableCommand]
   }
 
-  private[components] abstract class ShardedT[Command: ClassTag, EntityId <: Sharded.EntityId, ComponentContextT <: ShardedComponentContext[Command, EntityId]] extends ComponentT[Command, ComponentContextT] {
+  private[components] abstract class ShardedT[Command: ClassTag, SerializableCommand <: Command, EntityId <: Sharded.EntityId, ComponentContextT <: ShardedComponentContext[Command, SerializableCommand, EntityId]] extends ComponentT[Command, SerializableCommand, ComponentContextT] {
     self =>
 
     override type ComponentContextS = ComponentContextT
 
-    private[components] val typeKey: EntityTypeKey[Command] = EntityTypeKey[Command](name)
+    private[components] val typeKey: EntityTypeKey[SerializableCommand] = EntityTypeKey[Command](name)
 
     lazy val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)
 
@@ -304,21 +300,18 @@ object ClusterComponent {
 
     def fromActorContext(actorContext: ActorContext[Command], entityId: EntityId): ComponentContextS
 
-    def init(): ShardedComponent[Command, EntityId] = {
+    def init(): ShardedComponent[SerializableCommand, EntityId] = {
       initProjections()
 
-      new ShardedComponent[Command, EntityId] {
-        override type ComponentContextS = self.ComponentContextS
-
-        override val typeKey: EntityTypeKey[Command] = self.typeKey
-
-        override val clusterSharding = self.clusterSharding
-
+      new ShardedComponent[SerializableCommand, EntityId] {
         clusterSharding.init(Entity(typeKey)(entityContext =>
-          Behaviors.setup[Command](_actorContext => behavior(fromActorContext(_actorContext, entityIdParser.parse(entityContext.entityId))))
+          Behaviors.setup[Command](_actorContext => behavior(fromActorContext(_actorContext, entityIdParser.parse(entityContext.entityId)))).narrow[SerializableCommand]
         ))
+        //override private[components] val serializers = self.serializers
 
         override private[components] val component = self
+
+        override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityId.entityId)
       }
     }
   }
@@ -327,15 +320,15 @@ object ClusterComponent {
     def parse(entityId: String): EntityId
   }
 
-  case class Sharded[Command: ClassTag, EntityId <: Sharded.EntityId](
-                                                                       name: String,
-                                                                       behavior: ShardedComponentContext[Command, EntityId] => Behavior[Command],
-                                                                       commandSerializer: CirceSerializer[Command],
-                                                                       logContext: CustomContext = CustomContext()
-                                                                     )(implicit val entityIdParser: EntityIdParser[EntityId], val actorSystem: ActorSystem[_]) extends ShardedT[Command, EntityId, ShardedComponentContext[Command, EntityId]] {
+  case class Sharded[Command: ClassTag, SerializableCommand <: Command, EntityId <: Sharded.EntityId](
+                                                                                                       name: String,
+                                                                                                       behavior: ShardedComponentContext[Command, SerializableCommand, EntityId] => Behavior[Command],
+                                                                                                       commandSerializer: CirceSerializer[SerializableCommand],
+                                                                                                       logContext: CustomContext = CustomContext()
+                                                                                                     )(implicit val entityIdParser: EntityIdParser[EntityId], val actorSystem: ActorSystem[_]) extends ShardedT[Command, SerializableCommand, EntityId, ShardedComponentContext[Command, SerializableCommand, EntityId]] {
     self =>
 
-    override def fromActorContext(_actorContext: ActorContext[Command], _entityId: EntityId) = new ComponentContext[Command] with ComponentContext.Sharded[Command, EntityId] {
+    override def fromActorContext(_actorContext: ActorContext[Command], _entityId: EntityId) = new ComponentContext[Command] with ComponentContext.Sharded[Command, SerializableCommand, EntityId] {
       override val entityId = _entityId
       override val actorContext = _actorContext
 
@@ -364,25 +357,25 @@ object ClusterComponent {
       override def parse(entityId: String) = stringToStringEntityId(entityId)
     }
 
-    def StringEntityId[Command: ClassTag](
-                                           name: String,
-                                           behavior: ShardedComponentContext[Command, StringEntityId] => Behavior[Command],
-                                           commandSerializer: CirceSerializer[Command]
-                                         )(implicit actorSystem: ActorSystem[_]): Sharded[Command, StringEntityId] = Sharded[Command, StringEntityId](
+    def StringEntityId[Command: ClassTag, SerializableCommand <: Command](
+                                                                           name: String,
+                                                                           behavior: ShardedComponentContext[Command, SerializableCommand, StringEntityId] => Behavior[Command],
+                                                                           commandSerializer: CirceSerializer[SerializableCommand]
+                                                                         )(implicit actorSystem: ActorSystem[_]): Sharded[Command, SerializableCommand, StringEntityId] = Sharded[Command, SerializableCommand, StringEntityId](
       name,
       behavior,
       commandSerializer
     )
 
-    private[components] type ShardedEventSourcedComponentContext[Command, EntityId <: Sharded.EntityId] = ComponentContext[Command] with ComponentContext.Sharded[Command, EntityId] with ComponentContext.EventSourced[Command]
+    private[components] type ShardedEventSourcedComponentContext[Command, SerializableCommand <: Command, EntityId <: Sharded.EntityId] = ComponentContext[Command] with ComponentContext.Sharded[Command, SerializableCommand, EntityId] with ComponentContext.EventSourced[Command]
 
-    private[components] abstract class EventSourcedT[Command: ClassTag, Event, State, EntityId <: Sharded.EntityId] extends ShardedT[Command, EntityId, ShardedEventSourcedComponentContext[Command, EntityId]] with ComponentT.EventSourced[Command, Event, State, ShardedEventSourcedComponentContext[Command, EntityId], Projection[Event, EntityId]] {
+    private[components] abstract class EventSourcedT[Command: ClassTag, SerializableCommand <: Command, Event, State, EntityId <: Sharded.EntityId] extends ShardedT[Command, SerializableCommand, EntityId, ShardedEventSourcedComponentContext[Command, SerializableCommand, EntityId]] with ComponentT.EventSourced[Command, SerializableCommand, Event, State, ShardedEventSourcedComponentContext[Command, SerializableCommand, EntityId], Projection[Event, EntityId]] {
       self =>
       implicit val actorSystem: ActorSystem[_]
 
-      override type ComponentContextS = ShardedEventSourcedComponentContext[Command, EntityId]
+      override type ComponentContextS = ShardedEventSourcedComponentContext[Command, SerializableCommand, EntityId]
 
-      override def fromActorContext(_actorContext: ActorContext[Command], _entityId: EntityId) = new ComponentContext[Command] with ComponentContext.Sharded[Command, EntityId] with ComponentContext.EventSourced[Command] {
+      override def fromActorContext(_actorContext: ActorContext[Command], _entityId: EntityId) = new ComponentContext[Command] with ComponentContext.Sharded[Command, SerializableCommand, EntityId] with ComponentContext.EventSourced[Command] {
         override val entityId = _entityId
         override val persistenceId = PersistenceId(typeKey.name, entityId.entityId)
         override val actorContext = _actorContext
@@ -403,13 +396,13 @@ object ClusterComponent {
       override def generateTag(context: ComponentContextS) = tagGenerator.generateTag(context.entityId.entityId)
     }
 
-    def EventSourcedStringEntityId[Command: ClassTag, Event, State](
-                                                                     name: String,
-                                                                     eventSourcedBehavior: ShardedEventSourcedComponentContext[Command, StringEntityId] => EventSourcedBehavior[Command, Event, State],
-                                                                     commandSerializer: CirceSerializer[Command],
-                                                                     eventSerializer: CirceSerializer[Event],
-                                                                     logContext: CustomContext = CustomContext()
-                                                                   )(implicit actorSystem: ActorSystem[_]): EventSourced[Command, Event, State, StringEntityId] = EventSourced[Command, Event, State, StringEntityId](
+    def EventSourcedStringEntityId[Command: ClassTag, SerializableCommand <: Command, Event, State](
+                                                                                                     name: String,
+                                                                                                     eventSourcedBehavior: ShardedEventSourcedComponentContext[Command, SerializableCommand, StringEntityId] => EventSourcedBehavior[Command, Event, State],
+                                                                                                     commandSerializer: CirceSerializer[SerializableCommand],
+                                                                                                     eventSerializer: CirceSerializer[Event],
+                                                                                                     logContext: CustomContext = CustomContext()
+                                                                                                   )(implicit actorSystem: ActorSystem[_]): EventSourced[Command, SerializableCommand, Event, State, StringEntityId] = EventSourced[Command, SerializableCommand, Event, State, StringEntityId](
       name,
       eventSourcedBehavior,
       commandSerializer,
@@ -417,17 +410,17 @@ object ClusterComponent {
       logContext = logContext
     )
 
-    case class EventSourced[Command: ClassTag, Event, State, EntityId <: Sharded.EntityId] private(
-                                                                                                    name: String,
-                                                                                                    behavior: ShardedEventSourcedComponentContext[Command, EntityId] => EventSourcedBehavior[Command, Event, State],
-                                                                                                    commandSerializer: CirceSerializer[Command],
-                                                                                                    eventSerializer: CirceSerializer[Event],
-                                                                                                    projections: Seq[Projection[Event, EntityId]] = Nil,
-                                                                                                    logContext: CustomContext = CustomContext()
-                                                                                                  )(implicit val entityIdParser: EntityIdParser[EntityId], val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, Event, State, EntityId] {
+    case class EventSourced[Command: ClassTag, SerializableCommand <: Command, Event, State, EntityId <: Sharded.EntityId] private(
+                                                                                                                                    name: String,
+                                                                                                                                    behavior: ShardedEventSourcedComponentContext[Command, SerializableCommand, EntityId] => EventSourcedBehavior[Command, Event, State],
+                                                                                                                                    commandSerializer: CirceSerializer[SerializableCommand],
+                                                                                                                                    eventSerializer: CirceSerializer[Event],
+                                                                                                                                    projections: Seq[Projection[Event, EntityId]] = Nil,
+                                                                                                                                    logContext: CustomContext = CustomContext()
+                                                                                                                                  )(implicit val entityIdParser: EntityIdParser[EntityId], val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, SerializableCommand, Event, State, EntityId] {
       self =>
       def withSnapshots(retentionCriteria: RetentionCriteria, stateSerializer: CirceSerializer[State]) =
-        this.into[EventSourcedWithSnapshots[Command, Event, State, EntityId]]
+        this.into[EventSourcedWithSnapshots[Command, SerializableCommand, Event, State, EntityId]]
           .withFieldConst(_.retentionCriteria, retentionCriteria)
           .withFieldConst(_.stateSerializer, stateSerializer)
           .transform
@@ -441,17 +434,17 @@ object ClusterComponent {
       )
     }
 
-    case class EventSourcedWithSnapshots[Command: ClassTag, Event, State, EntityId <: Sharded.EntityId] private[components](
-                                                                                                                             name: String,
-                                                                                                                             behavior: ShardedEventSourcedComponentContext[Command, EntityId] => EventSourcedBehavior[Command, Event, State],
-                                                                                                                             commandSerializer: CirceSerializer[Command],
-                                                                                                                             eventSerializer: CirceSerializer[Event],
-                                                                                                                             retentionCriteria: RetentionCriteria,
-                                                                                                                             stateSerializer: CirceSerializer[State],
-                                                                                                                             projections: Seq[Projection[Event, EntityId]] = Nil,
-                                                                                                                             logContext: CustomContext = CustomContext()
+    case class EventSourcedWithSnapshots[Command: ClassTag, SerializableCommand <: Command, Event, State, EntityId <: Sharded.EntityId] private[components](
+                                                                                                                                                             name: String,
+                                                                                                                                                             behavior: ShardedEventSourcedComponentContext[Command, SerializableCommand, EntityId] => EventSourcedBehavior[Command, Event, State],
+                                                                                                                                                             commandSerializer: CirceSerializer[SerializableCommand],
+                                                                                                                                                             eventSerializer: CirceSerializer[Event],
+                                                                                                                                                             retentionCriteria: RetentionCriteria,
+                                                                                                                                                             stateSerializer: CirceSerializer[State],
+                                                                                                                                                             projections: Seq[Projection[Event, EntityId]] = Nil,
+                                                                                                                                                             logContext: CustomContext = CustomContext()
 
-                                                                                                                           )(implicit val entityIdParser: EntityIdParser[EntityId], val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, Event, State, EntityId] with ComponentT.EventSourced.Snapshots[Command, Event, State, ShardedEventSourcedComponentContext[Command, EntityId], Projection[Event, EntityId]] {
+                                                                                                                                                           )(implicit val entityIdParser: EntityIdParser[EntityId], val actorSystem: ActorSystem[_]) extends EventSourcedT[Command, SerializableCommand, Event, State, EntityId] with ComponentT.EventSourced.Snapshots[Command, SerializableCommand, Event, State, ShardedEventSourcedComponentContext[Command, SerializableCommand, EntityId], Projection[Event, EntityId]] {
 
       override def withSnapshots(retentionCriteria: RetentionCriteria, stateSerializer: CirceSerializer[State]) = copy(
         retentionCriteria = retentionCriteria,

@@ -1,8 +1,6 @@
 package net.sc8s.lagom.akka.components
 
-import ClusterComponent.EntityIdParser
-import ClusterComponent.Sharded.StringEntityId
-import ClusterComponentSpec.CompositeEntityId._
+import ClusterComponent.Sharded.EntityIdCodec
 import ClusterComponentSpec._
 
 import akka.Done
@@ -111,10 +109,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          )
+          ).init()
         }
         "with snapshots" in {
-          ClusterComponent.Singleton.EventSourced[Command, Command, Event, State](
+          ClusterComponent.Singleton.EventSourced.WithSnapshots[Command, Command, Event, State](
             "singleton",
             componentContext => EventSourcedBehavior(
               componentContext.persistenceId,
@@ -128,7 +126,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          ).withSnapshots(RetentionCriteria.snapshotEvery(100, 3), CirceSerializer())
+            CirceSerializer(),
+            RetentionCriteria.snapshotEvery(100, 3),
+          ).init()
         }
         "with projections" in {
           ClusterComponent.Singleton.EventSourced[Command, Command, Event, State](
@@ -145,14 +145,14 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          ).withProjections(
-            ClusterComponent.Singleton.Projection(
-              "projection",
-              {
-                case event => Future.successful(Done)
-              }
-            )
-          )
+            projections = Seq(
+              ClusterComponent.Singleton.Projection(
+                "projection",
+                {
+                  case event => Future.successful(Done)
+                }
+              ))
+          ).init()
         }
       }
     }
@@ -161,7 +161,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
         class Dependency
 
         object Component {
-          def create(dependency: Dependency) = ClusterComponent.Sharded.StringEntityId[Command, Command](
+          def create(dependency: Dependency) = ClusterComponent.Sharded[Command, Command, String](
             "sharded",
             componentContext => Behaviors.receiveMessage {
               case Command() =>
@@ -173,7 +173,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           )
         }
 
-        class Service(component: ClusterComponent.ShardedComponent[Command, StringEntityId]) {
+        class Service(component: ClusterComponent.ShardedComponent[Command, String]) {
           component.entityRef("entityId") ! Command()
         }
 
@@ -235,16 +235,16 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
       "minimal with wiring containing circular dependency" in {
 
         class Service(
-                       component1: ClusterComponent.ShardedComponent[Command, StringEntityId],
-                       component2: ClusterComponent.ShardedComponent[Command2, StringEntityId],
+                       component1: ClusterComponent.ShardedComponent[Command, String],
+                       component2: ClusterComponent.ShardedComponent[Command2, String],
                      ) {
           component1.entityRef("entityId1") ! Command()
           component2.entityRef("entityId2") ! Command2()
         }
 
         object ApplicationLoader {
-          lazy val component1: ClusterComponent.ShardedComponent[Command, StringEntityId] = wire[CircularComponent.C].component.init()
-          lazy val component2: ClusterComponent.ShardedComponent[Command2, StringEntityId] = wire[CircularComponent.C2].component.init()
+          lazy val component1: ClusterComponent.ShardedComponent[Command, String] = wire[CircularComponent.C].component.init()
+          lazy val component2: ClusterComponent.ShardedComponent[Command2, String] = wire[CircularComponent.C2].component.init()
 
           val service = wire[Service]
         }
@@ -258,11 +258,11 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             case Command() => Behaviors.same
           },
           CirceSerializer()
-        )
+        ).init()
       }
       "persistence" - {
         "minimal" in {
-          ClusterComponent.Sharded.EventSourcedStringEntityId[Command, Command, Event, State](
+          ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, String](
             "sharded",
             componentContext => EventSourcedBehavior(
               componentContext.persistenceId,
@@ -276,10 +276,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          )
+          ).init()
         }
         "with snapshots" in {
-          ClusterComponent.Sharded.EventSourcedStringEntityId[Command, Command, Event, State](
+          ClusterComponent.Sharded.EventSourced.WithSnapshots[Command, Command, Event, State, String](
             "sharded",
             componentContext => EventSourcedBehavior(
               componentContext.persistenceId,
@@ -293,10 +293,12 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          ).withSnapshots(RetentionCriteria.snapshotEvery(100, 3), CirceSerializer())
+            CirceSerializer(),
+            RetentionCriteria.snapshotEvery(100, 3)
+          ).init()
         }
         "with projections" in {
-          ClusterComponent.Sharded.EventSourcedStringEntityId[Command, Command, Event, State](
+          ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, String](
             "sharded",
             componentContext => EventSourcedBehavior(
               componentContext.persistenceId,
@@ -310,13 +312,12 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          ).withProjections(
-            ClusterComponent.Sharded.Projection(
-              "projection",
+            projections = Seq(ClusterComponent.Sharded.Projection(
+              "projection1",
               { case (event, entityId) => Future.successful(Done)
               }
-            )
-          )
+            ))
+          ).init()
         }
         "with custom EntityId" in {
           ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, CompositeEntityId](
@@ -333,13 +334,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-          ).withProjections(
-            ClusterComponent.Sharded.Projection(
-              "projection",
-              { case (event, entityId) => Future.successful(Done)
-              }
-            )
-          )
+          ).init()
         }
       }
     }
@@ -374,23 +369,25 @@ object ClusterComponentSpec {
     implicit val codec: Codec[State] = deriveCodec
   }
 
-  case class CompositeEntityId(id1: String, id2: String) extends ClusterComponent.Sharded.EntityId {
-    override val entityId = s"$id1-$id2"
-    override val logContext = CustomContext(
-      "id1" -> id1,
-      "id2" -> id2,
-    )
-  }
+  case class CompositeEntityId(id1: String, id2: String)
   object CompositeEntityId {
-    implicit val entityIdParser: EntityIdParser[CompositeEntityId] = (entityId: String) => entityId.split('-').toList match {
-      case id1 :: id2 :: Nil => CompositeEntityId(id1, id2)
-    }
+
+    implicit val codec: EntityIdCodec[CompositeEntityId] = EntityIdCodec[CompositeEntityId](
+      entityId => s"${entityId.id1}-${entityId.id2}",
+      entityId => entityId.split('-').toList match {
+        case id1 :: id2 :: Nil => CompositeEntityId(id1, id2)
+      },
+      entityId => CustomContext(
+        "id1" -> entityId.id1,
+        "id2" -> entityId.id2
+      )
+    )
   }
 
   // components need to be wrapped in class due to https://github.com/softwaremill/macwire/issues/187
   object CircularComponent {
-    class C(clusterComponent: => ClusterComponent.ShardedComponent[Command2, StringEntityId])(implicit val actorSystem: ActorSystem[_]) {
-      val component = ClusterComponent.Sharded.StringEntityId[Command, Command](
+    class C(clusterComponent: => ClusterComponent.ShardedComponent[Command2, String])(implicit val actorSystem: ActorSystem[_]) {
+      val component = ClusterComponent.Sharded[Command, Command, String](
         "sharded1",
         componentContext => Behaviors.receiveMessage {
           case Command() =>
@@ -400,8 +397,8 @@ object ClusterComponentSpec {
       )
     }
 
-    class C2(clusterComponent: => ClusterComponent.ShardedComponent[Command, StringEntityId])(implicit val actorSystem: ActorSystem[_]) {
-      val component = ClusterComponent.Sharded.StringEntityId[Command2, Command2](
+    class C2(clusterComponent: => ClusterComponent.ShardedComponent[Command, String])(implicit val actorSystem: ActorSystem[_]) {
+      val component = ClusterComponent.Sharded[Command2, Command2, String](
         "sharded2",
         componentContext => Behaviors.receiveMessage {
           case Command2() =>

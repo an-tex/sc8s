@@ -7,6 +7,7 @@ lazy val sc8s = (project in file("."))
   )
   .aggregate(
     `akka-circe`,
+    `akka-persistence-utils`,
     `akka-projection-utils`,
     `akka-projection-utils-api`.js,
     `akka-projection-utils-api`.jvm,
@@ -86,6 +87,14 @@ lazy val `akka-circe` = (project in file("akka-circe"))
     ),
   ).dependsOn(`common-circe`.jvm)
 
+lazy val `akka-persistence-utils` = (project in file("akka-persistence-utils"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.persistenceTyped
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.persistence.utils")
+  ).dependsOn(`logstage-elastic`)
+
 lazy val `akka-projection-utils` = (project in file("akka-projection-utils"))
   .settings(
     libraryDependencies ++= Seq(
@@ -147,7 +156,7 @@ lazy val `lagom-akka-components` = (project in file("lagom-akka-components"))
     ),
     idePackagePrefix := Some("net.sc8s.lagom.akka.components")
   )
-  .dependsOn(`akka-circe`, `akka-projection-utils`, `lagom-server-circe`, `akka-projection-utils-lagom-server`)
+  .dependsOn(`akka-circe`, `akka-persistence-utils`, `akka-projection-utils`, `lagom-server-circe`, `akka-projection-utils-lagom-server`)
 
 lazy val `lagom-server-circe` = (project in file("lagom-server-circe"))
   .settings(

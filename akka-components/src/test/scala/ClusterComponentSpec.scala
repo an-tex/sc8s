@@ -1,4 +1,4 @@
-package net.sc8s.lagom.akka.components
+package net.sc8s.akka.components
 
 import ClusterComponent.Sharded.EntityIdCodec
 import ClusterComponentSpec._
@@ -22,7 +22,7 @@ import org.scalatest.matchers.should.Matchers
 import scala.concurrent.Future
 
 /*
-This spec is only meant to illyus
+This spec is only meant to illustrate the usage of ClusterComponent
  */
 class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseString(
   """
@@ -146,10 +146,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             CirceSerializer(),
             CirceSerializer(),
             projections = Seq(
-              ClusterComponent.Singleton.Projection(
+              ClusterComponent.Projection(
                 "projection",
                 {
-                  case event => Future.successful(Done)
+                  case (event, projectionContext) => Future.successful(Done)
                 }
               ))
           ).init()
@@ -312,9 +312,10 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             ),
             CirceSerializer(),
             CirceSerializer(),
-            projections = Seq(ClusterComponent.Sharded.Projection(
+            projections = Seq(ClusterComponent.Projection(
               "projection1",
-              { case (event, entityId) => Future.successful(Done)
+              { case (event, projectionContext) =>
+                Future.successful(Done)
               }
             ))
           ).init()

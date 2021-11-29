@@ -7,6 +7,9 @@ lazy val sc8s = (project in file("."))
   )
   .aggregate(
     `akka-circe`,
+    `akka-components`,
+    `akka-components-lagom`,
+    `akka-components-testkit`,
     `akka-persistence-utils`,
     `akka-projection-utils`,
     `akka-projection-utils-api`.js,
@@ -19,7 +22,6 @@ lazy val sc8s = (project in file("."))
     `common-circe`.js,
     `common-circe`.jvm,
     `common-tzdb`.js,
-    `lagom-akka-components`,
     `lagom-api-circe`.js,
     `lagom-api-circe`.jvm,
     `lagom-server-circe-testkit`,
@@ -143,20 +145,41 @@ lazy val `akka-projection-utils-lagom-server` = (project in file("akka-projectio
   )
   .dependsOn(`akka-projection-utils-lagom-api`.jvm, `akka-projection-utils`)
 
-lazy val `lagom-akka-components` = (project in file("lagom-akka-components"))
+lazy val `akka-components` = (project in file("akka-components"))
   .settings(
     libraryDependencies ++= Seq(
       akka.persistenceTyped,
       akka.persistenceTestkit,
-      lagom.scaladslServer,
       chimney.value,
       scalaTest.value,
       scalamock,
       macwire.macros
     ),
-    idePackagePrefix := Some("net.sc8s.lagom.akka.components")
+    idePackagePrefix := Some("net.sc8s.akka.components")
   )
   .dependsOn(`akka-circe`, `akka-persistence-utils`, `akka-projection-utils`, `lagom-server-circe`, `akka-projection-utils-lagom-server`)
+
+lazy val `akka-components-testkit` = (project in file("akka-components-testkit"))
+  .settings(
+    libraryDependencies ++= Seq(
+      scalaTest.value,
+      scalamock,
+      akka.testkitTyped % Test,
+      akka.persistenceTestkit % Test
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.components.testkit")
+  )
+  .dependsOn(`akka-components`)
+
+lazy val `akka-components-lagom` = (project in file("akka-components-lagom"))
+  .settings(
+    libraryDependencies ++= Seq(
+      lagom.scaladslServer,
+      macwire.macros
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.components.lagom")
+  )
+  .dependsOn(`akka-components`)
 
 lazy val `lagom-server-circe` = (project in file("lagom-server-circe"))
   .settings(

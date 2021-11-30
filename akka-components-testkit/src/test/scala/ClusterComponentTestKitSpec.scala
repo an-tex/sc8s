@@ -1,15 +1,11 @@
 package net.sc8s.akka.components.testkit
 
-import ClusterComponentTestKitSpec.Command
+import ClusterComponentTestKitSpec.{Command, Event}
 
-import akka.actor.testkit.typed.scaladsl.ActorTestKit.ApplicationTestConfig
-import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
-import akka.persistence.testkit.{PersistenceTestKitPlugin, PersistenceTestKitSnapshotPlugin}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
-import com.typesafe.config.ConfigFactory
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
 import net.sc8s.akka.circe.CirceSerializer
@@ -18,13 +14,7 @@ import net.sc8s.logstage.elastic.Logging
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
-class ClusterComponentTestKitSpec extends ScalaTestWithActorTestKit(
-  ConfigFactory.empty()
-    .withFallback(PersistenceTestKitPlugin.config)
-    .withFallback(PersistenceTestKitSnapshotPlugin.config)
-    .withFallback(ConfigFactory.load())
-    .withFallback(ApplicationTestConfig),
-) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging {
+class ClusterComponentTestKitSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging {
   "ComponentTestKit" should {
     "support Singleton" in {
       val component: ActorRef[ClusterComponentTestKitSpec.Command] = spawnComponent(ClusterComponentTestKitSpec.singleton)
@@ -34,17 +24,16 @@ class ClusterComponentTestKitSpec extends ScalaTestWithActorTestKit(
       val component: EventSourcedBehaviorTestKit[Command, ClusterComponentTestKitSpec.Event, ClusterComponentTestKitSpec.State] = spawnComponent(ClusterComponentTestKitSpec.singletonEventSourced)
       component
         .runCommand(Command())
-        .hasNoEvents
+        .event shouldBe Event()
     }
     "support Sharded" in {
       val component: ActorRef[ClusterComponentTestKitSpec.Command] = spawnComponent(ClusterComponentTestKitSpec.sharded, "entityId")
       component ! Command()
     }
     "support Sharded EventSourced" in {
-      val component: EventSourcedBehaviorTestKit[Command, ClusterComponentTestKitSpec.Event, ClusterComponentTestKitSpec.State] = spawnComponent(ClusterComponentTestKitSpec.shardedEventSourced, "entityId")
-      component
+      spawnComponent(ClusterComponentTestKitSpec.shardedEventSourced, "entityId2")
         .runCommand(Command())
-        .hasNoEvents
+        .event shouldBe Event()
     }
   }
 }
@@ -81,7 +70,7 @@ object ClusterComponentTestKitSpec {
       State(),
       {
         case (state, command) =>
-          Effect.none
+          Effect.persist(Event())
       },
       {
         case (state, event) => state
@@ -102,17 +91,19 @@ object ClusterComponentTestKitSpec {
 
   def shardedEventSourced(implicit actorSystem: ActorSystem[_]) = ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, String](
     "name",
-    context => EventSourcedBehavior(
-      context.persistenceId,
-      State(),
-      {
-        case (state, command) =>
-          Effect.none
-      },
-      {
-        case (state, event) => state
-      }
-    ),
+    context => {
+      EventSourcedBehavior(
+        context.persistenceId,
+        State(),
+        {
+          case (state, command) =>
+            Effect.persist(Event())
+        },
+        {
+          case (state, event) => state
+        }
+      )
+    },
     CirceSerializer(),
     CirceSerializer()
   )

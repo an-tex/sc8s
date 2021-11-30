@@ -1,21 +1,35 @@
 package net.sc8s.akka.components.testkit
 
-import akka.actor.testkit.typed.scaladsl.{ScalaTestWithActorTestKit, TestProbe}
+import akka.actor.testkit.typed.scaladsl.ActorTestKit.ApplicationTestConfig
+import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.sharding.typed.testkit.scaladsl.TestEntityRef
+import akka.persistence.testkit.PersistenceTestKitSnapshotPlugin
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit.SerializationSettings
 import akka.persistence.typed.PersistenceId
+import com.typesafe.config.{Config, ConfigFactory}
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.components.ClusterComponent.ComponentContext
 import net.sc8s.akka.components.ClusterComponent.Sharded.EntityIdCodec
 import net.sc8s.logstage.elastic.Logging
 
-import scala.util.Random
+/*
+compared to net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit this is not verifying any serialization as it's provided at compile time
+ */
+abstract class ScalaTestWithActorTestKit(
+                                          additionalConfig: Config = ConfigFactory.empty()
+                                        ) extends akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit(
+  additionalConfig
+    .withFallback(EventSourcedBehaviorTestKit.config)
+    .withFallback(PersistenceTestKitSnapshotPlugin.config)
+    .withFallback(ConfigFactory.load())
+    .withFallback(ApplicationTestConfig),
+)
 
 trait ClusterComponentTestKit {
-  self: ScalaTestWithActorTestKit with Logging =>
+  self: akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit with Logging =>
 
   def spawnComponent[
     Command,
@@ -47,7 +61,7 @@ trait ClusterComponentTestKit {
           new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.EventSourced {
             override val log = self.log
             override val actorContext = _actorContext
-            override val persistenceId = PersistenceId.ofUniqueId(s"${component.name}-${Random.alphanumeric.take(8).mkString}")
+            override val persistenceId = PersistenceId.ofUniqueId(component.name)
           }
         )
       ),
@@ -113,7 +127,7 @@ trait ClusterComponentTestKit {
      entityRefProbes: EntityId => TestProbe[SerializableCommand]
    )(
      implicit _entityIdCodec: EntityIdCodec[EntityId]
-   ): EventSourcedBehaviorTestKit[Command, Event, State] =
+   ): EventSourcedBehaviorTestKit[Command, Event, State] = {
     EventSourcedBehaviorTestKit[Command, Event, State](system,
       Behaviors.setup[Command](_actorContext =>
         component.behavior(
@@ -128,11 +142,12 @@ trait ClusterComponentTestKit {
 
             override private[components] val entityIdCodec = _entityIdCodec
 
-            override val persistenceId = PersistenceId.ofUniqueId(s"${component.name}-${entityIdCodec.encode(entityId)}-${Random.alphanumeric.take(8).mkString}")
+            override val persistenceId = PersistenceId(component.typeKey.name, entityIdCodec.encode(_entityId))
           }
         )
       ),
       // no need as serializers must be provided upon component creation anyway
       SerializationSettings.disabled
     )
+  }
 }

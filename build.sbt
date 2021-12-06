@@ -169,7 +169,7 @@ lazy val `akka-components-testkit` = (project in file("akka-components-testkit")
     ),
     idePackagePrefix := Some("net.sc8s.akka.components.testkit")
   )
-  .dependsOn(`akka-components`)
+  .dependsOn(`akka-components`, `lagom-server-circe-testkit`)
 
 lazy val `akka-components-lagom` = (project in file("akka-components-lagom"))
   .settings(
@@ -196,7 +196,7 @@ lazy val `lagom-server-circe-testkit` = (project in file("lagom-server-circe-tes
       play.core,
       akka.persistenceTyped,
       akka.persistenceTestkit,
-      scalaTest.value
+      scalaTest.value,
     ),
     idePackagePrefix := Some("net.sc8s.lagom.circe.testkit")
   )

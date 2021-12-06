@@ -1,13 +1,14 @@
 package net.sc8s.akka.components
 
 import ClusterComponent.Sharded.EntityIdCodec
+import ClusterComponentSpec.CircularDependencyTest.{ShardedTestComponent1, ShardedTestComponent2}
+import ClusterComponentSpec.{CircularDependencyTest, Dependency, ShardedTestComponent, SingletonTestComponent}
 import ClusterComponentSpec._
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
-import akka.cluster.typed.ClusterSingleton
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import com.softwaremill.macwire._
 import com.typesafe.config.ConfigFactory
@@ -31,23 +32,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
   "ClusterComponents" - {
     "Singletons" - {
-      val clusterSingleton = stub[ClusterSingleton]
-
       "minimal with wiring" in {
-        class Dependency
-
-        object Component {
-          def create(dependency: Dependency) = ClusterComponent.Singleton[Command, Command](
-            "singleton",
-            componentContext => Behaviors.receiveMessage {
-              case Command() => Behaviors.same
-            },
-            CirceSerializer()
-          )
-        }
-
-        class Service(component: ClusterComponent.SingletonComponent[Command]) {
-          component.actorRef ! Command()
+        class Service(component: ClusterComponent.SingletonComponent[SingletonTestComponent.Component]) {
+          component.actorRef ! SingletonTestComponent.Command()
         }
 
         object ApplicationLoader {
@@ -56,7 +43,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
           val dependency = wire[Dependency]
 
-          val component = wireWith(Component.create _).init()
+          val component = wire[SingletonTestComponent.Component].init()
 
           val service = wire[Service]
         }
@@ -64,20 +51,143 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
         ApplicationLoader.service shouldBe a[Service]
       }
       "different SerializableCommand" in {
-        class Dependency
+        object ComponentObject extends ClusterComponent.Singleton {
+          sealed trait Command
+          sealed trait SerializableCommand extends Command
 
-        object Component {
-          def create(dependency: Dependency) = ClusterComponent.Singleton[Command3, Command3.SerializableCommand](
-            "singleton",
-            componentContext => Behaviors.receiveMessage {
-              case Command3.InternalCommand() | Command3.SerializableCommand() => Behaviors.same
-            },
-            CirceSerializer()
-          )
+          case class Command1() extends Command
+          case class Command2() extends SerializableCommand
+          object Command {
+            implicit val codec: Codec[SerializableCommand] = deriveCodec
+          }
+
+          class Component(dependency: Dependency) extends BaseComponent[Component] {
+            override val behavior = componentContext => Behaviors.receiveMessage {
+              case Command1() => Behaviors.same
+            }
+          }
+
+          override val name = "singleton"
+
+          override val commandSerializer = CirceSerializer()
         }
 
-        class Service(component: ClusterComponent.SingletonComponent[Command3.SerializableCommand]) {
-          component.actorRef ! Command3.SerializableCommand()
+        new ComponentObject.Component(new Dependency).init()
+      }
+      "persistence" - {
+        "minimal" in {
+          object ComponentObject extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+
+            class Component(dependency: Dependency) extends BaseComponent[Component] {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) =>
+                    componentContext.log.error(s"${"kaputt" -> "moin"}")
+                    Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+            }
+
+            override val name = "singleton"
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+          }
+
+          new ComponentObject.Component(new Dependency).init().actorRef ! ComponentObject.Command()
+          Thread.sleep(1000)
+        }
+        "with snapshots" in {
+          object ComponentObject extends ClusterComponent.Singleton.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+            implicit val stateCodec: Codec[State] = deriveCodec
+
+            class Component(dependency: Dependency) extends BaseComponent[Component] {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) => Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+            }
+
+            override val name = "singleton"
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
+            override val stateSerializer = CirceSerializer()
+          }
+
+          new ComponentObject.Component(new Dependency).init()
+        }
+        "with projections" in {
+          object ComponentObject extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+
+            class Component(dependency: Dependency) extends BaseComponent[Component] {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) => Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+
+              override val projections = Seq(
+                ClusterComponent.Projection(
+                  "projection",
+                  {
+                    case (event, projectionContext) => Future.successful(Done)
+                  }
+                ))
+            }
+
+            override val name = "singleton"
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+          }
+
+          new ComponentObject.Component(new Dependency).init()
+        }
+      }
+    }
+    "Sharded" - {
+      "minimal with wiring" in {
+        class Service(component: ClusterComponent.ShardedComponent[ShardedTestComponent.Component]) {
+          component.entityRef("entityId") ! ShardedTestComponent.Command()
         }
 
         object ApplicationLoader {
@@ -86,165 +196,26 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
           val dependency = wire[Dependency]
 
-          val component = wireWith(Component.create _).init()
+          val component = wire[ShardedTestComponent.Component].init()
 
           val service = wire[Service]
         }
 
         ApplicationLoader.service shouldBe a[Service]
       }
-      "persistence" - {
-        "minimal" in {
-          ClusterComponent.Singleton.EventSourced[Command, Command, Event, State](
-            "singleton",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-          ).init()
-        }
-        "with snapshots" in {
-          ClusterComponent.Singleton.EventSourced.WithSnapshots[Command, Command, Event, State](
-            "singleton",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-            CirceSerializer(),
-            RetentionCriteria.snapshotEvery(100, 3),
-          ).init()
-        }
-        "with projections" in {
-          ClusterComponent.Singleton.EventSourced[Command, Command, Event, State](
-            "singleton",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-            projections = Seq(
-              ClusterComponent.Projection(
-                "projection",
-                {
-                  case (event, projectionContext) => Future.successful(Done)
-                }
-              ))
-          ).init()
-        }
-      }
-    }
-    "Sharded" - {
-      "minimal with wiring" in {
-        class Dependency
-
-        object Component {
-          def create(dependency: Dependency) = ClusterComponent.Sharded[Command, Command, String](
-            "sharded",
-            componentContext => Behaviors.receiveMessage {
-              case Command() =>
-                // that's how you can obtain an entity of this component itself as you can't dependency inject the component itself
-                componentContext.entityRef("entityId")
-                Behaviors.same
-            },
-            CirceSerializer()
-          )
-        }
-
-        class Service(component: ClusterComponent.ShardedComponent[Command, String]) {
-          component.entityRef("entityId") ! Command()
-        }
-
-        object ApplicationLoader {
-          val dependency = wire[Dependency]
-
-          val component = wireWith(Component.create _).init()
-
-          val service = wire[Service]
-        }
-
-        ApplicationLoader.service shouldBe a[Service]
-      }
-      // does not work due to https://github.com/softwaremill/macwire/issues/187
-      /*
-      "minimal with wiring containing circular dependency" in {
-        class Dependency
-
-        object Component {
-          def create(dependency: Dependency, clusterComponent: ClusterComponent.ShardedComponent[Command2, StringEntityId]) = ClusterComponent.Sharded.StringEntityId[Command, Command](
-            "sharded1",
-            componentContext => Behaviors.receiveMessage {
-              case Command() =>
-                Behaviors.same
-            },
-            CirceSerializer()
-          )
-
-          def create2(clusterComponent: ClusterComponent.ShardedComponent[Command, StringEntityId]) = ClusterComponent.Sharded.StringEntityId[Command2, Command2](
-            "sharded2",
-            componentContext => Behaviors.receiveMessage {
-              case Command2() =>
-                Behaviors.same
-            },
-            CirceSerializer()
-          )
-        }
-
-        class Service(
-                       component1: ClusterComponent.ShardedComponent[Command, StringEntityId],
-                       component2: ClusterComponent.ShardedComponent[Command2, StringEntityId],
-                     ) {
-          component1.entityRef("entityId1") ! Command()
-          component2.entityRef("entityId2") ! Command2()
-        }
-
-        object ApplicationLoader {
-          val dependency = wire[Dependency]
-
-          lazy val component1: ClusterComponent.ShardedComponent[Command, StringEntityId] = wireWith(Component.create _).init()
-          lazy val component2: ClusterComponent.ShardedComponent[Command2, StringEntityId] = wireWith(Component.create2 _).init()
-
-          val service = wire[Service]
-        }
-
-        ApplicationLoader.service shouldBe a[Service]
-      }
-      */
       "minimal with wiring containing circular dependency" in {
 
         class Service(
-                       component1: ClusterComponent.ShardedComponent[Command, String],
-                       component2: ClusterComponent.ShardedComponent[Command2, String],
+                       component1: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent1.Component],
+                       component2: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent2.Component],
                      ) {
-          component1.entityRef("entityId1") ! Command()
-          component2.entityRef("entityId2") ! Command2()
+          component1.entityRef("entityId1") ! CircularDependencyTest.ShardedTestComponent1.Command()
+          component2.entityRef("entityId2") ! CircularDependencyTest.ShardedTestComponent2.Command()
         }
 
         object ApplicationLoader {
-          lazy val component1: ClusterComponent.ShardedComponent[Command, String] = wire[CircularComponent.C].component.init()
-          lazy val component2: ClusterComponent.ShardedComponent[Command2, String] = wire[CircularComponent.C2].component.init()
+          lazy val component1: ClusterComponent.ShardedComponent[ShardedTestComponent1.Component] = wire[CircularDependencyTest.ShardedTestComponent1.Component].init()
+          lazy val component2: ClusterComponent.ShardedComponent[ShardedTestComponent2.Component] = wire[CircularDependencyTest.ShardedTestComponent2.Component].init()
 
           val service = wire[Service]
         }
@@ -252,90 +223,157 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
         ApplicationLoader.service shouldBe a[Service]
       }
       "custom EntityId" in {
-        ClusterComponent.Sharded[Command, Command, CompositeEntityId](
-          "sharded",
-          componentContext => Behaviors.receiveMessage {
-            case Command() => Behaviors.same
-          },
-          CirceSerializer()
-        ).init()
+        object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand {
+          case class EntityId(id1: String, id2: String)
+
+          // in case the EntityId is defined outside of the Component you can also override the type and alias it
+          //override type EntityId = EntityId
+
+          object EntityId {
+
+            implicit val codec: EntityIdCodec[EntityId] = EntityIdCodec[EntityId](
+              entityId => s"${entityId.id1}-${entityId.id2}",
+              entityId => entityId.split('-').toList match {
+                case id1 :: id2 :: Nil => EntityId(id1, id2)
+              },
+              entityId => CustomContext(
+                "id1" -> entityId.id1,
+                "id2" -> entityId.id2
+              )
+            )
+          }
+
+          case class Command()
+
+          object Command {
+            implicit val codec: Codec[Command] = deriveCodec
+          }
+
+          class Component(dependency: Dependency) extends BaseComponent[Component] {
+            override val behavior = componentContext =>
+              Behaviors.receiveMessage {
+                case Command() => Behaviors.same
+              }
+          }
+
+          override val name = "sharded3"
+
+          override val typeKey = generateTypeKey
+
+          override val commandSerializer = CirceSerializer[Command]()
+        }
+
+        new ComponentObject.Component(new Dependency).init()
       }
       "persistence" - {
         "minimal" in {
-          ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, String](
-            "sharded",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-          ).init()
+          object ComponentObject extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+
+            class Component(dependency: Dependency) extends BaseComponent[Component] {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) => Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+            }
+
+            override val name = "sharded4"
+
+            override val typeKey = generateTypeKey
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+          }
+
+          new ComponentObject.Component(new Dependency).init()
         }
         "with snapshots" in {
-          ClusterComponent.Sharded.EventSourced.WithSnapshots[Command, Command, Event, State, String](
-            "sharded",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-            CirceSerializer(),
-            RetentionCriteria.snapshotEvery(100, 3)
-          ).init()
+          object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+            implicit val stateCodec: Codec[State] = deriveCodec
+
+            class Component(dependency: Dependency) extends BaseComponent[Component] {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) => Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+            }
+
+            override val name = "sharded5"
+
+            override val typeKey = generateTypeKey
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
+            override val stateSerializer = CirceSerializer()
+          }
         }
         "with projections" in {
-          ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, String](
-            "sharded",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-            projections = Seq(ClusterComponent.Projection(
-              "projection1",
-              { case (event, projectionContext) =>
-                Future.successful(Done)
-              }
-            ))
-          ).init()
-        }
-        "with custom EntityId" in {
-          ClusterComponent.Sharded.EventSourced[Command, Command, Event, State, CompositeEntityId](
-            "sharded",
-            componentContext => EventSourcedBehavior(
-              componentContext.persistenceId,
-              State(),
-              {
-                case (state, command) => Effect.none
-              },
-              {
-                case (state, event) => state
-              }
-            ),
-            CirceSerializer(),
-            CirceSerializer(),
-          ).init()
+          object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+            implicit val stateCodec: Codec[State] = deriveCodec
+
+            class Component(dependency: Dependency) extends BaseComponent[Component] {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) => Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+
+              override val projections = Seq(
+                ClusterComponent.Projection(
+                  "projection",
+                  {
+                    case (event, projectionContext) => Future.successful(Done)
+                  }
+                ))
+            }
+
+            override val name = "sharded5"
+
+            override val typeKey = generateTypeKey
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
+            override val stateSerializer = CirceSerializer()
+          }
         }
       }
     }
@@ -343,70 +381,89 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 }
 
 object ClusterComponentSpec {
-  case class Command()
-  object Command {
-    implicit val codec: Codec[Command] = deriveCodec
-  }
+  class Dependency
 
-  case class Command2()
-  object Command2 {
-    implicit val codec: Codec[Command2] = deriveCodec
-  }
+  object SingletonTestComponent extends ClusterComponent.Singleton with ClusterComponent.SameSerializableCommand {
+    case class Command()
 
-  sealed trait Command3
-  object Command3 {
-    case class InternalCommand() extends Command3
-    case class SerializableCommand() extends Command3
-    implicit val codec: Codec[SerializableCommand] = deriveCodec
-  }
-
-  case class Event()
-  object Event {
-    implicit val codec: Codec[Event] = deriveCodec
-  }
-
-  case class State()
-  object State {
-    implicit val codec: Codec[State] = deriveCodec
-  }
-
-  case class CompositeEntityId(id1: String, id2: String)
-  object CompositeEntityId {
-
-    implicit val codec: EntityIdCodec[CompositeEntityId] = EntityIdCodec[CompositeEntityId](
-      entityId => s"${entityId.id1}-${entityId.id2}",
-      entityId => entityId.split('-').toList match {
-        case id1 :: id2 :: Nil => CompositeEntityId(id1, id2)
-      },
-      entityId => CustomContext(
-        "id1" -> entityId.id1,
-        "id2" -> entityId.id2
-      )
-    )
-  }
-
-  // components need to be wrapped in class due to https://github.com/softwaremill/macwire/issues/187
-  object CircularComponent {
-    class C(clusterComponent: => ClusterComponent.ShardedComponent[Command2, String])(implicit val actorSystem: ActorSystem[_]) {
-      val component = ClusterComponent.Sharded[Command, Command, String](
-        "sharded1",
-        componentContext => Behaviors.receiveMessage {
-          case Command() =>
-            Behaviors.same
-        },
-        CirceSerializer()
-      )
+    object Command {
+      implicit val codec: Codec[Command] = deriveCodec
     }
 
-    class C2(clusterComponent: => ClusterComponent.ShardedComponent[Command, String])(implicit val actorSystem: ActorSystem[_]) {
-      val component = ClusterComponent.Sharded[Command2, Command2, String](
-        "sharded2",
-        componentContext => Behaviors.receiveMessage {
-          case Command2() =>
-            Behaviors.same
-        },
-        CirceSerializer()
-      )
+    class Component(dependency: Dependency)(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+      override val behavior = componentContext => Behaviors.receiveMessage {
+        case Command() => Behaviors.same
+      }
+    }
+
+    override val name = "singleton"
+
+    override val commandSerializer = CirceSerializer[Command]()
+  }
+
+  object ShardedTestComponent extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+    case class Command()
+
+    object Command {
+      implicit val codec: Codec[Command] = deriveCodec
+    }
+
+    class Component(dependency: Dependency)(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+      override val behavior = componentContext =>
+        Behaviors.receiveMessage {
+          case Command() => Behaviors.same
+        }
+    }
+
+    override val name = "sharded"
+
+    override val typeKey = generateTypeKey
+
+    override val commandSerializer = CirceSerializer[Command]()
+  }
+
+  object CircularDependencyTest {
+    object ShardedTestComponent1 extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+      case class Command()
+
+      object Command {
+        implicit val codec: Codec[Command] = deriveCodec
+      }
+
+      // pass circular dependencies by-name =>
+      class Component(component2: => ClusterComponent.ShardedComponent[ShardedTestComponent2.Component])(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+        override val behavior = componentContext =>
+          Behaviors.receiveMessage {
+            case Command() => Behaviors.same
+          }
+      }
+
+      override val name = "sharded1"
+
+      override val typeKey = generateTypeKey
+
+      override val commandSerializer = CirceSerializer[Command]()
+    }
+
+    object ShardedTestComponent2 extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+      case class Command()
+
+      object Command {
+        implicit val codec: Codec[Command] = deriveCodec
+      }
+
+      class Component(component1: => ClusterComponent.ShardedComponent[ShardedTestComponent1.Component])(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+        override val behavior = componentContext =>
+          Behaviors.receiveMessage {
+            case Command() => Behaviors.same
+          }
+      }
+
+      override val name = "sharded2"
+
+      override val typeKey = generateTypeKey
+
+      override val commandSerializer = CirceSerializer[Command]()
     }
   }
 }

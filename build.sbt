@@ -284,7 +284,7 @@ inThisBuild(Seq(
   ),
   libraryDependencySchemes += "org.scala-lang.modules" %% "scala-java8-compat" % "always",
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
-  githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "1.11")),
+  githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),
   githubWorkflowTargetTags := Seq("*"),
   githubWorkflowPublish := Seq(WorkflowStep.Sbt(
     List("ci-release"),

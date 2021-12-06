@@ -171,6 +171,10 @@ object ClusterComponent {
 
   sealed trait Component[InnerComponentT <: InnerComponent[InnerComponentT]] {
     private[components] val component: InnerComponentT
+
+    private[components] val serializers: Seq[CirceSerializer[_]]
+
+    private[components] val managedProjections: Seq[ManagedProjection[_, _]]
   }
 
   sealed trait SingletonComponent[InnerComponentT <: InnerSingletonComponent[InnerComponentT]] extends Component[InnerComponentT] {
@@ -212,6 +216,10 @@ object ClusterComponent {
                 .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
               name
             ).withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem))))
+
+            override private[components] val serializers = outerSelf.serializers
+
+            override private[components] val managedProjections = self.managedProjections
           }
         }
       }
@@ -376,6 +384,10 @@ object ClusterComponent {
             override private[components] val component = self
 
             override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityIdCodec.encode(entityId))
+
+            override private[components] val serializers = outerSelf.serializers
+
+            override private[components] val managedProjections = self.managedProjections
           }
         }
       }

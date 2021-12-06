@@ -14,7 +14,7 @@ ClusterComponents is taken by com.lightbend.lagom.scaladsl.cluster.ClusterCompon
 trait WiredClusterComponents extends CirceAkkaSerializationComponents with ProjectionComponents {
   _: LagomApplication =>
 
-  private lazy val components: Set[ClusterComponent.ComponentT[_, _, _]] = wireSet[ClusterComponent.Component[_]].map(_.component)
+  private lazy val components: Set[ClusterComponent.Component[_]] = wireSet[ClusterComponent.Component[_]]
 
   override def circeSerializerRegistry = super.circeSerializerRegistry ++ new CirceSerializerRegistry {
     override def serializers = {

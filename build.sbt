@@ -1,5 +1,6 @@
 import Dependencies._
 import sbtcrossproject.CrossType
+import sbtghactions.JavaSpec.Distribution.Adopt
 
 lazy val sc8s = (project in file("."))
   .settings(
@@ -283,7 +284,7 @@ inThisBuild(Seq(
   ),
   libraryDependencySchemes += "org.scala-lang.modules" %% "scala-java8-compat" % "always",
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
-  githubWorkflowJavaVersions := Seq("adopt@1.11"),
+  githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "1.11")),
   githubWorkflowTargetTags := Seq("*"),
   githubWorkflowPublish := Seq(WorkflowStep.Sbt(
     List("ci-release"),

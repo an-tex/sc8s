@@ -3,7 +3,6 @@ package net.sc8s.akka.components
 import ClusterComponent.Sharded.EntityIdCodec
 import ClusterComponentSpec.CircularDependencyTest.{ShardedTestComponent1, ShardedTestComponent2}
 import ClusterComponentSpec.{CircularDependencyTest, Dependency, ShardedTestComponent, SingletonTestComponent}
-import ClusterComponentSpec._
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -90,9 +89,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 componentContext.persistenceId,
                 State(),
                 {
-                  case (state, command) =>
-                    componentContext.log.error(s"${"kaputt" -> "moin"}")
-                    Effect.none
+                  case (state, command) => Effect.none
                 },
                 {
                   case (state, event) => state
@@ -107,7 +104,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           }
 
           new ComponentObject.Component(new Dependency).init().actorRef ! ComponentObject.Command()
-          Thread.sleep(1000)
         }
         "with snapshots" in {
           object ComponentObject extends ClusterComponent.Singleton.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand {

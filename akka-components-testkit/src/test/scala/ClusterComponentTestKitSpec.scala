@@ -53,6 +53,25 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
 
       testProbe.expectMessage(Command())
     }
+    "support SingletonComponent TestProbe" in {
+      val (component, testProbe) = createSingletonProbe[ClusterComponentTestKitSpec.Singleton.Component](ClusterComponentTestKitSpec.Singleton)
+
+      component.actorRef ! ClusterComponentTestKitSpec.Command()
+
+      testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
+    }
+    "support ShardedComponent TestProbe" in {
+      val entityRefMock = mockFunction[String, TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]]
+
+      val testProbe = TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]()
+      entityRefMock.expects("entityIdX").returns(testProbe)
+
+      val component = createShardedProbe[ClusterComponentTestKitSpec.Sharded.Component](ClusterComponentTestKitSpec.Sharded)(entityRefMock)
+
+      component.entityRef("entityIdX") ! ClusterComponentTestKitSpec.Command()
+
+      testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
+    }
   }
 }
 

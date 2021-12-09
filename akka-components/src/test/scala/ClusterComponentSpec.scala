@@ -1,9 +1,7 @@
 package net.sc8s.akka.components
 
 import ClusterComponent.Sharded.EntityIdCodec
-import ClusterComponentSpec.CircularDependencyTest.{ShardedTestComponent1, ShardedTestComponent2}
 import ClusterComponentSpec.{CircularDependencyTest, Dependency, ShardedTestComponent, SingletonTestComponent}
-import ClusterComponentSpec._
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -33,7 +31,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
   "ClusterComponents" - {
     "Singletons" - {
       "minimal with wiring" in {
-        class Service(component: ClusterComponent.SingletonComponent[SingletonTestComponent.Component]) {
+        class Service(component: SingletonTestComponent.Wiring) {
           component.actorRef ! SingletonTestComponent.Command()
         }
 
@@ -61,7 +59,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             implicit val codec: Codec[SerializableCommand] = deriveCodec
           }
 
-          class Component(dependency: Dependency) extends BaseComponent[Component] {
+          class Component(dependency: Dependency) extends BaseComponent {
             override val behavior = componentContext => Behaviors.receiveMessage {
               case Command1() => Behaviors.same
             }
@@ -85,18 +83,23 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
             case class State()
 
-            class Component(dependency: Dependency) extends BaseComponent[Component] {
-              override val behavior = componentContext => EventSourcedBehavior(
-                componentContext.persistenceId,
-                State(),
-                {
-                  case (state, command) =>
-                    componentContext.log.error(s"${"kaputt" -> "moin"}")
-                    Effect.none
-                },
-                {
-                  case (state, event) => state
-                })
+            class Component(dependency: Dependency) extends BaseComponent {
+
+              override val behavior = componentContext => {
+                classOf[Command]
+                classOf[Event]
+                classOf[State]
+
+                EventSourcedBehavior(
+                  componentContext.persistenceId,
+                  State(),
+                  {
+                    case (state, command) => Effect.none
+                  },
+                  {
+                    case (state, event) => state
+                  })
+              }
             }
 
             override val name = "singleton"
@@ -107,7 +110,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           }
 
           new ComponentObject.Component(new Dependency).init().actorRef ! ComponentObject.Command()
-          Thread.sleep(1000)
         }
         "with snapshots" in {
           object ComponentObject extends ClusterComponent.Singleton.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand {
@@ -120,7 +122,11 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             case class State()
             implicit val stateCodec: Codec[State] = deriveCodec
 
-            class Component(dependency: Dependency) extends BaseComponent[Component] {
+            class Component(dependency: Dependency) extends BaseComponent {
+              classOf[Command]
+              classOf[Event]
+              classOf[State]
+
               override val behavior = componentContext => EventSourcedBehavior(
                 componentContext.persistenceId,
                 State(),
@@ -153,7 +159,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
             case class State()
 
-            class Component(dependency: Dependency) extends BaseComponent[Component] {
+            class Component(dependency: Dependency) extends BaseComponent {
               override val behavior = componentContext => EventSourcedBehavior(
                 componentContext.persistenceId,
                 State(),
@@ -186,7 +192,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
     }
     "Sharded" - {
       "minimal with wiring" in {
-        class Service(component: ClusterComponent.ShardedComponent[ShardedTestComponent.Component]) {
+        class Service(component: ShardedTestComponent.Wiring) {
           component.entityRef("entityId") ! ShardedTestComponent.Command()
         }
 
@@ -206,16 +212,16 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
       "minimal with wiring containing circular dependency" in {
 
         class Service(
-                       component1: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent1.Component],
-                       component2: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent2.Component],
+                       component1: CircularDependencyTest.ShardedTestComponent1.Wiring,
+                       component2: CircularDependencyTest.ShardedTestComponent2.Wiring,
                      ) {
           component1.entityRef("entityId1") ! CircularDependencyTest.ShardedTestComponent1.Command()
           component2.entityRef("entityId2") ! CircularDependencyTest.ShardedTestComponent2.Command()
         }
 
         object ApplicationLoader {
-          lazy val component1: ClusterComponent.ShardedComponent[ShardedTestComponent1.Component] = wire[CircularDependencyTest.ShardedTestComponent1.Component].init()
-          lazy val component2: ClusterComponent.ShardedComponent[ShardedTestComponent2.Component] = wire[CircularDependencyTest.ShardedTestComponent2.Component].init()
+          lazy val component1: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent1.type] = wire[CircularDependencyTest.ShardedTestComponent1.Component].init()
+          lazy val component2: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent2.type] = wire[CircularDependencyTest.ShardedTestComponent2.Component].init()
 
           val service = wire[Service]
         }
@@ -249,7 +255,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             implicit val codec: Codec[Command] = deriveCodec
           }
 
-          class Component(dependency: Dependency) extends BaseComponent[Component] {
+          class Component(dependency: Dependency) extends BaseComponent {
             override val behavior = componentContext =>
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
@@ -276,7 +282,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
             case class State()
 
-            class Component(dependency: Dependency) extends BaseComponent[Component] {
+            class Component(dependency: Dependency) extends BaseComponent {
               override val behavior = componentContext => EventSourcedBehavior(
                 componentContext.persistenceId,
                 State(),
@@ -310,7 +316,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             case class State()
             implicit val stateCodec: Codec[State] = deriveCodec
 
-            class Component(dependency: Dependency) extends BaseComponent[Component] {
+            class Component(dependency: Dependency) extends BaseComponent {
               override val behavior = componentContext => EventSourcedBehavior(
                 componentContext.persistenceId,
                 State(),
@@ -344,7 +350,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             case class State()
             implicit val stateCodec: Codec[State] = deriveCodec
 
-            class Component(dependency: Dependency) extends BaseComponent[Component] {
+            class Component(dependency: Dependency) extends BaseComponent {
               override val behavior = componentContext => EventSourcedBehavior(
                 componentContext.persistenceId,
                 State(),
@@ -390,7 +396,7 @@ object ClusterComponentSpec {
       implicit val codec: Codec[Command] = deriveCodec
     }
 
-    class Component(dependency: Dependency)(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(dependency: Dependency)(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = componentContext => Behaviors.receiveMessage {
         case Command() => Behaviors.same
       }
@@ -408,7 +414,7 @@ object ClusterComponentSpec {
       implicit val codec: Codec[Command] = deriveCodec
     }
 
-    class Component(dependency: Dependency)(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(dependency: Dependency)(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = componentContext =>
         Behaviors.receiveMessage {
           case Command() => Behaviors.same
@@ -431,7 +437,7 @@ object ClusterComponentSpec {
       }
 
       // pass circular dependencies by-name =>
-      class Component(component2: => ClusterComponent.ShardedComponent[ShardedTestComponent2.Component])(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+      class Component(component2: => ShardedTestComponent2.Wiring)(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
         override val behavior = componentContext =>
           Behaviors.receiveMessage {
             case Command() => Behaviors.same
@@ -452,7 +458,7 @@ object ClusterComponentSpec {
         implicit val codec: Codec[Command] = deriveCodec
       }
 
-      class Component(component1: => ClusterComponent.ShardedComponent[ShardedTestComponent1.Component])(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+      class Component(component1: => ShardedTestComponent1.Wiring)(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
         override val behavior = componentContext =>
           Behaviors.receiveMessage {
             case Command() => Behaviors.same

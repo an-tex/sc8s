@@ -1,7 +1,6 @@
 package net.sc8s.akka.components
 
 import ClusterComponent.Sharded.EntityIdCodec
-import ClusterComponentSpec.CircularDependencyTest.{ShardedTestComponent1, ShardedTestComponent2}
 import ClusterComponentSpec.{CircularDependencyTest, Dependency, ShardedTestComponent, SingletonTestComponent}
 
 import akka.Done

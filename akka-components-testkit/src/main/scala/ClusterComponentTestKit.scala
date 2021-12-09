@@ -10,7 +10,7 @@ import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit.Serializati
 import akka.persistence.typed.PersistenceId
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.components.ClusterComponent.Sharded.EntityIdCodec
-import net.sc8s.akka.components.ClusterComponent.{ComponentContext, ComponentT, Sharded, ShardedComponent, Singleton, SingletonComponent}
+import net.sc8s.akka.components.ClusterComponent._
 import net.sc8s.logstage.elastic.Logging
 
 import scala.reflect.ClassTag

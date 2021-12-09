@@ -3,8 +3,8 @@ package net.sc8s.akka.components.testkit
 import ClusterComponentTestKitSpec._
 
 import akka.actor.testkit.typed.scaladsl.TestProbe
+import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec

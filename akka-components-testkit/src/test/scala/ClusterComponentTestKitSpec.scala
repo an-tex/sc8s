@@ -1,10 +1,10 @@
 package net.sc8s.akka.components.testkit
 
-import ClusterComponentTestKitSpec.{Command, Event, Singleton}
+import ClusterComponentTestKitSpec._
 
 import akka.actor.testkit.typed.scaladsl.TestProbe
-import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
@@ -18,43 +18,44 @@ import org.scalatest.wordspec.AnyWordSpecLike
 class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourced.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
   "ComponentTestKit" should {
     "support Singleton" in {
-      spawnComponent(new Singleton.Component) ! Command()
+      val value1 = spawnComponent(Singleton)(new Singleton.Component)
+      value1 ! Command()
     }
     "support EventSourced Singleton" in {
-      spawnComponent(new ClusterComponentTestKitSpec.SingletonEventSourced.Component)
+      spawnComponent(SingletonEventSourced)(new SingletonEventSourced.Component)
         .runCommand(Command())
         .event shouldBe Event()
     }
     "support EventSourced Singleton with Snapshots" in {
-      spawnComponent(new ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.Component)
+      spawnComponent(SingletonEventSourcedWithSnapshots)(new ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.Component)
         .runCommand(Command())
         .event shouldBe Event()
     }
     "support Sharded" in {
-      spawnComponent(new ClusterComponentTestKitSpec.Sharded.Component)("entityId") ! Command()
+      spawnComponent(Sharded)(new Sharded.Component, "entityId") ! Command()
     }
     "support EventSourced Sharded" in {
-      spawnComponent(new ClusterComponentTestKitSpec.ShardedEventSourced.Component)("entityId")
+      spawnComponent(ShardedEventSourced)(new ShardedEventSourced.Component, "entityId")
         .runCommand(Command())
         .event shouldBe Event()
     }
     "support EventSourced Sharded with Snapshots" in {
-      spawnComponent(new ClusterComponentTestKitSpec.ShardedEventSourcedWithSnapshots.Component)("entityId")
+      spawnComponent(ShardedEventSourcedWithSnapshots)(new ShardedEventSourcedWithSnapshots.Component, "entityId")
         .runCommand(Command())
         .event shouldBe Event()
     }
     "support Sharded and entityRefProbes using scalamock" in {
       val entityRefMock = mockFunction[String, TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]]
 
-      val testProbe = TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]()
+      val testProbe = TestProbe[ShardedEntityRefMock.SerializableCommand]()
       entityRefMock.expects("entityIdX").returns(testProbe)
 
-      spawnComponentWithEntityRefProbes(new ClusterComponentTestKitSpec.ShardedEntityRefMock.Component)("entityId", entityRefMock) ! Command()
+      spawnComponentWithEntityRefProbes(ShardedEntityRefMock)(new ShardedEntityRefMock.Component, "entityId", entityRefMock) ! Command()
 
       testProbe.expectMessage(Command())
     }
     "support SingletonComponent TestProbe" in {
-      val (component, testProbe) = createSingletonProbe[ClusterComponentTestKitSpec.Singleton.Component](ClusterComponentTestKitSpec.Singleton)
+      val (component, testProbe) = createProbe(Singleton)
 
       component.actorRef ! ClusterComponentTestKitSpec.Command()
 
@@ -66,7 +67,7 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       val testProbe = TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]()
       entityRefMock.expects("entityIdX").returns(testProbe)
 
-      val component = createShardedProbe[ClusterComponentTestKitSpec.Sharded.Component](ClusterComponentTestKitSpec.Sharded)(entityRefMock)
+      val component = createProbe(ClusterComponentTestKitSpec.Sharded)(entityRefMock)
 
       component.entityRef("entityIdX") ! ClusterComponentTestKitSpec.Command()
 
@@ -96,7 +97,7 @@ object ClusterComponentTestKitSpec {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
           Behaviors.same
@@ -114,7 +115,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -139,7 +140,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -161,7 +162,7 @@ object ClusterComponentTestKitSpec {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
           Behaviors.same
@@ -180,7 +181,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -206,7 +207,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -229,7 +230,7 @@ object ClusterComponentTestKitSpec {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent[Component] {
+    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
           context.entityRef("entityIdX") ! Command()

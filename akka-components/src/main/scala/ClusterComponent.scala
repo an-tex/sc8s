@@ -1,7 +1,6 @@
 package net.sc8s.akka.components
 
-import ClusterComponent.Sharded.{EntityIdCodec, InnerShardedComponent}
-import ClusterComponent.Singleton.InnerSingletonComponent
+import ClusterComponent.Sharded.EntityIdCodec
 
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
@@ -11,7 +10,7 @@ import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityRef,
 import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings, SingletonActor}
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
-import izumi.fundamentals.platform.language.{CodePosition, CodePositionMaterializer}
+import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.Log.CustomContext
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.persistence.utils.SignalHandlers
@@ -25,9 +24,34 @@ import scala.util.chaining.scalaUtilChainingOps
 
 object ClusterComponent {
   private[components] sealed trait ComponentT {
+    outerSelf =>
     type Command
 
     type SerializableCommand <: Command
+
+    type Wiring <: Component[outerSelf.type]
+
+    private[components] trait BaseComponentT {
+      private[components] type BehaviorS <: Behavior[outerSelf.Command]
+
+      private[components] type ComponentContextS <: ComponentContext
+
+      private[components] val behavior: ComponentContextS with ComponentContext.Actor[outerSelf.Command] => BehaviorS
+
+      private[components] def behaviorTransformer: (ComponentContextS with ComponentContext.Actor[outerSelf.Command], BehaviorS) => BehaviorS = (_, behavior) => behavior
+
+      final val transformedBehavior: ComponentContextS with ComponentContext.Actor[outerSelf.Command] => BehaviorS = context => behaviorTransformer(context, behavior(context))
+
+      private[components] def generateLoggerClass(implicit classTag: ClassTag[outerSelf.type]) = classTag.runtimeClass.getName.takeWhile(_ != '$')
+
+      private[components] lazy val managedProjections: Seq[ManagedProjection[_, _]] = Nil
+
+      private[components] def initProjections() = managedProjections.foreach(_.init())
+
+      def init(): Wiring
+
+      private[components] val componentCodePositionMaterializer: CodePositionMaterializer
+    }
 
     val name: String
 
@@ -57,12 +81,37 @@ object ClusterComponent {
 
       type State
 
+      private[components] trait EventSourcedBaseComponentT extends super.BaseComponentT {
+
+        override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
+
+        override private[components] type ComponentContextS <: ComponentContext with ComponentContext.EventSourced
+
+        override private[components] def behaviorTransformer = (context, behavior) => {
+          val transformedBehavior = super.behaviorTransformer(context, behavior)
+          transformedBehavior
+            .withTagger(_ => Set(generateTag(context)))
+            .onPersistFailure(SupervisorStrategy.restartWithBackoff(1.second, 1.minute, 0.2))
+            .receiveSignal(withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, componentCodePositionMaterializer))
+        }
+
+        val tagGenerator: TagGenerator
+
+        def generateTag(context: ComponentContextS): String
+
+        val projections: Seq[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Nil
+      }
+
       override def serializers = super.serializers :+ eventSerializer
     }
 
     object EventSourcedT {
       sealed trait SnapshotsT extends EventSourcedT {
         val retentionCriteria: RetentionCriteria
+
+        private[components] sealed trait SnapshotsBaseComponentT extends super.EventSourcedBaseComponentT {
+          override private[components] def behaviorTransformer = (context, behavior) => super.behaviorTransformer(context, behavior).withRetention(retentionCriteria)
+        }
 
         val stateSerializer: CirceSerializer[State]
 
@@ -112,107 +161,38 @@ object ClusterComponent {
     }
   }
 
-  private[components] sealed trait InnerComponent[
-    InnerComponentT <: InnerComponent[InnerComponentT]
-  ] {
-    self =>
-
-    private[components] type Command
-    private[components] type SerializableCommand <: Command
-
-    private[components] type ComponentContextS <: ComponentContext
-    private[components] type BehaviorS <: Behavior[Command]
-
-    private[components] val behavior: ComponentContextS with ComponentContext.Actor[Command] => BehaviorS
-
-    private[components] def behaviorTransformer: (ComponentContextS with ComponentContext.Actor[Command], BehaviorS) => BehaviorS = (_, behavior) => behavior
-
-    final val transformedBehavior: ComponentContextS with ComponentContext.Actor[Command] => BehaviorS = context => behaviorTransformer(context, behavior(context))
-
-    private[components] lazy val managedProjections: Seq[ManagedProjection[_, _]] = Nil
-
-    private[components] def initProjections() = managedProjections.foreach(_.init())
-
-    def init(): Component[InnerComponentT]
-
-    private[components] def generateLoggerClass(implicit classTag: ClassTag[InnerComponentT]) = classTag.runtimeClass.getName.takeWhile(_ != '$')
-
-    private[components] val componentCodePositionMaterializer: CodePositionMaterializer
-  }
-
-  private[components] object InnerComponent {
-    sealed trait EventSourced[InnerComponentT <: InnerComponent[InnerComponentT]] extends InnerComponent[InnerComponentT] with SignalHandlers {
-      self =>
-      private[components] type Event
-      private[components] type State
-
-      override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
-
-      override private[components] def behaviorTransformer = (context, behavior) =>
-        super.behaviorTransformer(context, behavior)
-          .withTagger(_ => Set(generateTag(context)))
-          .onPersistFailure(SupervisorStrategy.restartWithBackoff(1.second, 1.minute, 0.2))
-          .receiveSignal(defaultSignalHandler(context.log, componentCodePositionMaterializer))
-
-      val tagGenerator: TagGenerator
-
-      def generateTag(context: ComponentContextS): String
-
-      val projections: Seq[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Nil
-    }
-
-    object EventSourced {
-      // marker trait for testkit as the State serialization shouldn't be verified in this case
-      sealed trait WithoutSnapshots
-
-      sealed trait WithSnapshots[InnerComponentT <: InnerComponent[InnerComponentT]] extends EventSourced[InnerComponentT] {
-        val retentionCriteria: RetentionCriteria
-
-        override private[components] def behaviorTransformer = (context, behavior) => super.behaviorTransformer(context, behavior).withRetention(retentionCriteria)
-      }
-    }
-  }
-
-  sealed trait Component[InnerComponentT <: InnerComponent[InnerComponentT]] {
-    private[components] val component: InnerComponentT
+  sealed trait Component[OuterComponentT <: ComponentT] {
+    private[components] val component: OuterComponentT
 
     private[components] val serializers: Seq[CirceSerializer[_]]
 
     private[components] val managedProjections: Seq[ManagedProjection[_, _]]
   }
 
-  trait SingletonComponent[InnerComponentT <: InnerSingletonComponent[InnerComponentT]] extends Component[InnerComponentT] {
+  trait SingletonComponent[OuterComponentT <: Singleton.SingletonT] extends Component[OuterComponentT] {
     val actorRef: ActorRef[component.SerializableCommand]
   }
 
   object Singleton {
-    private[components] trait InnerSingletonComponent[InnerComponentT <: InnerSingletonComponent[InnerComponentT]] extends InnerComponent[InnerComponentT]
-
-    private[components] trait InnerSingletonComponentContext[InnerComponentT <: InnerSingletonComponent[InnerComponentT]] {
-      _: InnerSingletonComponent[InnerComponentT] =>
-      override private[components] type ComponentContextS = ComponentContext
-    }
 
     private[components] sealed trait SingletonT extends ComponentT {
       outerSelf =>
       val clusterSingletonSettings: ClusterSingletonSettings => ClusterSingletonSettings = identity
 
-      private[components] abstract class BaseComponentT[InnerComponentT <: BaseComponentT[InnerComponentT]](implicit actorSystem: ActorSystem[_]) extends InnerSingletonComponent[InnerComponentT] {
-        self: InnerComponentT =>
+      override type Wiring = SingletonComponent[outerSelf.type]
+
+      private[components] abstract class SingletonBaseComponentT(implicit actorSystem: ActorSystem[_]) extends super.BaseComponentT {
+        self =>
 
         private[components] lazy val clusterSingleton: ClusterSingleton = ClusterSingleton(actorSystem)
-
-        override private[components] type Command = outerSelf.Command
-
-        override private[components] type SerializableCommand = outerSelf.SerializableCommand
 
         private[components] def fromActorContext(actorContext: ActorContext[Command]): ComponentContextS with ComponentContext.Actor[Command]
 
         override final def init() = {
           initProjections()
 
-          new SingletonComponent[InnerComponentT] {
-            override private[components] val component = self
+          new SingletonComponent[outerSelf.type] {
+            override private[components] val component = outerSelf
 
             override val actorRef = clusterSingleton.init(SingletonActor(
               Behaviors
@@ -231,16 +211,13 @@ object ClusterComponent {
       }
     }
 
-    abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends Singleton.SingletonT with ComponentT.EventSourcedT {
+    abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends SingletonT with ComponentT.EventSourcedT {
       outerSelf =>
 
-      abstract class BaseComponent[InnerComponentT <: BaseComponent[InnerComponentT] : ClassTag](implicit actorSystem: ActorSystem[_]) extends BaseComponentT[InnerComponentT] with InnerComponent.EventSourced[InnerComponentT] with EventSourced.InnerSingletonEventSourcedComponentContext[InnerComponentT] {
-        self: InnerComponentT =>
+      abstract class BaseComponent(implicit actorSystem: ActorSystem[_]) extends super.SingletonBaseComponentT with super.EventSourcedBaseComponentT {
+        self =>
 
-        override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
-
-        override private[components] type Event = outerSelf.Event
-        override private[components] type State = outerSelf.State
+        override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
 
         private val persistenceId = PersistenceId.ofUniqueId(name)
 
@@ -273,16 +250,10 @@ object ClusterComponent {
     }
 
     object EventSourced {
-      private[components] trait InnerSingletonEventSourcedComponentContext[InnerComponentT <: InnerSingletonComponent[InnerComponentT]] {
-        _: InnerSingletonComponent[InnerComponentT] =>
-        override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
-      }
-
       abstract class WithSnapshots extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
-        abstract class BaseComponent[InnerComponentT <: BaseComponent[InnerComponentT] : ClassTag](implicit actorSystem: ActorSystem[_]) extends super.BaseComponent[InnerComponentT] with InnerComponent.EventSourced.WithSnapshots[InnerComponentT] {
-          _: InnerComponentT =>
-          override val retentionCriteria = outerSelf.retentionCriteria
+        abstract class BaseComponent(implicit actorSystem: ActorSystem[_]) extends super.BaseComponent with SnapshotsBaseComponentT {
+          override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
         }
       }
     }
@@ -290,8 +261,9 @@ object ClusterComponent {
 
   abstract class Singleton(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends Singleton.SingletonT {
     outerSelf =>
-    abstract class BaseComponent[InnerComponentT <: BaseComponentT[InnerComponentT] : ClassTag](implicit actorSystem: ActorSystem[_]) extends BaseComponentT[InnerComponentT] with Singleton.InnerSingletonComponentContext[InnerComponentT] {
-      self: InnerComponentT =>
+    abstract class BaseComponent(implicit actorSystem: ActorSystem[_]) extends SingletonBaseComponentT {
+
+      override private[components] type ComponentContextS = ComponentContext
 
       override private[components] type BehaviorS = Behavior[Command]
 
@@ -304,7 +276,7 @@ object ClusterComponent {
     }
   }
 
-  trait ShardedComponent[InnerComponentT <: InnerShardedComponent[InnerComponentT]] extends Component[InnerComponentT] {
+  trait ShardedComponent[OuterComponentT <: Sharded.ShardedT] extends Component[OuterComponentT] {
     def entityRef(entityId: component.EntityId): EntityRef[component.SerializableCommand]
   }
 
@@ -341,19 +313,11 @@ object ClusterComponent {
       override type EntityId = String
     }
 
-    private[components] trait InnerShardedComponent[InnerComponentT <: InnerShardedComponent[InnerComponentT]] extends InnerComponent[InnerComponentT] {
-      type EntityId
-
-      val typeKey: EntityTypeKey[SerializableCommand]
-    }
-
-    private[components] trait InnerShardedComponentContext[InnerComponentT <: InnerShardedComponent[InnerComponentT]] {
-      _: InnerShardedComponent[InnerComponentT] =>
-      override final private[components] type ComponentContextS = ComponentContext with ComponentContext.Sharded[SerializableCommand, EntityId]
-    }
-
     private[components] sealed trait ShardedT extends ComponentT {
       outerSelf =>
+
+      override type Wiring = ShardedComponent[outerSelf.type]
+
       type EntityId
 
       val typeKey: EntityTypeKey[SerializableCommand]
@@ -362,32 +326,24 @@ object ClusterComponent {
 
       val clusterShardingSettings: ClusterShardingSettings => ClusterShardingSettings = identity
 
-      private[components] abstract class BaseComponentT[InnerComponentT <: BaseComponentT[InnerComponentT]](implicit actorSystem: ActorSystem[_], entityIdCodec: EntityIdCodec[EntityId]) extends InnerShardedComponent[InnerComponentT] {
-        self: InnerComponentT =>
-
-        override type EntityId = outerSelf.EntityId
-
-        override lazy val typeKey = outerSelf.typeKey
+      private[components] abstract class ShardedBaseComponentT(implicit actorSystem: ActorSystem[_], entityIdCodec: EntityIdCodec[EntityId]) extends super.BaseComponentT {
+        self =>
 
         private[components] lazy val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)
 
-        override private[components] type Command = outerSelf.Command
-
-        override private[components] type SerializableCommand = outerSelf.SerializableCommand
-
         def fromActorContext(actorContext: ActorContext[Command], entityId: EntityId): ComponentContextS with ComponentContext.Actor[Command]
 
-        override final def init() = {
+        override final def init(): Wiring = {
           initProjections()
 
-          new ShardedComponent[InnerComponentT] {
+          new ShardedComponent[outerSelf.type] {
             clusterSharding.init(Entity(typeKey)(entityContext =>
               Behaviors.supervise(
                 Behaviors.setup[Command](_actorContext => transformedBehavior(fromActorContext(_actorContext, entityIdCodec.decode(entityContext.entityId)))).narrow[SerializableCommand]
               ).onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
             ).withSettings(clusterShardingSettings(ClusterShardingSettings(actorSystem))))
 
-            override private[components] val component = self
+            override private[components] val component = outerSelf
 
             override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityIdCodec.encode(entityId))
 
@@ -403,13 +359,10 @@ object ClusterComponent {
 
     abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends ShardedT with ComponentT.EventSourcedT {
       outerSelf =>
-      abstract class BaseComponent[InnerComponentT <: BaseComponent[InnerComponentT] : ClassTag](implicit actorSystem: ActorSystem[_], _entityIdCodec: EntityIdCodec[EntityId]) extends BaseComponentT[InnerComponentT] with InnerComponent.EventSourced[InnerComponentT] with EventSourced.InnerShardedEventSourcedComponentContext[InnerComponentT] {
-        self: InnerComponentT =>
+      abstract class BaseComponent(implicit actorSystem: ActorSystem[_], _entityIdCodec: EntityIdCodec[EntityId]) extends super.ShardedBaseComponentT with super.EventSourcedBaseComponentT {
+        self =>
 
-        override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
-
-        override private[components] type Event = outerSelf.Event
-        override private[components] type State = outerSelf.State
+        override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
 
         override val tagGenerator = TagGenerator(name, 1)
 
@@ -452,18 +405,10 @@ object ClusterComponent {
     }
 
     object EventSourced {
-      // needed for ClusterComponentTestKit
-      private[components] trait InnerShardedEventSourcedComponentContext[InnerComponentT <: InnerShardedComponent[InnerComponentT]] {
-        _: InnerShardedComponent[InnerComponentT] =>
-        override type ComponentContextS = ComponentContext with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.EventSourced
-      }
-
       abstract class WithSnapshots extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
-        abstract class BaseComponent[InnerComponentT <: BaseComponent[InnerComponentT] : ClassTag](implicit actorSystem: ActorSystem[_], _entityIdCodec: EntityIdCodec[outerSelf.EntityId]) extends super.BaseComponent[InnerComponentT] with InnerComponent.EventSourced.WithSnapshots[InnerComponentT] {
-          self: InnerComponentT =>
-
-          override val retentionCriteria = outerSelf.retentionCriteria
+        abstract class BaseComponent(implicit actorSystem: ActorSystem[_], _entityIdCodec: EntityIdCodec[outerSelf.EntityId]) extends super.BaseComponent with SnapshotsBaseComponentT {
+          override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
         }
       }
     }
@@ -472,17 +417,17 @@ object ClusterComponent {
   abstract class Sharded(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends Sharded.ShardedT {
     outerSelf =>
 
-    abstract class BaseComponent[InnerComponentT <: BaseComponentT[InnerComponentT] : ClassTag](implicit actorSystem: ActorSystem[_], _entityIdCodec: EntityIdCodec[outerSelf.EntityId]) extends BaseComponentT[InnerComponentT] with Sharded.InnerShardedComponentContext[InnerComponentT] {
-      self: InnerComponentT =>
+    abstract class BaseComponent(implicit actorSystem: ActorSystem[_], _entityIdCodec: EntityIdCodec[EntityId]) extends super.ShardedBaseComponentT {
+      override final private[components] type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId]
 
       override private[components] type BehaviorS = Behavior[Command]
 
-      override def fromActorContext(_actorContext: ActorContext[Command], _entityId: outerSelf.EntityId) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.Sharded[SerializableCommand, outerSelf.EntityId] {
+      override def fromActorContext(_actorContext: ActorContext[Command], _entityId: EntityId) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.Sharded[SerializableCommand, EntityId] {
 
         override val entityId = _entityId
         override val actorContext = _actorContext
 
-        override def entityRef(entityId: outerSelf.EntityId) = clusterSharding.entityRefFor(typeKey, _entityIdCodec.encode(entityId))
+        override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, _entityIdCodec.encode(entityId))
 
         override protected lazy val loggerClass = generateLoggerClass
 

@@ -20,7 +20,6 @@ import net.sc8s.logstage.elastic.Logging
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.reflect.ClassTag
-import scala.util.chaining.scalaUtilChainingOps
 
 object ClusterComponent {
   private[components] sealed trait ComponentT {
@@ -196,7 +195,11 @@ object ClusterComponent {
 
             override val actorRef = clusterSingleton.init(SingletonActor(
               Behaviors
-                .supervise(Behaviors.setup[Command](fromActorContext(_).pipe(transformedBehavior)).narrow[SerializableCommand])
+                .supervise(Behaviors.setup[Command] { actorContext =>
+                  val componentContext = fromActorContext(actorContext)
+                  componentContext.log.info(s"${"initializing" -> "tag"}")
+                  transformedBehavior(componentContext)
+                }.narrow[SerializableCommand])
                 .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
               name
             ).withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem))))

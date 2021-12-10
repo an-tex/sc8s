@@ -13,6 +13,7 @@ import akka.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
 import akka.stream.Materializer
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.Log.CustomContext
+import izumi.logstage.api.Log.Level.Info
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.persistence.utils.SignalHandlers
 import net.sc8s.akka.projection.ProjectionUtils.{ManagedProjection, TagGenerator}
@@ -199,7 +200,7 @@ object ClusterComponent {
               Behaviors
                 .supervise(Behaviors.setup[Command] { actorContext =>
                   val componentContext = fromActorContext(actorContext)
-                  componentContext.log.info(s"${"initializing" -> "tag"}")
+                  componentContext.log.log(Info)(s"${"initializing" -> "tag"}")(outerSelf.componentCodePositionMaterializer)
                   transformedBehavior(componentContext)
                 }.narrow[SerializableCommand])
                 .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
@@ -254,7 +255,7 @@ object ClusterComponent {
     }
 
     object EventSourced {
-      abstract class WithSnapshots extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
+      abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
         abstract class BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
           override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
@@ -413,7 +414,7 @@ object ClusterComponent {
     }
 
     object EventSourced {
-      abstract class WithSnapshots extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
+      abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
         abstract class BaseComponent(implicit _entityIdCodec: EntityIdCodec[outerSelf.EntityId]) extends super.BaseComponent with SnapshotsBaseComponentT {
           override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced

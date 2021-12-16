@@ -39,9 +39,3 @@ trait ProjectionServiceImpl extends ProjectionService {
     }
   }
 }
-
-object ProjectionServiceImpl {
-  val serializers = Seq(
-    CirceSerializer[ProjectionStatus](),
-  )
-}

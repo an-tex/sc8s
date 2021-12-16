@@ -144,7 +144,7 @@ lazy val `akka-projection-utils-lagom-server` = (project in file("akka-projectio
     ),
     idePackagePrefix := Some("net.sc8s.akka.projection.lagom")
   )
-  .dependsOn(`akka-projection-utils-lagom-api`.jvm, `akka-projection-utils`)
+  .dependsOn(`akka-projection-utils-lagom-api`.jvm, `akka-projection-utils`, `lagom-server-circe`)
 
 lazy val `akka-components` = (project in file("akka-components"))
   .settings(

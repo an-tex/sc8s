@@ -19,6 +19,7 @@ import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.Future
+import scala.util.Success
 
 /*
 This spec is only meant to illustrate the usage of ClusterComponent
@@ -240,7 +241,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             implicit val codec: EntityIdCodec[EntityId] = EntityIdCodec[EntityId](
               entityId => s"${entityId.id1}-${entityId.id2}",
               entityId => entityId.split('-').toList match {
-                case id1 :: id2 :: Nil => EntityId(id1, id2)
+                case id1 :: id2 :: Nil => Success(EntityId(id1, id2))
               },
               entityId => CustomContext(
                 "id1" -> entityId.id1,
@@ -263,6 +264,34 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           }
 
           override val name = "sharded3"
+
+          override val typeKey = generateTypeKey
+
+          override val commandSerializer = CirceSerializer[Command]()
+        }
+
+        new ComponentObject.Component(new Dependency).init()
+      }
+      "custom json EntityId" in {
+        object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
+          case class EntityId(id1: String, id2: String)
+
+          override implicit val entityIdCirceCodec = deriveCodec
+
+          case class Command()
+
+          object Command {
+            implicit val codec: Codec[Command] = deriveCodec
+          }
+
+          class Component(dependency: Dependency) extends BaseComponent {
+            override val behavior = componentContext =>
+              Behaviors.receiveMessage {
+                case Command() => Behaviors.same
+              }
+          }
+
+          override val name = "sharded4"
 
           override val typeKey = generateTypeKey
 
@@ -294,7 +323,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 })
             }
 
-            override val name = "sharded4"
+            override val name = "sharded5"
 
             override val typeKey = generateTypeKey
 
@@ -328,7 +357,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 })
             }
 
-            override val name = "sharded5"
+            override val name = "sharded6"
 
             override val typeKey = generateTypeKey
 
@@ -370,7 +399,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 ))
             }
 
-            override val name = "sharded5"
+            override val name = "sharded7"
 
             override val typeKey = generateTypeKey
 

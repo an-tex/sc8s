@@ -11,6 +11,8 @@ import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings, Singleton
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
 import akka.stream.Materializer
+import io.circe.syntax.EncoderOps
+import io.circe.{Codec, parser}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.Log.CustomContext
 import izumi.logstage.api.Log.Level.Info
@@ -22,6 +24,8 @@ import net.sc8s.logstage.elastic.Logging
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.reflect.ClassTag
+import scala.util.chaining.scalaUtilChainingOps
+import scala.util.{Success, Try}
 
 object ClusterComponent {
   private[components] sealed trait ComponentT {
@@ -289,15 +293,15 @@ object ClusterComponent {
     trait EntityIdCodec[T] {
       def encode(entityId: T): String
 
-      def decode(entityId: String): T
+      def decode(entityId: String): Try[T]
 
       def logContext(entityId: T) = CustomContext(
-        "entityId" -> encode(entityId)
+        "entityId" -> entityId
       )
     }
 
     object EntityIdCodec {
-      def apply[T](_encode: T => String, _decode: String => T, _logContext: T => CustomContext = (_: T) => CustomContext()) = new EntityIdCodec[T] {
+      def apply[T](_encode: T => String, _decode: String => Try[T], _logContext: T => CustomContext = (_: T) => CustomContext()) = new EntityIdCodec[T] {
         override def encode(entityId: T) = _encode(entityId)
 
         override def decode(entityId: String) = _decode(entityId)
@@ -306,16 +310,23 @@ object ClusterComponent {
       }
     }
 
-    implicit val entityIdStringCodec = new EntityIdCodec[String] {
-      override def encode(entityId: String) = entityId
-
-      override def decode(entityId: String) = entityId
-    }
+    implicit val entityIdStringCodec = EntityIdCodec[String](identity, Success(_))
 
     trait StringEntityId {
       _: ShardedT =>
 
       override type EntityId = String
+    }
+
+    trait JsonEntityId {
+      _: ShardedT =>
+
+      implicit val entityIdCirceCodec: Codec[EntityId]
+
+      implicit val entityIdCodec: EntityIdCodec[EntityId] = EntityIdCodec[EntityId](
+        _.asJson.noSpacesSortKeys,
+        _.pipe(parser.parse).flatMap(_.as[EntityId]).toTry
+      )
     }
 
     private[components] sealed trait ShardedT extends ComponentT {
@@ -342,7 +353,7 @@ object ClusterComponent {
           new ShardedComponent[outerSelf.type] {
             clusterSharding.init(Entity(typeKey)(entityContext =>
               Behaviors.supervise(
-                Behaviors.setup[Command](_actorContext => transformedBehavior(fromActorContext(_actorContext, entityIdCodec.decode(entityContext.entityId)))).narrow[SerializableCommand]
+                Behaviors.setup[Command](_actorContext => transformedBehavior(fromActorContext(_actorContext, entityIdCodec.decode(entityContext.entityId).get))).narrow[SerializableCommand]
               ).onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
             ).withSettings(clusterShardingSettings(ClusterShardingSettings(actorSystem))))
 
@@ -390,7 +401,7 @@ object ClusterComponent {
         override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = {
           lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
 
-          projections.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, _entityIdCodec.decode) {
+          projections.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, _entityIdCodec.decode(_).get) {
             override implicit val actorSystem = _actorSystem
 
             override def handle = projection.handler.compose {

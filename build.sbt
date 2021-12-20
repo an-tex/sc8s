@@ -234,6 +234,7 @@ lazy val `logstage-elastic` = (project in file("logstage-elastic"))
       logstage.core.value,
       logstage.circe.value,
       logstage.toSlf4j,
+      scalaTest.value,
     ),
     idePackagePrefix := Some("net.sc8s.logstage.elastic")
   )

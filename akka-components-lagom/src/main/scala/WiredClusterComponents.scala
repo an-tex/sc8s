@@ -1,7 +1,6 @@
 package net.sc8s.akka.components.lagom
 
 import com.lightbend.lagom.scaladsl.server.LagomApplication
-import com.softwaremill.macwire.wireSet
 import net.sc8s.akka.circe.CirceSerializerRegistry
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.projection.ProjectionUtils.ManagedProjection
@@ -14,13 +13,16 @@ ClusterComponents is taken by com.lightbend.lagom.scaladsl.cluster.ClusterCompon
 trait WiredClusterComponents extends CirceAkkaSerializationComponents with ProjectionComponents {
   _: LagomApplication =>
 
-  private lazy val components: Set[ClusterComponent.Component[_]] = wireSet[ClusterComponent.Component[_]]
+  // for convenience try
+  // override val clusterComponents = com.softwaremill.macwire.wireSet
+  val clusterComponents: Set[ClusterComponent.Component[_]]
 
   override def circeSerializerRegistry = super.circeSerializerRegistry ++ new CirceSerializerRegistry {
-    override def serializers = {
-      components.flatMap(_.serializers).toSeq
-    }
+      override def serializers = clusterComponents.flatMap(_.serializers).toSeq
   }
 
-  override def projections: Set[ManagedProjection[_, _]] = super.projections ++ components.flatMap(_.managedProjections)
+  // call this at the end to initialize singletons, shards & projections
+  final def initComponents() = clusterComponents.foreach(_.delayedInit())
+
+  override def projections: Set[ManagedProjection[_, _]] = super.projections ++ clusterComponents.flatMap(_.managedProjections)
 }

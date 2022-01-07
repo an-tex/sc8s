@@ -42,9 +42,11 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
           val dependency = wire[Dependency]
 
-          val component = wire[SingletonTestComponent.Component].init()
+          val component = SingletonTestComponent.init(wire[SingletonTestComponent.Component])
 
           val service = wire[Service]
+
+          component.delayedInit()
         }
 
         ApplicationLoader.service shouldBe a[Service]
@@ -71,7 +73,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           override val commandSerializer = CirceSerializer()
         }
 
-        new ComponentObject.Component(new Dependency).init()
+        ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
       }
       "persistence" - {
         "minimal" in {
@@ -110,7 +112,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             override val eventSerializer = CirceSerializer()
           }
 
-          new ComponentObject.Component(new Dependency).init().actorRef ! ComponentObject.Command()
+          ComponentObject.init(new ComponentObject.Component(new Dependency)).actorRef ! ComponentObject.Command()
         }
         "with snapshots" in {
           object ComponentObject extends ClusterComponent.Singleton.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand {
@@ -148,7 +150,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             override val stateSerializer = CirceSerializer()
           }
 
-          new ComponentObject.Component(new Dependency).init()
+          ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
         }
         "with projections" in {
           object ComponentObject extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
@@ -187,7 +189,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             override val eventSerializer = CirceSerializer()
           }
 
-          new ComponentObject.Component(new Dependency).init()
+          ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
         }
       }
     }
@@ -203,9 +205,11 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
           val dependency = wire[Dependency]
 
-          val component = wire[ShardedTestComponent.Component].init()
+          lazy val component = ShardedTestComponent.init(wire[ShardedTestComponent.Component])
 
-          val service = wire[Service]
+          lazy val service = wire[Service]
+
+          component.delayedInit()
         }
 
         ApplicationLoader.service shouldBe a[Service]
@@ -221,10 +225,13 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
         }
 
         object ApplicationLoader {
-          lazy val component1: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent1.type] = wire[CircularDependencyTest.ShardedTestComponent1.Component].init()
-          lazy val component2: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent2.type] = wire[CircularDependencyTest.ShardedTestComponent2.Component].init()
+          lazy val component1: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent1.type] = CircularDependencyTest.ShardedTestComponent1.init(wire[CircularDependencyTest.ShardedTestComponent1.Component])
+          lazy val component2: ClusterComponent.ShardedComponent[CircularDependencyTest.ShardedTestComponent2.type] = CircularDependencyTest.ShardedTestComponent2.init(wire[CircularDependencyTest.ShardedTestComponent2.Component])
 
-          val service = wire[Service]
+          lazy val service = wire[Service]
+
+          component1.delayedInit()
+          component2.delayedInit()
         }
 
         ApplicationLoader.service shouldBe a[Service]
@@ -270,7 +277,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           override val commandSerializer = CirceSerializer[Command]()
         }
 
-        new ComponentObject.Component(new Dependency).init()
+        ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
       }
       "custom json EntityId" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
@@ -298,7 +305,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           override val commandSerializer = CirceSerializer[Command]()
         }
 
-        new ComponentObject.Component(new Dependency).init()
+        ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
       }
       "persistence" - {
         "minimal" in {
@@ -332,7 +339,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             override val eventSerializer = CirceSerializer()
           }
 
-          new ComponentObject.Component(new Dependency).init()
+          ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
         }
         "with snapshots" in {
           object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {

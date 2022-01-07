@@ -51,15 +51,12 @@ object ClusterComponent {
 
       private[components] def managedProjections(implicit actorSystem: ActorSystem[_]): Seq[ManagedProjection[_, _]] = Nil
 
-      final def init()(implicit actorSystem: ActorSystem[_]): Wiring = {
-        managedProjections.foreach(_.init())
-        initComponent()
-      }
-
-      private[components] def initComponent()(implicit actorSystem: ActorSystem[_]): Wiring
-
       private[components] val componentCodePositionMaterializer: CodePositionMaterializer
     }
+
+    type BaseComponent <: BaseComponentT
+
+    def init(component: => BaseComponent)(implicit actorSystem: => ActorSystem[_]): Wiring
 
     val name: String
 
@@ -177,6 +174,8 @@ object ClusterComponent {
     private[components] val serializers: Seq[CirceSerializer[_]]
 
     private[components] val managedProjections: Seq[ManagedProjection[_, _]]
+
+    private[components] def delayedInit(): Unit = managedProjections.foreach(_.init())
   }
 
   trait SingletonComponent[OuterComponentT <: Singleton.SingletonT] extends Component[OuterComponentT] {
@@ -191,30 +190,39 @@ object ClusterComponent {
 
       override type Wiring = SingletonComponent[outerSelf.type]
 
+      override type BaseComponent <: SingletonBaseComponentT
+
+      override def init(innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) = new SingletonComponent[outerSelf.type] {
+        override private[components] val component = outerSelf
+
+        override lazy val actorRef = innerComponent.actorRef(actorSystem)
+
+        override private[components] def delayedInit() = {
+          // eagerly initialize singleton
+          actorRef
+          super.delayedInit()
+        }
+
+        override private[components] val serializers = outerSelf.serializers
+
+        override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
+      }
+
       private[components] abstract class SingletonBaseComponentT extends super.BaseComponentT {
         self =>
 
+        private[components] def actorRef(implicit actorSystem: ActorSystem[_]) = ClusterSingleton(actorSystem).init(SingletonActor(
+          Behaviors
+            .supervise(Behaviors.setup[Command] { actorContext =>
+              val componentContext = fromActorContext(actorContext)
+              componentContext.log.log(Info)(s"${"initializing" -> "tag"}")(outerSelf.componentCodePositionMaterializer)
+              transformedBehavior(componentContext)
+            }.narrow[SerializableCommand])
+            .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
+          name
+        ).withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem))))
+
         private[components] def fromActorContext(actorContext: ActorContext[Command]): ComponentContextS with ComponentContext.Actor[Command]
-
-        override def initComponent()(implicit actorSystem: ActorSystem[_]) =
-          new SingletonComponent[outerSelf.type] {
-            override private[components] val component = outerSelf
-
-            override val actorRef = ClusterSingleton(actorSystem).init(SingletonActor(
-              Behaviors
-                .supervise(Behaviors.setup[Command] { actorContext =>
-                  val componentContext = fromActorContext(actorContext)
-                  componentContext.log.log(Info)(s"${"initializing" -> "tag"}")(outerSelf.componentCodePositionMaterializer)
-                  transformedBehavior(componentContext)
-                }.narrow[SerializableCommand])
-                .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
-              name
-            ).withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem))))
-
-            override private[components] val serializers = outerSelf.serializers
-
-            override private[components] val managedProjections = self.managedProjections
-          }
 
         override private[components] val componentCodePositionMaterializer = outerSelf.componentCodePositionMaterializer
       }
@@ -342,30 +350,44 @@ object ClusterComponent {
 
       val clusterShardingSettings: ClusterShardingSettings => ClusterShardingSettings = identity
 
+      override type BaseComponent <: ShardedBaseComponentT
+
+      override def init(innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) =
+        new ShardedComponent[outerSelf.type] {
+          override private[components] def delayedInit() = {
+            innerComponent.initSharding()(actorSystem)
+            super.delayedInit()
+          }
+
+          override private[components] val component = outerSelf
+
+          override def entityRef(entityId: EntityId) = innerComponent.entityRef(entityId)(actorSystem)
+
+          override private[components] val serializers = outerSelf.serializers
+
+          override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
+        }
+
       private[components] abstract class ShardedBaseComponentT(implicit entityIdCodec: EntityIdCodec[EntityId]) extends super.BaseComponentT {
         self =>
 
-        def fromActorContext(actorContext: ActorContext[Command], entityId: EntityId): ComponentContextS with ComponentContext.Actor[Command]
-
-        override def initComponent()(implicit actorSystem: ActorSystem[_]): Wiring = {
+        def entityRef(entityId: EntityId)(implicit actorSystem: ActorSystem[_]) = {
           val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)
 
-          new ShardedComponent[outerSelf.type] {
-            clusterSharding.init(Entity(typeKey)(entityContext =>
-              Behaviors.supervise(
-                Behaviors.setup[Command](_actorContext => transformedBehavior(fromActorContext(_actorContext, entityIdCodec.decode(entityContext.entityId).get))).narrow[SerializableCommand]
-              ).onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
-            ).withSettings(clusterShardingSettings(ClusterShardingSettings(actorSystem))))
-
-            override private[components] val component = outerSelf
-
-            override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, entityIdCodec.encode(entityId))
-
-            override private[components] val serializers = outerSelf.serializers
-
-            override private[components] val managedProjections = self.managedProjections
-          }
+          clusterSharding.entityRefFor(typeKey, entityIdCodec.encode(entityId))
         }
+
+        private[components] def initSharding()(implicit actorSystem: ActorSystem[_]) = {
+          val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)
+
+          clusterSharding.init(Entity(typeKey)(entityContext =>
+            Behaviors.supervise(
+              Behaviors.setup[Command](_actorContext => transformedBehavior(fromActorContext(_actorContext, entityIdCodec.decode(entityContext.entityId).get))).narrow[SerializableCommand]
+            ).onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
+          ).withSettings(clusterShardingSettings(ClusterShardingSettings(actorSystem))))
+        }
+
+        private[components] def fromActorContext(actorContext: ActorContext[Command], entityId: EntityId): ComponentContextS with ComponentContext.Actor[Command]
 
         override private[components] val componentCodePositionMaterializer = outerSelf.componentCodePositionMaterializer
       }

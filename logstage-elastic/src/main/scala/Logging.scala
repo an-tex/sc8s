@@ -9,7 +9,7 @@ import izumi.logstage.api.rendering.{RenderingOptions, StringRenderingPolicy}
 import izumi.logstage.api.{IzLogger, Log}
 import izumi.logstage.sink.slf4j.LogSinkLegacySlf4jImpl
 
-trait Logging {
+trait Logging extends LoggerTags {
   protected def logContext: CustomContext = CustomContext()
 
   // used for event parameters & context prefixes
@@ -24,7 +24,9 @@ trait Logging {
 
     IzLogger(Debug, Seq(new LogSinkLegacySlf4jImpl(renderPolicy)))(logContext)
   }
+}
 
+trait LoggerTags {
   implicit class IzLoggerTags(log: IzLogger) {
     private[this] val empty = Log.Message.empty
 
@@ -60,7 +62,9 @@ trait Logging {
   }
 }
 
-object Logging {
+object LoggerTags extends LoggerTags
+
+object Logging extends LoggerTags {
   val template: Renderer.Aggregate = new Renderer.Aggregate(Seq(
     new Styler.Colored(
       Console.BLUE,

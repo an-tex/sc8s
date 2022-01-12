@@ -65,7 +65,8 @@ object ClusterComponent {
 
     val commandSerializer: CirceSerializer[SerializableCommand]
 
-    private[components] def serializers = Seq(commandSerializer) ++ additionalSerializers
+    // leave it public for tests
+    def serializers = Seq(commandSerializer) ++ additionalSerializers
 
     lazy val logContext = CustomContext()
 
@@ -108,7 +109,7 @@ object ClusterComponent {
         val projections: Seq[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Nil
       }
 
-      private[components] override def serializers = super.serializers :+ eventSerializer
+      override def serializers = super.serializers :+ eventSerializer
     }
 
     object EventSourcedT {
@@ -121,7 +122,7 @@ object ClusterComponent {
 
         val stateSerializer: CirceSerializer[State]
 
-        private[components] override def serializers = super.serializers :+ stateSerializer
+        override def serializers = super.serializers :+ stateSerializer
       }
     }
   }

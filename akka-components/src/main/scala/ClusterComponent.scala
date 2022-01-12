@@ -24,7 +24,6 @@ import net.sc8s.logstage.elastic.Logging
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.reflect.ClassTag
-import scala.reflect.runtime.universe.typeOf
 import scala.util.chaining.scalaUtilChainingOps
 import scala.util.{Success, Try}
 

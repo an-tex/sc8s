@@ -24,7 +24,6 @@ import net.sc8s.logstage.elastic.Logging
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.reflect.ClassTag
-import scala.reflect.runtime.universe.typeOf
 import scala.util.chaining.scalaUtilChainingOps
 import scala.util.{Success, Try}
 
@@ -172,7 +171,8 @@ object ClusterComponent {
   sealed trait Component[OuterComponentT <: ComponentT] {
     private[components] val component: OuterComponentT
 
-    private[components] val serializers: Seq[CirceSerializer[_]]
+    // leave them public for tests
+    val serializers: Seq[CirceSerializer[_]]
 
     private[components] val managedProjections: Seq[ManagedProjection[_, _]]
 
@@ -206,7 +206,7 @@ object ClusterComponent {
           super.delayedInit()
         }
 
-        override private[components] val serializers = outerSelf.serializers
+        override val serializers = outerSelf.serializers
 
         override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
       }
@@ -366,7 +366,7 @@ object ClusterComponent {
 
           override def entityRef(entityId: EntityId) = innerComponent.entityRef(entityId)(actorSystem)
 
-          override private[components] val serializers = outerSelf.serializers
+          override val serializers = outerSelf.serializers
 
           override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
         }

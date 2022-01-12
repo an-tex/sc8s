@@ -153,7 +153,7 @@ trait ClusterComponentTestKit {
 
       override private[components] lazy val component: outerComponent.type = outerComponent
 
-      override val serializers = Nil
+      override private[components] val serializers = Nil
       override private[components] val managedProjections = Nil
     } -> testProbe
   }
@@ -170,7 +170,7 @@ trait ClusterComponentTestKit {
 
       override private[components] lazy val component: outerComponent.type = outerComponent
 
-      override val serializers = Nil
+      override private[components] val serializers = Nil
       override private[components] val managedProjections = Nil
     }
   }

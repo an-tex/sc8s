@@ -8,6 +8,7 @@ import io.circe.parser._
 import io.circe.syntax.EncoderOps
 
 import java.nio.charset.StandardCharsets
+import scala.util.{Success, Try}
 
 private[circe] final class CirceJsonSerializer(
                                                 system: ExtendedActorSystem,
@@ -24,6 +25,8 @@ private[circe] final class CirceJsonSerializer(
     registry.serializers.map(serializer =>
       manifest(serializer.entityClass) -> serializer.asInstanceOf[CirceSerializer[AnyRef]]
     ).toMap
+
+  private val circeSerializerClassloaders = serializers.map(_._2.entityClass.getClassLoader).toList.distinct.to(LazyList)
 
   private val manifestRenames = serializers.values.flatMap(_.manifestRenames).toMap
 
@@ -71,7 +74,14 @@ private[circe] final class CirceJsonSerializer(
   }
 
   private def findCodecAndMigrater(manifest: String) = {
-    val clazz = manifestRenames.getOrElse(manifest, Class.forName(manifest, true, registry.getClass.getClassLoader))
+    lazy val clazzFromClassLoaders = circeSerializerClassloaders
+      .map(classLoader => Try(Class.forName(manifest, true, classLoader)))
+      .collectFirst {
+        case Success(clazz) => clazz
+      }
+      .head
+
+    val clazz = manifestRenames.getOrElse(manifest, clazzFromClassLoaders)
 
     val classManifests = allInterfaces(clazz)
     serializers.find {

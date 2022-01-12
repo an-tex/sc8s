@@ -24,6 +24,7 @@ import net.sc8s.logstage.elastic.Logging
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe.typeOf
 import scala.util.chaining.scalaUtilChainingOps
 import scala.util.{Success, Try}
 
@@ -64,7 +65,7 @@ object ClusterComponent {
 
     val commandSerializer: CirceSerializer[SerializableCommand]
 
-    def serializers = Seq(commandSerializer) ++ additionalSerializers
+    private[components] def serializers = Seq(commandSerializer) ++ additionalSerializers
 
     lazy val logContext = CustomContext()
 
@@ -107,7 +108,7 @@ object ClusterComponent {
         val projections: Seq[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Nil
       }
 
-      override def serializers = super.serializers :+ eventSerializer
+      private[components] override def serializers = super.serializers :+ eventSerializer
     }
 
     object EventSourcedT {
@@ -120,7 +121,7 @@ object ClusterComponent {
 
         val stateSerializer: CirceSerializer[State]
 
-        override def serializers = super.serializers :+ stateSerializer
+        private[components] override def serializers = super.serializers :+ stateSerializer
       }
     }
   }
@@ -176,6 +177,8 @@ object ClusterComponent {
     private[components] val managedProjections: Seq[ManagedProjection[_, _]]
 
     private[components] def delayedInit(): Unit = managedProjections.foreach(_.init())
+
+    override def toString = s"ClusterComponent(name = ${component.name}, serializers = ${serializers.map(_.entityClass)})"
   }
 
   trait SingletonComponent[OuterComponentT <: Singleton.SingletonT] extends Component[OuterComponentT] {

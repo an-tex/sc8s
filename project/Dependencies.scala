@@ -7,7 +7,7 @@ object Dependencies {
   val chimney = Def.setting("io.scalaland" %%% "chimney" % "0.6.1")
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.10")
   val scalamock = "org.scalamock" %% "scalamock" % "5.2.0" % Test
-  val slf4j = "org.slf4j" % "slf4j-api" % "1.7.32"
+  val slf4j = "org.slf4j" % "slf4j-api" % "1.7.33"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.3.0")
 
   val overrides = akka.overrides

@@ -87,12 +87,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             case class State()
 
             class Component(dependency: Dependency) extends BaseComponent {
-
               override val behavior = componentContext => {
-                classOf[Command]
-                classOf[Event]
-                classOf[State]
-
                 EventSourcedBehavior(
                   componentContext.persistenceId,
                   State(),
@@ -126,10 +121,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             implicit val stateCodec: Codec[State] = deriveCodec
 
             class Component(dependency: Dependency) extends BaseComponent {
-              classOf[Command]
-              classOf[Event]
-              classOf[State]
-
               override val behavior = componentContext => EventSourcedBehavior(
                 componentContext.persistenceId,
                 State(),
@@ -243,19 +234,16 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           // in case the EntityId is defined outside of the Component you can also override the type and alias it
           //override type EntityId = EntityId
 
-          object EntityId {
-
-            implicit val codec: EntityIdCodec[EntityId] = EntityIdCodec[EntityId](
-              entityId => s"${entityId.id1}-${entityId.id2}",
-              entityId => entityId.split('-').toList match {
-                case id1 :: id2 :: Nil => Success(EntityId(id1, id2))
-              },
-              entityId => CustomContext(
-                "id1" -> entityId.id1,
-                "id2" -> entityId.id2
-              )
+          implicit val entityIdCodec: EntityIdCodec[EntityId] = EntityIdCodec[EntityId](
+            entityId => s"${entityId.id1}-${entityId.id2}",
+            entityId => entityId.split('-').toList match {
+              case id1 :: id2 :: Nil => Success(EntityId(id1, id2))
+            },
+            entityId => CustomContext(
+              "id1" -> entityId.id1,
+              "id2" -> entityId.id2
             )
-          }
+          )
 
           case class Command()
 

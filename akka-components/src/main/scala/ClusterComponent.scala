@@ -321,12 +321,12 @@ object ClusterComponent {
       }
     }
 
-    implicit val entityIdStringCodec = EntityIdCodec[String](identity, Success(_))
-
     trait StringEntityId {
       _: ShardedT =>
 
       override type EntityId = String
+
+      override implicit val entityIdCodec = EntityIdCodec[String](identity, Success(_))
     }
 
     trait JsonEntityId {
@@ -346,6 +346,8 @@ object ClusterComponent {
       override type Wiring = ShardedComponent[outerSelf.type]
 
       type EntityId
+
+      implicit val entityIdCodec: EntityIdCodec[EntityId]
 
       val typeKey: EntityTypeKey[SerializableCommand]
 
@@ -371,7 +373,7 @@ object ClusterComponent {
           override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
         }
 
-      private[components] abstract class ShardedBaseComponentT(implicit entityIdCodec: EntityIdCodec[EntityId]) extends super.BaseComponentT {
+      private[components] trait ShardedBaseComponentT extends super.BaseComponentT {
         self =>
 
         def entityRef(entityId: EntityId)(implicit actorSystem: ActorSystem[_]) = {
@@ -398,46 +400,46 @@ object ClusterComponent {
 
     abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends ShardedT with ComponentT.EventSourcedT {
       outerSelf =>
-      abstract class BaseComponent(implicit _entityIdCodec: EntityIdCodec[EntityId]) extends super.ShardedBaseComponentT with super.EventSourcedBaseComponentT {
+      trait BaseComponent extends super.ShardedBaseComponentT with super.EventSourcedBaseComponentT {
         self =>
 
         override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
 
         override val tagGenerator = TagGenerator(name, 1)
 
-        override def generateTag(context: ComponentContextS) = tagGenerator.generateTag(_entityIdCodec.encode(context.entityId))
+        override def generateTag(context: ComponentContextS) = tagGenerator.generateTag(entityIdCodec.encode(context.entityId))
 
         override def fromActorContext(_actorContext: ActorContext[Command], _entityId: EntityId) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.EventSourced {
           override val entityId = _entityId
-          override val persistenceId = PersistenceId(typeKey.name, _entityIdCodec.encode(entityId))
+          override val persistenceId = PersistenceId(typeKey.name, outerSelf.entityIdCodec.encode(entityId))
           override val actorContext = _actorContext
 
           private lazy val clusterSharding: ClusterSharding = ClusterSharding(actorContext.system)
 
-          override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, _entityIdCodec.encode(entityId))
+          override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
 
           override protected lazy val loggerClass = generateLoggerClass
 
           protected override def logContext = super.logContext + outerSelf.logContext
 
-          override private[components] val entityIdCodec = _entityIdCodec
+          override private[components] val entityIdCodec = outerSelf.entityIdCodec
         }
 
         override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = {
           lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
 
-          projections.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, _entityIdCodec.decode(_).get) {
+          projections.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, entityIdCodec.decode(_).get) {
             override implicit val actorSystem = _actorSystem
 
             override def handle = projection.handler.compose {
               case (event, _entityId) => event -> new ComponentContext with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.Projection {
                 override val entityId = _entityId
 
-                override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, _entityIdCodec.encode(entityId))
+                override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
 
-                override private[components] val entityIdCodec = _entityIdCodec
+                override private[components] val entityIdCodec = outerSelf.entityIdCodec
                 override val name = projection.name
-                override val persistenceId = PersistenceId(typeKey.name, _entityIdCodec.encode(entityId))
+                override val persistenceId = PersistenceId(typeKey.name, outerSelf.entityIdCodec.encode(entityId))
 
                 override protected lazy val loggerClass = generateLoggerClass
 
@@ -452,7 +454,7 @@ object ClusterComponent {
     object EventSourced {
       abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
-        abstract class BaseComponent(implicit _entityIdCodec: EntityIdCodec[outerSelf.EntityId]) extends super.BaseComponent with SnapshotsBaseComponentT {
+        trait BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
           override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
         }
       }
@@ -462,7 +464,7 @@ object ClusterComponent {
   abstract class Sharded(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends Sharded.ShardedT {
     outerSelf =>
 
-    abstract class BaseComponent(implicit _entityIdCodec: EntityIdCodec[EntityId]) extends super.ShardedBaseComponentT {
+    trait BaseComponent extends super.ShardedBaseComponentT {
       override final private[components] type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId]
 
       override private[components] type BehaviorS = Behavior[Command]
@@ -475,13 +477,13 @@ object ClusterComponent {
           override val entityId = _entityId
           override val actorContext = _actorContext
 
-          override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, _entityIdCodec.encode(entityId))
+          override def entityRef(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
 
           override protected lazy val loggerClass = generateLoggerClass
 
           override protected def logContext = super.logContext + outerSelf.logContext
 
-          override val entityIdCodec = _entityIdCodec
+          override val entityIdCodec = outerSelf.entityIdCodec
         }
       }
     }

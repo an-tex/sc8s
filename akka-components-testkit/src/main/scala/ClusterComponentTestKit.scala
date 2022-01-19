@@ -9,7 +9,6 @@ import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit.SerializationSettings
 import akka.persistence.typed.PersistenceId
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.components.ClusterComponent.Sharded.EntityIdCodec
 import net.sc8s.akka.components.ClusterComponent._
 import net.sc8s.logstage.elastic.Logging
 
@@ -63,8 +62,6 @@ trait ClusterComponentTestKit {
      innerComponent: outerComponent.BaseComponent,
      _entityId: outerComponent.EntityId,
      entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
-   )(
-     implicit _entityIdCodec: EntityIdCodec[outerComponent.EntityId]
    ): ActorRef[outerComponent.SerializableCommand] = testKit.spawn(
     Behaviors.setup[outerComponent.Command](_actorContext =>
       innerComponent.transformedBehavior(
@@ -73,9 +70,9 @@ trait ClusterComponentTestKit {
           override protected lazy val loggerClass = innerComponent.generateLoggerClass
           override val entityId = _entityId
 
-          override def entityRef(entityId: outerComponent.EntityId) = TestEntityRef(outerComponent.typeKey, entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
+          override def entityRef(entityId: outerComponent.EntityId) = TestEntityRef(outerComponent.typeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
 
-          override private[components] val entityIdCodec = _entityIdCodec
+          override private[components] val entityIdCodec = outerComponent.entityIdCodec
         }
       )
     )
@@ -88,8 +85,6 @@ trait ClusterComponentTestKit {
    )(
      innerComponent: outerComponent.BaseComponent,
      _entityId: outerComponent.EntityId,
-   )(
-     implicit _entityIdCodec: EntityIdCodec[outerComponent.EntityId]
    ): ActorRef[outerComponent.SerializableCommand] = spawnComponentWithEntityRefProbes(outerComponent)(innerComponent, _entityId, {
     _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
   })
@@ -104,8 +99,6 @@ trait ClusterComponentTestKit {
      entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand] = {
        _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
      }
-   )(
-     implicit _entityIdCodec: EntityIdCodec[outerComponent.EntityId]
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
     EventSourcedBehaviorTestKit(system,
 
@@ -115,13 +108,13 @@ trait ClusterComponentTestKit {
             override val actorContext = _actorContext
             override protected lazy val loggerClass = innerComponent.generateLoggerClass
 
-            override val persistenceId = PersistenceId(outerComponent.typeKey.name, _entityIdCodec.encode(_entityId))
+            override val persistenceId = PersistenceId(outerComponent.typeKey.name, outerComponent.entityIdCodec.encode(_entityId))
 
             override val entityId = _entityId
 
-            override def entityRef(entityId: outerComponent.EntityId) = TestEntityRef(outerComponent.typeKey, entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
+            override def entityRef(entityId: outerComponent.EntityId) = TestEntityRef(outerComponent.typeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
 
-            override private[components] val entityIdCodec = _entityIdCodec
+            override private[components] val entityIdCodec = outerComponent.entityIdCodec
           }
         )
       ),
@@ -135,8 +128,6 @@ trait ClusterComponentTestKit {
    )(
      innerComponent: outerComponent.BaseComponent,
      _entityId: outerComponent.EntityId
-   )(
-     implicit _entityIdCodec: EntityIdCodec[outerComponent.EntityId]
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
     spawnComponentWithEntityRefProbes(outerComponent)(innerComponent, _entityId, {
       _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
@@ -164,9 +155,9 @@ trait ClusterComponentTestKit {
      outerComponent: OuterComponentT
    )(
      entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
-   )(implicit _entityIdCodec: EntityIdCodec[outerComponent.EntityId]): ShardedComponent[OuterComponentT] = {
+   ): ShardedComponent[OuterComponentT] = {
     new ClusterComponent.ShardedComponent[OuterComponentT] {
-      override def entityRef(entityId: outerComponent.EntityId): EntityRef[outerComponent.SerializableCommand] = TestEntityRef(outerComponent.typeKey, _entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
+      override def entityRef(entityId: outerComponent.EntityId): EntityRef[outerComponent.SerializableCommand] = TestEntityRef(outerComponent.typeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
 
       override private[components] lazy val component: outerComponent.type = outerComponent
 

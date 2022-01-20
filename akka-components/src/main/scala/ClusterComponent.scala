@@ -126,7 +126,7 @@ object ClusterComponent {
     }
   }
 
-  abstract class ComponentContext extends Logging {
+  trait ComponentContext extends Logging {
     protected val loggerClass: String
   }
 
@@ -162,6 +162,9 @@ object ClusterComponent {
 
     trait Projection extends ComponentContext with EventSourced {
       val name: String
+
+      // often needed in a projection anyway
+      implicit val actorSystem: ActorSystem[_]
 
       protected override def logContext = super.logContext + CustomContext(
         "projectionName" -> name
@@ -211,7 +214,7 @@ object ClusterComponent {
         override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
       }
 
-      private[components] abstract class SingletonBaseComponentT extends super.BaseComponentT {
+      private[components] trait SingletonBaseComponentT extends super.BaseComponentT {
         self =>
 
         private[components] def actorRef(implicit actorSystem: ActorSystem[_]) = ClusterSingleton(actorSystem).init(SingletonActor(
@@ -234,7 +237,7 @@ object ClusterComponent {
     abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends SingletonT with ComponentT.EventSourcedT {
       outerSelf =>
 
-      abstract class BaseComponent extends super.SingletonBaseComponentT with super.EventSourcedBaseComponentT {
+      trait BaseComponent extends super.SingletonBaseComponentT with super.EventSourcedBaseComponentT {
         self =>
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
@@ -261,6 +264,7 @@ object ClusterComponent {
               override val persistenceId = self.persistenceId
               override val name = projection.name
               override protected lazy val loggerClass = generateLoggerClass
+              override implicit val actorSystem = _actorSystem
 
               protected override def logContext = super.logContext + outerSelf.logContext
             }
@@ -272,7 +276,7 @@ object ClusterComponent {
     object EventSourced {
       abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
-        abstract class BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
+        trait BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
           override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
         }
       }
@@ -281,7 +285,7 @@ object ClusterComponent {
 
   abstract class Singleton(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends Singleton.SingletonT {
     outerSelf =>
-    abstract class BaseComponent extends SingletonBaseComponentT {
+    trait BaseComponent extends SingletonBaseComponentT {
 
       override private[components] type ComponentContextS = ComponentContext
 
@@ -440,8 +444,8 @@ object ClusterComponent {
                 override private[components] val entityIdCodec = outerSelf.entityIdCodec
                 override val name = projection.name
                 override val persistenceId = PersistenceId(typeKey.name, outerSelf.entityIdCodec.encode(entityId))
-
                 override protected lazy val loggerClass = generateLoggerClass
+                override implicit val actorSystem = _actorSystem
 
                 protected override def logContext = super.logContext + outerSelf.logContext
               }

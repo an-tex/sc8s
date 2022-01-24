@@ -357,8 +357,7 @@ object ClusterComponent {
 
       implicit val entityIdCodec: EntityIdCodec[EntityId]
 
-      val typeKey: EntityTypeKey[SerializableCommand]
-
+      // an initialized typeKey is available in the InnerComponent, in general you should not need this
       def generateTypeKey(implicit classTag: ClassTag[SerializableCommand]) = EntityTypeKey[SerializableCommand](name)
 
       val clusterShardingSettings: ClusterShardingSettings => ClusterShardingSettings = identity
@@ -381,8 +380,10 @@ object ClusterComponent {
           override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
         }
 
-      private[components] trait ShardedBaseComponentT extends super.BaseComponentT {
+      private[components] abstract class ShardedBaseComponentT(implicit classTag : ClassTag[outerSelf.SerializableCommand]) extends super.BaseComponentT {
         self =>
+
+        val typeKey: EntityTypeKey[SerializableCommand] = generateTypeKey
 
         def entityRef(entityId: EntityId)(implicit actorSystem: ActorSystem[_]) = {
           val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)

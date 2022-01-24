@@ -222,7 +222,6 @@ object ClusterComponentTestKitSpec {
           Behaviors.same
       }
     }
-    override val typeKey = generateTypeKey
   }
 
   trait ProjectionTarget {
@@ -260,7 +259,6 @@ object ClusterComponentTestKitSpec {
 
       override val projections = wireSet
     }
-    override val typeKey = generateTypeKey
   }
 
   object ShardedEventSourcedWithSnapshots extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
@@ -288,7 +286,6 @@ object ClusterComponentTestKitSpec {
     }
     override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
     override val stateSerializer = CirceSerializer()
-    override val typeKey = generateTypeKey
   }
 
   object ShardedEntityRefMock extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
@@ -303,6 +300,5 @@ object ClusterComponentTestKitSpec {
           Behaviors.same
       }
     }
-    override val typeKey = generateTypeKey
   }
 }

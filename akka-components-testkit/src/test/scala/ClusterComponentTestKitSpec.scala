@@ -2,10 +2,12 @@ package net.sc8s.akka.components.testkit
 
 import ClusterComponentTestKitSpec._
 
+import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
-import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import akka.stream.scaladsl.Source
+import com.softwaremill.macwire.wireSet
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
 import net.sc8s.akka.circe.CirceSerializer
@@ -15,6 +17,8 @@ import org.scalamock.scalatest.MockFactory
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
+import scala.concurrent.Future
+
 class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourced.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
   "ComponentTestKit" should {
     "support Singleton" in {
@@ -22,7 +26,7 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       value1 ! Command()
     }
     "support EventSourced Singleton" in {
-      spawnComponent(SingletonEventSourced)(new SingletonEventSourced.Component)
+      spawnComponent(SingletonEventSourced)(new SingletonEventSourced.Component(mock[ProjectionTarget]))
         .runCommand(Command())
         .event shouldBe Event()
     }
@@ -31,11 +35,27 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
         .runCommand(Command())
         .event shouldBe Event()
     }
+    "support EventSourced Singleton with projection testing" in {
+      val projectionTarget = mock[ProjectionTarget]
+      val component = new SingletonEventSourced.Component(projectionTarget)
+      val projection = testProjection(SingletonEventSourced)(component)(component.projection, Source(Seq(
+        Event(),
+        Event(),
+      )))
+
+      (projectionTarget.serviceCall _).expects(component.persistenceId.id)
+      (projectionTarget.serviceCall _).expects(component.persistenceId.id)
+
+      projectionTestKit.runWithTestSink(projection) { probe =>
+        probe.request(2)
+        probe.expectNextUnordered(Done, Done)
+      }
+    }
     "support Sharded" in {
       spawnComponent(Sharded)(new Sharded.Component, "entityId") ! Command()
     }
     "support EventSourced Sharded" in {
-      spawnComponent(ShardedEventSourced)(new ShardedEventSourced.Component, "entityId")
+      spawnComponent(ShardedEventSourced)(new ShardedEventSourced.Component(mock[ProjectionTarget]), "entityId")
         .runCommand(Command())
         .event shouldBe Event()
     }
@@ -43,6 +63,24 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       spawnComponent(ShardedEventSourcedWithSnapshots)(new ShardedEventSourcedWithSnapshots.Component, "entityId")
         .runCommand(Command())
         .event shouldBe Event()
+    }
+    "support EventSourced Sharded with projection testing" in {
+      val projectionTarget = mock[ProjectionTarget]
+      val entityId1 = "entityId1"
+      val entityId2 = "entityId2"
+      val component = new ShardedEventSourced.Component(projectionTarget)
+      val projection = testProjection(ShardedEventSourced)(component)(component.projection, Source(Seq(
+        entityId1 -> Event(),
+        entityId2 -> Event(),
+      )))
+
+      (projectionTarget.serviceCall _).expects(entityId1)
+      (projectionTarget.serviceCall _).expects(entityId2)
+
+      projectionTestKit.runWithTestSink(projection) { probe =>
+        probe.request(2)
+        probe.expectNextUnordered(Done, Done)
+      }
     }
     "support Sharded and entityRefProbes using scalamock" in {
       val entityRefMock = mockFunction[String, TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]]
@@ -61,13 +99,21 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
 
       testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
     }
-    "support ShardedComponent TestProbe" in {
+    "support ShardedComponent TestProbe using mockFunction" in {
       val entityRefMock = mockFunction[String, TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]]
-
       val testProbe = TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]()
       entityRefMock.expects("entityIdX").returns(testProbe)
-
       val component = createProbe(ClusterComponentTestKitSpec.Sharded)(entityRefMock)
+
+      component.entityRef("entityIdX") ! ClusterComponentTestKitSpec.Command()
+
+      testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
+    }
+    "support ShardedComponent TestProbe using pattern matching" in {
+      val testProbe = TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]()
+      val component = createProbe(ClusterComponentTestKitSpec.Sharded) {
+        case "entityIdX" => testProbe
+      }
 
       component.entityRef("entityIdX") ! ClusterComponentTestKitSpec.Command()
 
@@ -97,7 +143,7 @@ object ClusterComponentTestKitSpec {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
           Behaviors.same
@@ -115,7 +161,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -127,6 +173,14 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
+
+      val projection = createProjection("projection") {
+        case (event, context) =>
+          projectionTarget.serviceCall(context.persistenceId.id)
+          Future.successful(Done)
+      }
+
+      override val projections = wireSet
     }
   }
 
@@ -140,7 +194,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -162,13 +216,17 @@ object ClusterComponentTestKitSpec {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
           Behaviors.same
       }
     }
     override val typeKey = generateTypeKey
+  }
+
+  trait ProjectionTarget {
+    def serviceCall(entityId: String): Unit
   }
 
   object ShardedEventSourced extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
@@ -181,7 +239,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -193,6 +251,14 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
+
+      val projection = createProjection("projection") {
+        case (event, context) =>
+          projectionTarget.serviceCall(context.entityId)
+          Future.successful(Done)
+      }
+
+      override val projections = wireSet
     }
     override val typeKey = generateTypeKey
   }
@@ -207,7 +273,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -230,7 +296,7 @@ object ClusterComponentTestKitSpec {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
-    class Component(implicit actorSystem: ActorSystem[_]) extends BaseComponent {
+    class Component extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
           context.entityRef("entityIdX") ! Command()

@@ -164,7 +164,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                   case (state, event) => state
                 })
 
-              override val projections = Seq(
+              override val projections = Set(
                 ClusterComponent.Projection(
                   "projection",
                   {
@@ -385,7 +385,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                   case (state, event) => state
                 })
 
-              override val projections = Seq(
+              override val projections = Set(
                 ClusterComponent.Projection(
                   "projection",
                   {

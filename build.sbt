@@ -166,7 +166,9 @@ lazy val `akka-components-testkit` = (project in file("akka-components-testkit")
       scalaTest.value,
       scalamock,
       akka.testkitTyped % Test,
-      akka.persistenceTestkit % Test
+      akka.persistenceTestkit % Test,
+      akka.projection.testKit,
+      macwire.macros
     ),
     idePackagePrefix := Some("net.sc8s.akka.components.testkit")
   )

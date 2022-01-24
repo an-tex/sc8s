@@ -84,6 +84,7 @@ object Dependencies {
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion
+      val testKit = "com.lightbend.akka" %% "akka-projection-testkit" % projectionVersion
     }
 
     object js {

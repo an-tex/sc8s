@@ -105,7 +105,11 @@ object ClusterComponent {
 
         def generateTag(context: ComponentContextS): String
 
-        val projections: Seq[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Nil
+        // helper method so you don't have to care about type parameters in case you create it outside of the member `projections`
+        def createProjection(name: String)(handler: PartialFunction[(Event, ComponentContextS with ComponentContext.Projection), Future[Done]]) = Projection(name, handler)
+
+        // Set[_] so you can use `com.softwaremill.macwire#wireSet`
+        val projections: Set[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Set.empty
       }
 
       override def serializers = super.serializers :+ eventSerializer
@@ -242,7 +246,7 @@ object ClusterComponent {
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
 
-        private val persistenceId = PersistenceId.ofUniqueId(name)
+        private[components] val persistenceId = PersistenceId.ofUniqueId(name)
 
         override val tagGenerator = TagGenerator(name, 1)
 
@@ -256,7 +260,7 @@ object ClusterComponent {
           override protected def logContext = super.logContext + outerSelf.logContext
         }
 
-        override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = projections.map(projection => new ManagedProjection[Event, String](projection.name, tagGenerator, identity) {
+        override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = projections.toSeq.map(projection => new ManagedProjection[Event, String](projection.name, tagGenerator, identity) {
           override implicit val actorSystem = _actorSystem
 
           override def handle = projection.handler.compose {
@@ -432,7 +436,7 @@ object ClusterComponent {
         override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = {
           lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
 
-          projections.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, entityIdCodec.decode(_).get) {
+          projections.toSeq.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, entityIdCodec.decode(_).get) {
             override implicit val actorSystem = _actorSystem
 
             override def handle = projection.handler.compose {

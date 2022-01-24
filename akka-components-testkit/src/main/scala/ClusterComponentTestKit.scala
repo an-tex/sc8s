@@ -5,13 +5,21 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.sharding.typed.scaladsl.EntityRef
 import akka.cluster.sharding.typed.testkit.scaladsl.TestEntityRef
+import akka.persistence.query.Offset
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit.SerializationSettings
 import akka.persistence.typed.PersistenceId
+import akka.projection.ProjectionId
+import akka.projection.eventsourced.EventEnvelope
+import akka.projection.testkit.scaladsl.{ProjectionTestKit, TestProjection, TestSourceProvider}
+import akka.stream.scaladsl.Source
+import akka.{Done, NotUsed}
 import net.sc8s.akka.components.ClusterComponent
+import net.sc8s.akka.components.ClusterComponent.Sharded.EntityIdCodec
 import net.sc8s.akka.components.ClusterComponent._
 import net.sc8s.logstage.elastic.Logging
 
+import scala.concurrent.Future
 import scala.reflect.ClassTag
 
 trait ClusterComponentTestKit {
@@ -96,9 +104,7 @@ trait ClusterComponentTestKit {
    )(
      innerComponent: outerComponent.BaseComponent,
      _entityId: outerComponent.EntityId,
-     entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand] = {
-       _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
-     }
+     entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
     EventSourcedBehaviorTestKit(system,
 
@@ -164,5 +170,65 @@ trait ClusterComponentTestKit {
       override private[components] val serializers = Nil
       override private[components] val managedProjections = Nil
     }
+  }
+
+  lazy val projectionTestKit = ProjectionTestKit(system)
+
+  def testProjection[
+    OuterComponentT <: Sharded.EventSourced,
+  ](
+     outerComponent: OuterComponentT
+   )
+   (
+     innerComponent: outerComponent.BaseComponent,
+   )(
+     projection: Projection[outerComponent.Event, innerComponent.ComponentContextS with ComponentContext.Projection], events: Source[(outerComponent.EntityId, outerComponent.Event), NotUsed],
+     entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand] = {
+       _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
+     }
+   ) = {
+    TestProjection(ProjectionId(projection.name, "tag0"), TestSourceProvider[Offset, EventEnvelope[outerComponent.Event]](
+      events.zipWithIndex.map { case ((entityId, event), index) =>
+        EventEnvelope(Offset.noOffset, PersistenceId(outerComponent.typeKey.name, outerComponent.entityIdCodec.encode(entityId)).id, index, event, 0)
+      },
+      _.offset,
+    ), () => (envelope: EventEnvelope[outerComponent.Event]) => {
+      val projectionContext = new ComponentContext with ComponentContext.Sharded[outerComponent.SerializableCommand, outerComponent.EntityId] with ComponentContext.EventSourced with ComponentContext.Projection {
+        override val name = projection.name
+        override implicit val actorSystem = self.system
+        override val persistenceId = PersistenceId.ofUniqueId(envelope.persistenceId)
+        override val entityId = outerComponent.entityIdCodec.decode(persistenceId.entityId).get
+
+        override def entityRef(entityId: outerComponent.EntityId) = TestEntityRef(outerComponent.typeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
+
+        override val entityIdCodec: EntityIdCodec[outerComponent.EntityId] = outerComponent.entityIdCodec
+      }
+      projection.handler.lift(envelope.event -> projectionContext).getOrElse(Future.successful(Done))
+    })
+  }
+
+  def testProjection[
+    OuterComponentT <: Singleton.EventSourced,
+  ](
+     outerComponent: OuterComponentT
+   )
+   (
+     innerComponent: outerComponent.BaseComponent,
+   )(
+     projection: Projection[outerComponent.Event, innerComponent.ComponentContextS with ComponentContext.Projection], events: Source[outerComponent.Event, NotUsed],
+   ) = {
+    TestProjection(ProjectionId(projection.name, "tag0"), TestSourceProvider[Offset, EventEnvelope[outerComponent.Event]](
+      events.zipWithIndex.map { case (event, index) =>
+        EventEnvelope(Offset.noOffset, innerComponent.persistenceId.id, index, event, 0)
+      },
+      _.offset,
+    ), () => (envelope: EventEnvelope[outerComponent.Event]) => {
+      val projectionContext = new ComponentContext with ComponentContext.EventSourced with ComponentContext.Projection {
+        override val name = projection.name
+        override implicit val actorSystem = self.system
+        override val persistenceId = PersistenceId.ofUniqueId(envelope.persistenceId)
+      }
+      projection.handler.lift(envelope.event -> projectionContext).getOrElse(Future.successful(Done))
+    })
   }
 }

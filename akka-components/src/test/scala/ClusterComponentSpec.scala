@@ -260,8 +260,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
           override val name = "sharded3"
 
-          override val typeKey = generateTypeKey
-
           override val commandSerializer = CirceSerializer[Command]()
         }
 
@@ -287,8 +285,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           }
 
           override val name = "sharded4"
-
-          override val typeKey = generateTypeKey
 
           override val commandSerializer = CirceSerializer[Command]()
         }
@@ -319,8 +315,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             }
 
             override val name = "sharded5"
-
-            override val typeKey = generateTypeKey
 
             override val commandSerializer = CirceSerializer()
 
@@ -354,13 +348,11 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
             override val name = "sharded6"
 
-            override val typeKey = generateTypeKey
-
             override val commandSerializer = CirceSerializer()
-
             override val eventSerializer = CirceSerializer()
-            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
             override val stateSerializer = CirceSerializer()
+
+            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
           }
         }
         "with projections" in {
@@ -396,13 +388,11 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
             override val name = "sharded7"
 
-            override val typeKey = generateTypeKey
-
             override val commandSerializer = CirceSerializer()
-
             override val eventSerializer = CirceSerializer()
-            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
             override val stateSerializer = CirceSerializer()
+
+            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
           }
         }
       }
@@ -447,8 +437,6 @@ object ClusterComponentSpec {
 
     override val name = "sharded"
 
-    override val typeKey = generateTypeKey
-
     override val commandSerializer = CirceSerializer[Command]()
   }
 
@@ -470,8 +458,6 @@ object ClusterComponentSpec {
 
       override val name = "sharded1"
 
-      override val typeKey = generateTypeKey
-
       override val commandSerializer = CirceSerializer[Command]()
     }
 
@@ -490,8 +476,6 @@ object ClusterComponentSpec {
       }
 
       override val name = "sharded2"
-
-      override val typeKey = generateTypeKey
 
       override val commandSerializer = CirceSerializer[Command]()
     }

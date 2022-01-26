@@ -235,7 +235,7 @@ object ClusterComponent {
           Behaviors
             .supervise(Behaviors.setup[Command] { actorContext =>
               val componentContext = fromActorContext(actorContext)
-              componentContext.log.log(Info)(s"${"initializing" -> "tag"}")(outerSelf.componentCodePositionMaterializer)
+              initializationMessage(componentContext)
               transformedBehavior(componentContext)
             }.narrow[SerializableCommand])
             .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
@@ -245,6 +245,8 @@ object ClusterComponent {
         private[components] def fromActorContext(actorContext: ActorContext[Command]): BehaviorComponentContextS
 
         override private[components] val componentCodePositionMaterializer = outerSelf.componentCodePositionMaterializer
+
+        def initializationMessage(componentContext: BehaviorComponentContextS) = componentContext.log.log(Info)(s"${"initializing" -> "tag"}")(outerSelf.componentCodePositionMaterializer)
       }
     }
 

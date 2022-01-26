@@ -1,12 +1,13 @@
 package net.sc8s.akka.components
 
 import ClusterComponent.Sharded.EntityIdCodec
-import ClusterComponentSpec.{CircularDependencyTest, Dependency, ShardedTestComponent, SingletonTestComponent}
+import ClusterComponentSpec._
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
+import akka.cluster.sharding.typed.ClusterShardingSettings.PassivationStrategySettings
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import com.softwaremill.macwire._
 import com.typesafe.config.ConfigFactory
@@ -19,7 +20,8 @@ import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.Future
-import scala.util.Success
+import scala.concurrent.duration.DurationInt
+import scala.util.{Random, Success}
 
 /*
 This spec is only meant to illustrate the usage of ClusterComponent
@@ -130,6 +132,8 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 {
                   case (state, event) => state
                 })
+
+              override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
             }
 
             override val name = "singleton"
@@ -137,7 +141,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             override val commandSerializer = CirceSerializer()
 
             override val eventSerializer = CirceSerializer()
-            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
             override val stateSerializer = CirceSerializer()
           }
 
@@ -187,7 +190,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
     "Sharded" - {
       "minimal with wiring" in {
         class Service(component: ShardedTestComponent.Wiring) {
-          component.entityRef("entityId") ! ShardedTestComponent.Command()
+          component.entityRefFor("entityId") ! ShardedTestComponent.Command()
         }
 
         object ApplicationLoader {
@@ -211,8 +214,8 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                        component1: CircularDependencyTest.ShardedTestComponent1.Wiring,
                        component2: CircularDependencyTest.ShardedTestComponent2.Wiring,
                      ) {
-          component1.entityRef("entityId1") ! CircularDependencyTest.ShardedTestComponent1.Command()
-          component2.entityRef("entityId2") ! CircularDependencyTest.ShardedTestComponent2.Command()
+          component1.entityRefFor("entityId1") ! CircularDependencyTest.ShardedTestComponent1.Command()
+          component2.entityRefFor("entityId2") ! CircularDependencyTest.ShardedTestComponent2.Command()
         }
 
         object ApplicationLoader {
@@ -258,9 +261,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               }
           }
 
-          override val name = "sharded3"
+          override val name = randomName
 
-          override val commandSerializer = CirceSerializer[Command]()
+          override val commandSerializer = CirceSerializer()
         }
 
         ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
@@ -284,9 +287,33 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               }
           }
 
-          override val name = "sharded4"
+          override val name = randomName
 
-          override val commandSerializer = CirceSerializer[Command]()
+          override val commandSerializer = CirceSerializer()
+        }
+
+        ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
+      }
+      "custom clusterShardingSettings and stopMessage" in {
+        object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+          case class Command()
+
+          object Command {
+            implicit val codec: Codec[Command] = deriveCodec
+          }
+
+          class Component(dependency: Dependency) extends BaseComponent {
+            override val behavior = componentContext =>
+              Behaviors.receiveMessage {
+                case Command() => Behaviors.same
+              }
+            override val clusterShardingSettings = _.withPassivationStrategy(PassivationStrategySettings.defaults.withIdleEntityPassivation(10.seconds))
+            override val entityTransformation = _.withStopMessage(Command())
+          }
+
+          override val name = randomName
+
+          override val commandSerializer = CirceSerializer()
         }
 
         ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
@@ -314,7 +341,7 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 })
             }
 
-            override val name = "sharded5"
+            override val name = randomName
 
             override val commandSerializer = CirceSerializer()
 
@@ -344,15 +371,15 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 {
                   case (state, event) => state
                 })
+
+              override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
             }
 
-            override val name = "sharded6"
+            override val name = randomName
 
             override val commandSerializer = CirceSerializer()
             override val eventSerializer = CirceSerializer()
             override val stateSerializer = CirceSerializer()
-
-            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
           }
         }
         "with projections" in {
@@ -384,15 +411,15 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                     case (event, projectionContext) => Future.successful(Done)
                   }
                 ))
+
+              override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
             }
 
-            override val name = "sharded7"
+            override val name = randomName
 
             override val commandSerializer = CirceSerializer()
             override val eventSerializer = CirceSerializer()
             override val stateSerializer = CirceSerializer()
-
-            override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
           }
         }
       }
@@ -418,7 +445,7 @@ object ClusterComponentSpec {
 
     override val name = "singleton"
 
-    override val commandSerializer = CirceSerializer[Command]()
+    override val commandSerializer = CirceSerializer()
   }
 
   object ShardedTestComponent extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
@@ -435,9 +462,9 @@ object ClusterComponentSpec {
         }
     }
 
-    override val name = "sharded"
+    override val name = randomName
 
-    override val commandSerializer = CirceSerializer[Command]()
+    override val commandSerializer = CirceSerializer()
   }
 
   object CircularDependencyTest {
@@ -456,9 +483,9 @@ object ClusterComponentSpec {
           }
       }
 
-      override val name = "sharded1"
+      override val name = randomName
 
-      override val commandSerializer = CirceSerializer[Command]()
+      override val commandSerializer = CirceSerializer()
     }
 
     object ShardedTestComponent2 extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
@@ -475,10 +502,12 @@ object ClusterComponentSpec {
           }
       }
 
-      override val name = "sharded2"
+      override val name = randomName
 
-      override val commandSerializer = CirceSerializer[Command]()
+      override val commandSerializer = CirceSerializer()
     }
   }
+
+  def randomName = s"sharded-${Random.alphanumeric.take(8).mkString}"
 }
 

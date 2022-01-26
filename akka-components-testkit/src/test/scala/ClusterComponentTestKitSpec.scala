@@ -105,7 +105,7 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       entityRefMock.expects("entityIdX").returns(testProbe)
       val component = createProbe(ClusterComponentTestKitSpec.Sharded)(entityRefMock)
 
-      component.entityRef("entityIdX") ! ClusterComponentTestKitSpec.Command()
+      component.entityRefFor("entityIdX") ! ClusterComponentTestKitSpec.Command()
 
       testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
     }
@@ -115,7 +115,7 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
         case "entityIdX" => testProbe
       }
 
-      component.entityRef("entityIdX") ! ClusterComponentTestKitSpec.Command()
+      component.entityRefFor("entityIdX") ! ClusterComponentTestKitSpec.Command()
 
       testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
     }
@@ -206,8 +206,9 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
+
+      override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
     }
-    override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
     override val stateSerializer = CirceSerializer()
   }
 
@@ -283,8 +284,9 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
+
+      override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
     }
-    override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
     override val stateSerializer = CirceSerializer()
   }
 
@@ -296,7 +298,7 @@ object ClusterComponentTestKitSpec {
     class Component extends BaseComponent {
       override val behavior = context => Behaviors.receiveMessage {
         case Command() =>
-          context.entityRef("entityIdX") ! Command()
+          context.entityRefFor("entityIdX") ! Command()
           Behaviors.same
       }
     }

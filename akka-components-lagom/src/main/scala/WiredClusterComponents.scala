@@ -18,11 +18,18 @@ trait WiredClusterComponents extends CirceAkkaSerializationComponents with Proje
   val clusterComponents: Set[ClusterComponent.Component[_]]
 
   override def circeSerializerRegistry = super.circeSerializerRegistry ++ new CirceSerializerRegistry {
-      override def serializers = clusterComponents.flatMap(_.serializers).toSeq
+    override def serializers = clusterComponents.flatMap(_.serializers).toSeq
   }
 
   // call this at the end to initialize singletons, shards & projections
-  final def initComponents() = clusterComponents.foreach(_.delayedInit())
+  final def initComponents() = {
+    // initialize shards before singletons as singletons might call .entityRef on initialization phase which in turn requires the shard to be initialized
+    val clusterComponentsSortedByShardedFirst = clusterComponents.toSeq.sortBy {
+      case _: ClusterComponent.ShardedComponent[_] => 1
+      case _: ClusterComponent.SingletonComponent[_] => 2
+    }
+    clusterComponentsSortedByShardedFirst.foreach(_.delayedInit())
+  }
 
   override def projections: Set[ManagedProjection[_, _]] = super.projections ++ clusterComponents.flatMap(_.managedProjections)
 }

@@ -231,18 +231,26 @@ object ClusterComponent {
       private[components] trait SingletonBaseComponentT extends super.BaseComponentT {
         self =>
 
-        private[components] def actorRef(implicit actorSystem: ActorSystem[_]) = ClusterSingleton(actorSystem).init(SingletonActor(
-          Behaviors
-            .supervise(Behaviors.setup[Command] { actorContext =>
-              val componentContext = fromActorContext(actorContext)
-              initializationMessage(componentContext)
-              transformedBehavior(componentContext)
-            }.narrow[SerializableCommand])
-            .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
-          name
-        ).withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem))))
+        private[components] def actorRef(implicit actorSystem: ActorSystem[_]) = {
+          val singletonActor = SingletonActor(
+            Behaviors
+              .supervise(Behaviors.setup[Command] { actorContext =>
+                val componentContext = fromActorContext(actorContext)
+                initializationMessage(componentContext)
+                transformedBehavior(componentContext)
+              }.narrow[SerializableCommand])
+              .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
+            name
+          )
+          ClusterSingleton(actorSystem).init(
+            singletonTransformation(singletonActor)
+              .withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem)))
+          )
+        }
 
         private[components] def fromActorContext(actorContext: ActorContext[Command]): BehaviorComponentContextS
+
+        val singletonTransformation: SingletonActor[SerializableCommand] => SingletonActor[SerializableCommand] = identity
 
         override private[components] val componentCodePositionMaterializer = outerSelf.componentCodePositionMaterializer
 

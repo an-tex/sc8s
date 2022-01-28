@@ -485,7 +485,11 @@ object ClusterComponent {
         override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = {
           lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
 
-          projections.toSeq.map(projection => new ManagedProjection[Event, EntityId](projection.name, tagGenerator, entityIdCodec.decode(_).get) {
+          projections.toSeq.map(projection => new ManagedProjection[Event, EntityId](
+            projection.name,
+            tagGenerator,
+            PersistenceId.extractEntityId(_).pipe(entityIdCodec.decode(_).get)
+          ) {
             override implicit val actorSystem = _actorSystem
 
             override def handle = projection.handler.compose {
@@ -496,7 +500,7 @@ object ClusterComponent {
 
                 override private[components] val entityIdCodec = outerSelf.entityIdCodec
                 override val name = projection.name
-                override val persistenceId = PersistenceId(self.typeKey.name, outerSelf.entityIdCodec.encode(entityId))
+                override val persistenceId = PersistenceId(self.typeKey.name, outerSelf.entityIdCodec.encode(_entityId))
                 override protected lazy val loggerClass = generateLoggerClass
                 override implicit val actorSystem = _actorSystem
 

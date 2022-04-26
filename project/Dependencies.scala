@@ -76,7 +76,8 @@ object Dependencies {
         "akka-remote",
         "akka-serialization-jackson",
         "akka-slf4j",
-        "akka-stream"
+        "akka-stream",
+        "akka-stream-testkit"
       ).map("com.typesafe.akka" %% _ % akkaVersion)
 
     object projection {

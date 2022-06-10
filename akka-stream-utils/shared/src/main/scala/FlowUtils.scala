@@ -251,6 +251,14 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): Flow[In, F[Out2], Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
+    implicit class FlowOptionOpsF[In, Out, Mat](
+                                                 val s: Flow[In, Option[Out], Mat]
+                                               ) {
+      def flattenF: Flow[In, Out, Mat] = s.collect {
+        case Some(value) => value
+      }
+    }
+
     implicit class FlowEitherOpsF[In, OutL, OutR, Mat](
                                                         val s: Flow[In, Either[OutL, OutR], Mat]
                                                           with FlowOps[Either[OutL, OutR], Mat]

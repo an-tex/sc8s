@@ -1,6 +1,6 @@
 package net.sc8s.akka.stream
 
-import FlowUtils.flow.FlowMonadOpsF
+import FlowUtils.flow.{FlowMonadOpsF, FlowOptionOpsF}
 import FlowUtils.source._
 
 import akka.NotUsed
@@ -171,6 +171,12 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .via(flow)
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(Success(Left(1)))
+    }
+    "Flow flattenF" in {
+      Source(Seq(Some(1), None, Some(2)))
+        .via(Flow[Option[Int]].flattenF)
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(1, 2)
     }
   }
 

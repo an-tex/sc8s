@@ -254,8 +254,8 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             implicit val codec: Codec[Command] = deriveCodec
           }
 
-          class Component(dependency: Dependency) extends BaseComponent {
-            override val behavior = componentContext =>
+          class Component extends BaseComponent {
+            override val behavior = _ =>
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
@@ -266,7 +266,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           override val commandSerializer = CirceSerializer()
         }
 
-        ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
+        val component = new ComponentObject.Component
+        ComponentObject.init(component).delayedInit()
+        component.entityRefFor(ComponentObject.EntityId("a", "b"))
       }
       "custom json EntityId" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
@@ -280,8 +282,8 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             implicit val codec: Codec[Command] = deriveCodec
           }
 
-          class Component(dependency: Dependency) extends BaseComponent {
-            override val behavior = componentContext =>
+          class Component extends BaseComponent {
+            override val behavior = _ =>
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
@@ -292,7 +294,33 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
           override val commandSerializer = CirceSerializer()
         }
 
-        ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
+        val component = new ComponentObject.Component
+        ComponentObject.init(component).delayedInit()
+        component.entityRefFor(ComponentObject.EntityId("a", "b"))
+      }
+      "long EntityId" in {
+        object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.LongEntityId {
+          case class Command()
+
+          object Command {
+            implicit val codec: Codec[Command] = deriveCodec
+          }
+
+          class Component extends BaseComponent {
+            override val behavior = _ =>
+              Behaviors.receiveMessage {
+                case Command() => Behaviors.same
+              }
+          }
+
+          override val name = randomName
+
+          override val commandSerializer = CirceSerializer()
+        }
+
+        val component = new ComponentObject.Component
+        ComponentObject.init(component).delayedInit()
+        component.entityRefFor(123L)
       }
       "custom clusterShardingSettings and stopMessage" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {

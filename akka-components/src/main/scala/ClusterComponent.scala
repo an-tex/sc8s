@@ -362,6 +362,14 @@ object ClusterComponent {
       override implicit val entityIdCodec = EntityIdCodec[String](identity, Success(_))
     }
 
+    trait LongEntityId {
+      _: ShardedT =>
+
+      override type EntityId = Long
+
+      override implicit val entityIdCodec: EntityIdCodec[Long] = EntityIdCodec[Long](_.toString, idString => Try(idString.toLong))
+    }
+
     trait JsonEntityId {
       _: ShardedT =>
 

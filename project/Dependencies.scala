@@ -77,6 +77,7 @@ object Dependencies {
         "akka-serialization-jackson",
         "akka-slf4j",
         "akka-stream",
+        "akka-stream-typed",
         "akka-stream-testkit"
       ).map("com.typesafe.akka" %% _ % akkaVersion)
 

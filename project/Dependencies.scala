@@ -4,17 +4,17 @@ import sbt._
 object Dependencies {
   val scala213 = "2.13.8"
 
-  val chimney = Def.setting("io.scalaland" %%% "chimney" % "0.6.1")
+  val chimney = Def.setting("io.scalaland" %%% "chimney" % "0.6.2")
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.10")
   val scalamock = "org.scalamock" %% "scalamock" % "5.2.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "1.7.36"
-  val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.3.0")
+  val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.4.0")
 
   val overrides = akka.overrides
 
   object play {
     // same as lagom uses
-    val core = "com.typesafe.play" %% "play" % "2.8.15"
+    val core = "com.typesafe.play" %% "play" % "2.8.16"
   }
 
   object lagom {
@@ -31,7 +31,7 @@ object Dependencies {
   }
 
   object akka {
-    private val akkaVersion = "2.6.18"
+    private val akkaVersion = "2.6.19"
     private val akkaHttpVersion = "10.1.13"
     private val akkaJs = "2.2.6.14"
 
@@ -76,11 +76,13 @@ object Dependencies {
         "akka-remote",
         "akka-serialization-jackson",
         "akka-slf4j",
-        "akka-stream"
+        "akka-stream",
+        "akka-stream-typed",
+        "akka-stream-testkit"
       ).map("com.typesafe.akka" %% _ % akkaVersion)
 
     object projection {
-      private val projectionVersion = "1.2.3"
+      private val projectionVersion = "1.2.4"
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion
@@ -93,7 +95,7 @@ object Dependencies {
   }
 
   object macwire {
-    val macwireVersion = "2.5.6"
+    val macwireVersion = "2.5.7"
 
     val macros = "com.softwaremill.macwire" %% "macros" % macwireVersion % "provided"
     val macrosAkka = "com.softwaremill.macwire" %% "macrosakka" % macwireVersion % "provided"
@@ -119,6 +121,6 @@ object Dependencies {
   }
 
   object cats {
-    val core = Def.setting("org.typelevel" %%% "cats-core" % "2.7.0")
+    val core = Def.setting("org.typelevel" %%% "cats-core" % "2.8.0")
   }
 }

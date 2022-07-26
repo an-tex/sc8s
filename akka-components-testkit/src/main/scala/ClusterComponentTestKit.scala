@@ -26,7 +26,7 @@ trait ClusterComponentTestKit {
   self: akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit with Logging =>
 
   def spawnComponent[
-    OuterComponentT <: Singleton : ClassTag
+    OuterComponentT <: Singleton
   ](
      outerComponent: OuterComponentT
    )(
@@ -36,14 +36,14 @@ trait ClusterComponentTestKit {
       innerComponent.transformedBehavior(
         new ComponentContext with ComponentContext.Actor[outerComponent.Command] {
           override val actorContext = _actorContext
-          override protected lazy val loggerClass = innerComponent.generateLoggerClass
+          override protected lazy val loggerClass = innerComponent.generateLoggerClass(outerComponent.getClass)
         }
       )
     )
   )
 
   def spawnComponent[
-    OuterComponentT <: Singleton.EventSourced : ClassTag
+    OuterComponentT <: Singleton.EventSourced
   ](
      outerComponent: OuterComponentT
    )(
@@ -54,7 +54,7 @@ trait ClusterComponentTestKit {
         innerComponent.transformedBehavior(
           new ComponentContext with ComponentContext.Actor[outerComponent.Command] with ComponentContext.EventSourced {
             override val actorContext = _actorContext
-            override protected lazy val loggerClass = innerComponent.generateLoggerClass
+            override protected lazy val loggerClass = innerComponent.generateLoggerClass(outerComponent.getClass)
             override val persistenceId = PersistenceId.ofUniqueId(loggerClass)
           }
         )
@@ -63,7 +63,7 @@ trait ClusterComponentTestKit {
     )
 
   def spawnComponentWithEntityRefProbes[
-    OuterComponentT <: Sharded : ClassTag
+    OuterComponentT <: Sharded
   ](
      outerComponent: OuterComponentT,
    )(
@@ -75,7 +75,7 @@ trait ClusterComponentTestKit {
       innerComponent.transformedBehavior(
         new ComponentContext with ComponentContext.Actor[outerComponent.Command] with ComponentContext.Sharded[outerComponent.SerializableCommand, outerComponent.EntityId] with ComponentContext.ShardedEntity[outerComponent.SerializableCommand] {
           override val actorContext = _actorContext
-          override protected lazy val loggerClass = innerComponent.generateLoggerClass
+          override protected lazy val loggerClass = innerComponent.generateLoggerClass(outerComponent.getClass)
           override val entityId = _entityId
 
           override def entityRefFor(entityId: outerComponent.EntityId) = TestEntityRef(innerComponent.typeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
@@ -91,7 +91,7 @@ trait ClusterComponentTestKit {
   )
 
   def spawnComponent[
-    OuterComponentT <: Sharded : ClassTag
+    OuterComponentT <: Sharded
   ](
      outerComponent: OuterComponentT,
    )(
@@ -102,7 +102,7 @@ trait ClusterComponentTestKit {
   })
 
   def spawnComponentWithEntityRefProbes[
-    OuterComponentT <: Sharded.EventSourced : ClassTag
+    OuterComponentT <: Sharded.EventSourced
   ](
      outerComponent: OuterComponentT,
    )(
@@ -116,7 +116,7 @@ trait ClusterComponentTestKit {
         innerComponent.transformedBehavior(
           new ComponentContext with ComponentContext.Actor[outerComponent.Command] with ComponentContext.Sharded[outerComponent.SerializableCommand, outerComponent.EntityId] with ComponentContext.EventSourced with ComponentContext.ShardedEntity[outerComponent.SerializableCommand] {
             override val actorContext = _actorContext
-            override protected lazy val loggerClass = innerComponent.generateLoggerClass
+            override protected lazy val loggerClass = innerComponent.generateLoggerClass(outerComponent.getClass)
 
             override val persistenceId = PersistenceId(innerComponent.typeKey.name, outerComponent.entityIdCodec.encode(_entityId))
 
@@ -136,7 +136,7 @@ trait ClusterComponentTestKit {
     )
 
   def spawnComponent[
-    OuterComponentT <: Sharded.EventSourced : ClassTag
+    OuterComponentT <: Sharded.EventSourced
   ](
      outerComponent: OuterComponentT,
    )(
@@ -148,7 +148,7 @@ trait ClusterComponentTestKit {
     })
 
   def createProbe[
-    OuterComponentT <: Singleton.SingletonT : ClassTag
+    OuterComponentT <: Singleton.SingletonT
   ](
      outerComponent: OuterComponentT
    ) = {
@@ -164,7 +164,7 @@ trait ClusterComponentTestKit {
   }
 
   def createProbe[
-    OuterComponentT <: Sharded.ShardedT : ClassTag
+    OuterComponentT <: Sharded.ShardedT
   ](
      outerComponent: OuterComponentT
    )(

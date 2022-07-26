@@ -49,7 +49,8 @@ object ClusterComponent {
 
       final val transformedBehavior: BehaviorComponentContextS => BehaviorS = context => behaviorTransformer(context, behavior(context))
 
-      private[components] def generateLoggerClass(implicit classTag: ClassTag[outerSelf.type]) = classTag.runtimeClass.getName.takeWhile(_ != '$')
+      // implicit classTag returned only these classes when used as an external dependency
+      private[components] def generateLoggerClass(clazz: Class[_]) = clazz.getName.takeWhile(_ != '$')
 
       private[components] def managedProjections(implicit actorSystem: ActorSystem[_]): Seq[ManagedProjection[_, _]] = Nil
 
@@ -277,7 +278,7 @@ object ClusterComponent {
         override def fromActorContext(_actorContext: ActorContext[Command]) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.EventSourced {
           override val persistenceId = self.persistenceId
           override val actorContext = _actorContext
-          override protected lazy val loggerClass = generateLoggerClass
+          override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
 
           override protected def logContext = super.logContext + outerSelf.logContext
         }
@@ -289,7 +290,7 @@ object ClusterComponent {
             case (event, _) => event -> new ComponentContext with ComponentContext.EventSourced with ComponentContext.Projection {
               override val persistenceId = self.persistenceId
               override val name = projection.name
-              override protected lazy val loggerClass = generateLoggerClass
+              override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
               override implicit val actorSystem = _actorSystem
 
               protected override def logContext = super.logContext + outerSelf.logContext
@@ -322,7 +323,8 @@ object ClusterComponent {
 
       override def fromActorContext(_actorContext: ActorContext[Command]) = new ComponentContext with ComponentContext.Actor[Command] {
         override val actorContext = _actorContext
-        override protected lazy val loggerClass = generateLoggerClass
+
+        override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
 
         protected override def logContext = super.logContext + outerSelf.logContext
       }
@@ -481,7 +483,7 @@ object ClusterComponent {
 
           override def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
 
-          override protected lazy val loggerClass = generateLoggerClass
+          override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
 
           protected override def logContext = super.logContext + outerSelf.logContext
 
@@ -509,7 +511,7 @@ object ClusterComponent {
                 override private[components] val entityIdCodec = outerSelf.entityIdCodec
                 override val name = projection.name
                 override val persistenceId = PersistenceId(self.typeKey.name, outerSelf.entityIdCodec.encode(_entityId))
-                override protected lazy val loggerClass = generateLoggerClass
+                override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
                 override implicit val actorSystem = _actorSystem
 
                 protected override def logContext = super.logContext + outerSelf.logContext
@@ -556,7 +558,7 @@ object ClusterComponent {
 
           override def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(self.typeKey, outerSelf.entityIdCodec.encode(entityId))
 
-          override protected lazy val loggerClass = generateLoggerClass
+          override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
 
           override protected def logContext = super.logContext + outerSelf.logContext
 

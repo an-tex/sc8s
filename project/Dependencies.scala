@@ -5,12 +5,27 @@ object Dependencies {
   val scala213 = "2.13.8"
 
   val chimney = Def.setting("io.scalaland" %%% "chimney" % "0.6.2")
-  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.10")
+  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.13")
   val scalamock = "org.scalamock" %% "scalamock" % "5.2.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "1.7.36"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.4.0")
+  val scalaXml = "org.scala-lang.modules" %% "scala-xml" % "2.1.0"
 
-  val overrides = akka.overrides
+  val overrides = akka.overrides ++ Seq(
+    /*
+    need to wait for new releases of those
+    [error] 	* org.scala-lang.modules:scala-xml_2.13:2.1.0 (early-semver) is selected over {1.2.0}
+    [error] 	    +- org.scalatest:scalatest-core_2.13:3.2.13           (depends on 2.1.0)
+    [error] 	    +- com.typesafe.play:twirl-api_2.13:1.5.1             (depends on 1.2.0)
+    [error] 	    +- com.typesafe.play:play-ws-standalone-xml_2.13:2.1.6 (depends on 1.2.0)
+    [error] 	    +- com.lightbend.lagom:lagom-api_2.13:1.6.7           (depends on 1.2.0)
+    [error] 	    +- com.lightbend.lagom:lagom-akka-management-core_2.13:1.6.7 (depends on 1.2.0)
+    but safe to upgrade as there were no code changes necessary:
+    - https://github.com/playframework/twirl/pull/525/files
+    - https://github.com/lagom/lagom/pull/3333/files
+     */
+    scalaXml
+  )
 
   object play {
     // same as lagom uses

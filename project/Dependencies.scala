@@ -103,7 +103,7 @@ object Dependencies {
   }
 
   object circe {
-    private val circeVersion = "0.14.1"
+    private val circeVersion = "0.14.2"
 
     val core = Def.setting("io.circe" %%% "circe-core" % circeVersion)
     val generic = Def.setting("io.circe" %%% "circe-generic" % circeVersion)

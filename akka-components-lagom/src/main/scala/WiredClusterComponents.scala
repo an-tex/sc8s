@@ -1,5 +1,7 @@
 package net.sc8s.akka.components.lagom
 
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
+import akka.cluster.ddata.typed.scaladsl.DistributedData
 import com.lightbend.lagom.scaladsl.server.LagomApplication
 import net.sc8s.akka.circe.CirceSerializerRegistry
 import net.sc8s.akka.components.ClusterComponent
@@ -23,6 +25,11 @@ trait WiredClusterComponents extends CirceAkkaSerializationComponents with Proje
 
   // call this at the end to initialize singletons, shards & projections
   final def initComponents() = {
+    // initialize replicator as we otherwise get random
+    // dead letters encountered. If this is not an expected behavior then Actor[akka://application/system/ddataReplicator]
+    // no clue why but this helps...
+    DistributedData(actorSystem.toTyped).replicator
+
     // initialize shards before singletons as singletons might call .entityRef on initialization phase which in turn requires the shard to be initialized
     val clusterComponentsSortedByShardedFirst = clusterComponents.toSeq.sortBy {
       case _: ClusterComponent.ShardedComponent[_] => 1

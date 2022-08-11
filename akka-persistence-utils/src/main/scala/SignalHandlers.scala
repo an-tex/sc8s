@@ -8,7 +8,7 @@ import izumi.logstage.api.{IzLogger, Log}
 trait SignalHandlers {
   def defaultSignalHandler[State](implicit log: IzLogger, pos: CodePositionMaterializer): PartialFunction[(State, Signal), Unit] = ({
     case (_, RecoveryCompleted) =>
-      log.log(Log.Level.Info)(s"${"recoveryCompleted" -> "tag"}")
+      log.log(Log.Level.Debug)(s"${"recoveryCompleted" -> "tag"}")
 
     case (_, SnapshotCompleted(snapshotMetadata)) =>
       log.log(Log.Level.Debug)(s"${"snapshotCompleted" -> "tag"} with ${snapshotMetadata -> null}")

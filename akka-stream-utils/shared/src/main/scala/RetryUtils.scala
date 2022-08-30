@@ -1,3 +1,5 @@
+package net.sc8s.akka.stream
+
 import akka.NotUsed
 import akka.stream.scaladsl.{Keep, RestartSource, Source}
 import akka.stream.{Materializer, RestartSettings}

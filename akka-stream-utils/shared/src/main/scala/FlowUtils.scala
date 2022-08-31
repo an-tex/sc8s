@@ -101,6 +101,16 @@ object FlowUtils {
       def flattenF: Source[OutR, Mat] = s.collect {
         case Right(value) => value
       }
+
+      def flatMapConcatF[OutR2, Mat2](f: OutR => Source[OutR2, Mat2]): Source[Either[OutL, OutR2], Mat] = s.flatMapConcat {
+        case Right(value) => f(value).map(Right(_))
+        case Left(value) => Source.single(Left(value))
+      }
+
+      def flatMapMergeF[OutR2, Mat2](breadth: Int, f: OutR => Source[OutR2, Mat2]): Source[Either[OutL, OutR2], Mat] = s.flatMapMerge(breadth, {
+        case Right(value) => f(value).map(Right(_))
+        case Left(value) => Source.single(Left(value))
+      })
     }
 
     implicit class SourceOptionOpsF[Out, Mat](
@@ -110,6 +120,16 @@ object FlowUtils {
       def flattenF: Source[Out, Mat] = s.collect {
         case Some(value) => value
       }
+
+      def flatMapConcatF[Out2, Mat2](f: Out => Source[Out2, Mat2]): Source[Option[Out2], Mat] = s.flatMapConcat {
+        case Some(value) => f(value).map(Some(_))
+        case None => Source.single(None)
+      }
+
+      def flatMapMergeF[Out2, Mat2](breadth: Int, f: Out => Source[Out2, Mat2]): Source[Option[Out2], Mat] = s.flatMapMerge(breadth, {
+        case Some(value) => f(value).map(Some(_))
+        case None => Source.single(None)
+      })
     }
 
     implicit class SourceTryOpsF[Out, Mat](
@@ -134,6 +154,16 @@ object FlowUtils {
         case Failure(exception) => Seq(Failure(exception))
         case Success(value) => f(value).iterator.map(Success(_))
       }
+
+      def flatMapConcatF[Out2, Mat2](f: Out => Source[Out2, Mat2]): Source[Try[Out2], Mat] = s.flatMapConcat {
+        case Failure(exception) => Source.single(Failure(exception))
+        case Success(value) => f(value).map(Success(_))
+      }
+
+      def flatMapMergeF[Out2, Mat2](breadth: Int, f: Out => Source[Out2, Mat2]): Source[Try[Out2], Mat] = s.flatMapMerge(breadth, {
+        case Failure(exception) => Source.single(Failure(exception))
+        case Success(value) => f(value).map(Success(_))
+      })
     }
 
     implicit class SourceOpsS[Out, Mat, F[_]](
@@ -143,7 +173,7 @@ object FlowUtils {
       def mapAsyncS[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[Out2], Mat] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
-      def filterS[Out2](p: Out => Boolean): Source[F[Out], Mat] = s.filter(wrapper.filterS(_)(p))
+      def filterS(p: Out => Boolean): Source[F[Out], Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[Out, Out2]): Source[F[Out2], Mat] = s.collect(wrapper.collectS(pf))
     }

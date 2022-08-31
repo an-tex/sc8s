@@ -1,12 +1,11 @@
 package net.sc8s.akka.stream
 
-import FlowUtils.flow.{FlowMonadOpsF, FlowOptionOpsF}
-import FlowUtils.source._
-
 import akka.NotUsed
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import cats.implicits.{catsStdInstancesForEither, catsStdInstancesForOption, catsStdInstancesForTry, catsStdTraverseFilterForOption}
+import net.sc8s.akka.stream.FlowUtils.flow.{FlowMonadOpsF, FlowOptionOpsF}
+import net.sc8s.akka.stream.FlowUtils.source._
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
 import org.scalatest.wordspec.AnyWordSpecLike
 
@@ -33,6 +32,9 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         ), (
           _.flatMapF(element => Some(element * 2).filter(_ == 4)),
           Seq(None, None, Some(4))
+        ), (
+          _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
+          Seq(Some(2), Some(4), None, Some(4), Some(8))
         ), (
           _.mapAsyncS(1)(element => Future.successful(element * 2)),
           Seq(Some(2), None, Some(4))
@@ -63,6 +65,12 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(1, 2)
     }
+    "Option flatMapMergeF" in {
+      Source(Seq(Some(1), None, Some(2)))
+        .flatMapMergeF(8, i => Source(Seq(i * 2, i * 4)))
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Some(2), Some(4), None, Some(4), Some(8))
+    }
     "Either" in {
       val input = Seq(Right(1), Left(true), Right(2))
 
@@ -84,6 +92,9 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         ), (
           _.flatMapF(element => if (element == 2) Right(element * 2) else Left(false)),
           Seq(Left(false), Left(true), Right(4))
+        ), (
+          _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
+          Seq(Right(2), Right(4), Left(true), Right(4), Right(8))
         ), (
           _.filterOrElseF(_ > 1, false),
           Seq(Left(false), Left(true), Right(2))
@@ -111,6 +122,12 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(1, 2)
     }
+    "Either flatMapMergeF" in {
+      Source(Seq(Right(1), Left(true), Right(2)))
+        .flatMapMergeF(8, element => Source(Seq(element * 2, element * 4)))
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Right(2), Right(4), Left(true), Right(4), Right(8))
+    }
     "Try" in {
       val exception = new Exception
       val exception2 = new Exception
@@ -133,6 +150,9 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         ), (
           _.flatMapF(element => if (element == 2) Success(element * 2) else Failure(exception2)),
           Seq(Failure(exception2), Failure(exception), Success(4))
+        ), (
+          _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
+          Seq(Success(2), Success(4), Failure(exception), Success(4), Success(8))
         ), (
           _.filterOrElseF(_ > 1, exception2),
           Seq(Failure(exception2), Failure(exception), Success(2))
@@ -162,6 +182,13 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .flattenF
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(1, 2)
+    }
+    "Try flatMapMergeF" in {
+      val exception = new Exception
+      Source(Seq(Success(1), Failure(exception), Success(2)))
+        .flatMapMergeF(8, element => Source(Seq(element * 2, element * 4)))
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Success(2), Success(4), Failure(exception), Success(4), Success(8))
     }
     "Generic Try in Flow" in {
       val flow: Flow[Try[(Int, String)], Try[Either[Int, String]], NotUsed] = Flow[Try[(Int, String)]]

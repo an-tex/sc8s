@@ -97,7 +97,7 @@ object Dependencies {
       ).map("com.typesafe.akka" %% _ % akkaVersion)
 
     object projection {
-      private val projectionVersion = "1.2.4"
+      private val projectionVersion = "1.2.5"
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion

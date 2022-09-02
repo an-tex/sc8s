@@ -4,6 +4,9 @@ import akka.NotUsed
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import cats.implicits.{catsStdInstancesForEither, catsStdInstancesForOption, catsStdInstancesForTry, catsStdTraverseFilterForOption}
+import izumi.logstage.api.IzLogger
+import izumi.logstage.api.Log.Level
+import izumi.logstage.sink.ConsoleSink.SimpleConsoleSink
 import net.sc8s.akka.stream.FlowUtils.flow.{FlowMonadOpsF, FlowOptionOpsF}
 import net.sc8s.akka.stream.FlowUtils.source._
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
@@ -14,6 +17,8 @@ import scala.util.{Failure, Success, Try}
 
 class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with TableDrivenPropertyChecks {
   implicit val executionContext = testKit.system.executionContext
+
+  implicit val consoleLogger = IzLogger(Level.Trace, SimpleConsoleSink)
 
   "FlowUtils" should {
     "Option" in {
@@ -36,7 +41,10 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
           Seq(Some(2), Some(4), None, Some(4), Some(8))
         ), (
-          _.mapAsyncS(1)(element => Future.successful(element * 2)),
+          _.mapAsyncF(1)(element => Future.successful(element * 2)),
+          Seq(Some(2), None, Some(4))
+        ), (
+          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
           Seq(Some(2), None, Some(4))
         ), (
           _.filterF(_ > 1),
@@ -86,9 +94,11 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           Seq(Right(2), Left(true), Right(4))
 
         ), (
-          _.mapAsyncS(1)(element => Future.successful(element * 2)),
+          _.mapAsyncF(1)(element => Future.successful(element * 2)),
           Seq(Right(2), Left(true), Right(4))
-
+        ), (
+          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
+          Seq(Right(2), Left(true), Right(4))
         ), (
           _.flatMapF(element => if (element == 2) Right(element * 2) else Left(false)),
           Seq(Left(false), Left(true), Right(4))
@@ -144,9 +154,11 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           _.mapF(_ * 2),
           Seq(Success(2), Failure(exception), Success(4))
         ), (
-          _.mapAsyncS(1)(element => Future.successful(element * 2)),
+          _.mapAsyncF(1)(element => Future.successful(element * 2)),
           Seq(Success(2), Failure(exception), Success(4))
-
+        ), (
+          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
+          Seq(Success(2), Failure(exception), Success(4))
         ), (
           _.flatMapF(element => if (element == 2) Success(element * 2) else Failure(exception2)),
           Seq(Failure(exception2), Failure(exception), Success(4))

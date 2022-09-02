@@ -1,7 +1,7 @@
 package net.sc8s.akka.stream
 
 import akka.NotUsed
-import akka.stream.scaladsl.{Keep, RestartSource, Source}
+import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{Materializer, RestartSettings}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
@@ -46,6 +46,18 @@ object RetryUtils {
                             pos: CodePositionMaterializer
                           ): Source[T, NotUsed] =
     retryWithBackoff(() => Source.future(future()), message, restartSettings)
+
+  def retryWithBackoffFuture[Out](
+                                   future: () => Future[Out],
+                                   message: Throwable => Log.Message = exception => s"$exception - retrying...",
+                                   restartSettings: RestartSettings = defaultRestartSettings
+                                 )(
+                                   implicit mat: Materializer,
+                                   ec: ExecutionContext,
+                                   log: IzLogger,
+                                   pos: CodePositionMaterializer
+                                 ): Future[Out] =
+    retryWithBackoff(() => Source.future(future()), message, restartSettings).runWith(Sink.head)
 
   def retryWithBackoffSeq[T](
                               future: () => Future[Seq[T]],

@@ -44,10 +44,7 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           _.mapAsyncF(1)(element => Future.successful(element * 2)),
           Seq(Some(2), None, Some(4))
         ), (
-          _.mapAsyncRetryWithBackoffF(element => Future.successful(element * 2)),
-          Seq(Some(2), None, Some(4))
-        ), (
-          _.mapAsyncUnorderedRetryWithBackoffF(1)(element => Future.successful(element * 2)),
+          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
           Seq(Some(2), None, Some(4))
         ), (
           _.filterF(_ > 1),
@@ -100,10 +97,7 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           _.mapAsyncF(1)(element => Future.successful(element * 2)),
           Seq(Right(2), Left(true), Right(4))
         ), (
-          _.mapAsyncRetryWithBackoffF(element => Future.successful(element * 2)),
-          Seq(Right(2), Left(true), Right(4))
-        ), (
-          _.mapAsyncUnorderedRetryWithBackoffF(1)(element => Future.successful(element * 2)),
+          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
           Seq(Right(2), Left(true), Right(4))
         ), (
           _.flatMapF(element => if (element == 2) Right(element * 2) else Left(false)),
@@ -163,10 +157,7 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           _.mapAsyncF(1)(element => Future.successful(element * 2)),
           Seq(Success(2), Failure(exception), Success(4))
         ), (
-          _.mapAsyncRetryWithBackoffF(element => Future.successful(element * 2)),
-          Seq(Success(2), Failure(exception), Success(4))
-        ), (
-          _.mapAsyncUnorderedRetryWithBackoffF(1)(element => Future.successful(element * 2)),
+          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
           Seq(Success(2), Failure(exception), Success(4))
         ), (
           _.flatMapF(element => if (element == 2) Success(element * 2) else Failure(exception2)),

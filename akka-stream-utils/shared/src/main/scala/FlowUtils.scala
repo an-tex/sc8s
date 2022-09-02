@@ -132,20 +132,6 @@ object FlowUtils {
       def flattenF: Source[Out, Mat] = s.collect {
         case Some(value) => value
       }
-
-      def mapAsyncRetryWithBackoffF[Out2](
-                                           f: Out => Future[Out2],
-                                           message: Throwable => Log.Message = exception => s"$exception - retrying...",
-                                           restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-                                         )(
-                                           implicit mat: Materializer,
-                                           ec: ExecutionContext,
-                                           log: IzLogger,
-                                           pos: CodePositionMaterializer
-                                         ) =
-        s.flatMapConcatF { element =>
-          RetryUtils.retryWithBackoffF(() => f(element), message, restartSettings)
-        }
     }
 
     implicit class SourceTryOpsF[Out, Mat](
@@ -176,19 +162,19 @@ object FlowUtils {
                                         val s: Source[Out, Mat]
                                           with FlowOps[Out, Mat]
                                       ) {
-      def mapAsyncRetryWithBackoff[Out2](
-                                          f: Out => Future[Out2],
-                                          message: Throwable => Log.Message = exception => s"$exception - retrying...",
-                                          restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-                                        )(
+      def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
                                           implicit mat: Materializer,
                                           ec: ExecutionContext,
                                           log: IzLogger,
                                           pos: CodePositionMaterializer
                                         ) =
-        s.flatMapConcat { element =>
-          RetryUtils.retryWithBackoffF(() => f(element), message, restartSettings)
-        }
+        s.mapAsync(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
 
     implicit class SourceOpsS[Out, Mat, F[_]](
@@ -206,32 +192,18 @@ object FlowUtils {
 
       def flatMapMergeF[Out2, Mat2](breadth: Int, f: Out => Source[Out2, Mat2]): Source[F[Out2], Mat] = s.flatMapMerge(breadth, wrapper.flatMapSource(f))
 
-      def mapAsyncRetryWithBackoffF[Out2](
-                                           f: Out => Future[Out2],
-                                           message: Throwable => Log.Message = exception => s"$exception - retrying...",
-                                           restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-                                         )(
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
                                            implicit mat: Materializer,
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
                                          ) =
-        s.flatMapConcatF { element =>
-          RetryUtils.retryWithBackoffF(() => f(element), message, restartSettings)
-        }
-
-      def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                                    implicit mat: Materializer,
-                                                    ec: ExecutionContext,
-                                                    log: IzLogger,
-                                                    pos: CodePositionMaterializer
-                                                  ) =
-        s.flatMapMergeF(parallelism, { element =>
-          RetryUtils.retryWithBackoffF(() => f(element), message, restartSettings)
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
         })
     }
 
@@ -250,32 +222,18 @@ object FlowUtils {
 
       def flatMapMergeF[Out2, Mat2](breadth: Int, f: OutB => Source[Out2, Mat2]): Source[F[OutA, Out2], Mat] = s.flatMapMerge(breadth, wrapper.flatMapSource(f))
 
-      def mapAsyncRetryWithBackoffF[Out2](
-                                           f: OutB => Future[Out2],
-                                           message: Throwable => Log.Message = exception => s"$exception - retrying...",
-                                           restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-                                         )(
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: OutB => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
                                            implicit mat: Materializer,
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
                                          ) =
-        s.flatMapConcatF { element =>
-          RetryUtils.retryWithBackoffF(() => f(element), message, restartSettings)
-        }
-
-      def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
-        f: OutB => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                                    implicit mat: Materializer,
-                                                    ec: ExecutionContext,
-                                                    log: IzLogger,
-                                                    pos: CodePositionMaterializer
-                                                  ) =
-        s.flatMapMergeF(parallelism, { element =>
-          RetryUtils.retryWithBackoffF(() => f(element), message, restartSettings)
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
         })
     }
   }
@@ -336,6 +294,20 @@ object FlowUtils {
       def filterS(p: Out => Boolean): SourceWithContext[F[Out], Ctx, Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[Out, Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.collect(wrapper.collectS(pf))
+
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                           implicit mat: Materializer,
+                                           ec: ExecutionContext,
+                                           log: IzLogger,
+                                           pos: CodePositionMaterializer
+                                         ) =
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
 
     implicit class SourceOpsS2[OutA, OutB, Ctx, Mat, F[_, _]](
@@ -348,6 +320,20 @@ object FlowUtils {
       def filterS(p: OutB => Boolean): SourceWithContext[F[OutA, OutB], Ctx, Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[OutB2](pf: PartialFunction[OutB, OutB2]): SourceWithContext[F[OutA, OutB2], Ctx, Mat] = s.collect(wrapper.collectS(pf))
+
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: OutB => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                           implicit mat: Materializer,
+                                           ec: ExecutionContext,
+                                           log: IzLogger,
+                                           pos: CodePositionMaterializer
+                                         ) =
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
   }
 
@@ -420,6 +406,20 @@ object FlowUtils {
       def filterS(p: Out => Boolean): Flow[In, F[Out], Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[Out, Out2]): Flow[In, F[Out2], Mat] = s.collect(wrapper.collectS(pf))
+
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                           implicit mat: Materializer,
+                                           ec: ExecutionContext,
+                                           log: IzLogger,
+                                           pos: CodePositionMaterializer
+                                         ) =
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
 
     implicit class FlowOpsS2[In, OutA, OutB, Mat, F[_, _]](
@@ -432,6 +432,20 @@ object FlowUtils {
       def filterS(p: OutB => Boolean): Flow[In, F[OutA, OutB], Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[OutB, Out2]): Flow[In, F[OutA, Out2], Mat] = s.collect(wrapper.collectS(pf))
+
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: OutB => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                           implicit mat: Materializer,
+                                           ec: ExecutionContext,
+                                           log: IzLogger,
+                                           pos: CodePositionMaterializer
+                                         ) =
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
   }
 
@@ -491,6 +505,20 @@ object FlowUtils {
       def filterS(p: Out => Boolean): FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[Out, Out2]): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.collect(wrapper.collectS(pf))
+
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                           implicit mat: Materializer,
+                                           ec: ExecutionContext,
+                                           log: IzLogger,
+                                           pos: CodePositionMaterializer
+                                         ) =
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
 
     implicit class FlowWithContextOpsS2[In, CtxIn, OutA, OutB, CtxOut, Mat, F[_, _]](
@@ -503,6 +531,20 @@ object FlowUtils {
       def filterS(p: OutB => Boolean): FlowWithContext[In, CtxIn, F[OutA, OutB], CtxOut, Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[OutB, Out2]): FlowWithContext[In, CtxIn, F[OutA, Out2], CtxOut, Mat] = s.collect(wrapper.collectS(pf))
+
+      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: OutB => Future[Out2],
+        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                           implicit mat: Materializer,
+                                           ec: ExecutionContext,
+                                           log: IzLogger,
+                                           pos: CodePositionMaterializer
+                                         ) =
+        s.mapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+        })
     }
   }
 }

@@ -164,7 +164,7 @@ object FlowUtils {
                                       ) {
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                           implicit mat: Materializer,
@@ -173,7 +173,7 @@ object FlowUtils {
                                           pos: CodePositionMaterializer
                                         ) =
         s.mapAsync(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
@@ -194,7 +194,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -203,7 +203,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
@@ -224,7 +224,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -233,7 +233,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
   }
@@ -297,7 +297,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -306,7 +306,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
@@ -323,7 +323,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -332,7 +332,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
   }
@@ -409,7 +409,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -418,7 +418,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
@@ -435,7 +435,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -444,7 +444,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
   }
@@ -508,7 +508,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -517,7 +517,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
@@ -534,7 +534,7 @@ object FlowUtils {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        message: Throwable => Log.Message = exception => s"$exception - retrying...",
+        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
       )(
                                            implicit mat: Materializer,
@@ -543,7 +543,7 @@ object FlowUtils {
                                            pos: CodePositionMaterializer
                                          ) =
         s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message, restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
   }

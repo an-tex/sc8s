@@ -21,6 +21,41 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
   implicit val consoleLogger = IzLogger(Level.Trace, SimpleConsoleSink)
 
   "FlowUtils" should {
+    "Seq" in {
+      val input = Seq(Seq(1, 2), Nil, Seq(3))
+
+      val operations = Table[
+        Source[Seq[Int], NotUsed] => Source[Seq[_], NotUsed],
+        Seq[Seq[_]],
+      ](
+        (
+          "Operation",
+          "Results",
+        ), (
+          _.mapF(_ * 2),
+          Seq(Seq(2, 4), Nil, Seq(6))
+        ), (
+          _.flatMapF(element => Seq(element * 2).filter(_ == 6)),
+          Seq(Nil, Nil, Seq(6))
+        ), (
+          _.filterF(_ == 2),
+          Seq(Seq(2), Nil, Nil)
+        ), (
+          _.collectF {
+            case 2 => "moin"
+          },
+          Seq(Seq("moin"), Nil, Nil)
+        )
+      )
+
+      checkTable[Int, Seq](input, operations)
+    }
+    "Seq flattenF" in {
+      Source(Seq(Seq(1), Nil, Seq(2)))
+        .flattenF
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(1, 2)
+    }
     "Option" in {
       val input = Seq(Some(1), None, Some(2))
 

@@ -60,12 +60,12 @@ object FlowUtils {
 
     override def filterS[L, R](fa: Either[L, R])(p: R => Boolean) = fa.isLeft || fa.exists(p)
 
-    override def collectS[L, R, R2](pf: PartialFunction[R, R2]) = {
+    override def collectS[_, R, R2](pf: PartialFunction[R, R2]) = {
       case Left(l) => Left(l)
       case Right(right) if pf.isDefinedAt(right) => Right(pf(right))
     }
 
-    override def flatMapSource[L, R1, R2](f: R1 => Source[R2, _]) = {
+    override def flatMapSource[_, R1, R2](f: R1 => Source[R2, _]) = {
       case Right(value) => f(value).map(Right(_))
       case Left(value) => Source.single(Left(value))
     }
@@ -109,6 +109,13 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): Source[F[Out2], Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
+    implicit class SourceIterableOnceOpsF[Out, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                  val s: Source[F[Out], Mat]
+                                                                                    with FlowOps[F[Out], Mat]
+                                                                                ) {
+      def flattenF: Source[Out, Mat] = s.mapConcat(identity)
+    }
+
     implicit class SourceEitherOpsF[OutL, OutR, Mat](
                                                       val s: Source[Either[OutL, OutR], Mat]
                                                         with FlowOps[Either[OutL, OutR], Mat]
@@ -122,15 +129,6 @@ object FlowUtils {
 
       def flattenF: Source[OutR, Mat] = s.collect {
         case Right(value) => value
-      }
-    }
-
-    implicit class SourceOptionOpsF[Out, Mat](
-                                               val s: Source[Option[Out], Mat]
-                                                 with FlowOps[Option[Out], Mat]
-                                             ) {
-      def flattenF: Source[Out, Mat] = s.collect {
-        case Some(value) => value
       }
     }
 
@@ -394,6 +392,25 @@ object FlowUtils {
         case Failure(exception) => Seq(Failure(exception))
         case Success(value) => f(value).iterator.map(Success(_))
       }
+    }
+
+    implicit class FlowOpsBase[In, Out, Mat](
+                                              val s: Flow[In, Out, Mat]
+                                                with FlowOps[Out, Mat]
+                                            ) {
+      def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                          implicit mat: Materializer,
+                                          ec: ExecutionContext,
+                                          log: IzLogger,
+                                          pos: CodePositionMaterializer
+                                        ) =
+        s.mapAsync(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+        })
     }
 
     implicit class FlowOpsS[In, Out, Mat, F[_]](

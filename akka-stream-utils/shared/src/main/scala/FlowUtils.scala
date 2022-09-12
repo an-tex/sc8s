@@ -512,6 +512,25 @@ object FlowUtils {
       })
     }
 
+    implicit class FlowWithContextOpsBase[In, CtxIn, Out, CtxOut, Mat](
+                                                                        val s: FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
+                                                                          with FlowWithContextOps[Out, CtxOut, Mat]
+                                                                      ) {
+      def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                          implicit mat: Materializer,
+                                          ec: ExecutionContext,
+                                          log: IzLogger,
+                                          pos: CodePositionMaterializer
+                                        ) =
+        s.mapAsync(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+        })
+    }
+
     implicit class FlowWithContextOpsS[In, CtxIn, Out, CtxOut, Mat, F[_]](
                                                                            val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
                                                                              with FlowWithContextOps[F[Out], CtxOut, Mat]

@@ -16,13 +16,15 @@ trait Logging extends LoggerTags {
   protected lazy val loggerClass: String = this.getClass.getName.takeWhile(_ != '$')
 
   implicit lazy val log: IzLogger = {
-    val renderPolicy =
-      if (sys.props.get("logger.izumi.sink").contains("json"))
-        LogstageCirceElasticRenderingPolicy(loggerClass)
-      else
-        new StringRenderingPolicy(RenderingOptions.default, Some(Logging.template))
+    lazy val jsonPolicy = LogstageCirceElasticRenderingPolicy(loggerClass)
+    lazy val stringPolicy = new StringRenderingPolicy(RenderingOptions.default, Some(Logging.template))
 
-    IzLogger(Debug, Seq(new LogSinkLegacySlf4jImpl(renderPolicy)))(logContext)
+    val renderPolicies = sys.props.get("logger.izumi.sink") match {
+      case Some("json") => Seq(jsonPolicy)
+      case Some("json+string") => Seq(jsonPolicy, stringPolicy)
+      case None => Seq(stringPolicy)
+    }
+    IzLogger(Debug, renderPolicies.map(new LogSinkLegacySlf4jImpl(_)))(logContext)
   }
 }
 

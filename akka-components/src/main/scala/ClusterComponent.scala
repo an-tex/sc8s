@@ -190,6 +190,8 @@ object ClusterComponent {
   sealed trait Component[OuterComponentT <: ComponentT] {
     private[components] val component: OuterComponentT
 
+    private[components] val innerComponent: component.BaseComponent
+
     private[components] val serializers: Seq[CirceSerializer[_]]
 
     private[components] val managedProjections: Seq[ManagedProjection[_, _]]
@@ -213,10 +215,12 @@ object ClusterComponent {
 
       override type BaseComponent <: SingletonBaseComponentT
 
-      override def init(innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) = new SingletonComponent[outerSelf.type] {
+      override def init(_innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) = new SingletonComponent[outerSelf.type] {
         override private[components] val component = outerSelf
 
-        override lazy val actorRef = innerComponent.actorRef(actorSystem)
+        override private[components] lazy val innerComponent = _innerComponent
+
+        override lazy val actorRef = _innerComponent.actorRef(actorSystem)
 
         override private[components] def delayedInit() = {
           // eagerly initialize singleton
@@ -226,7 +230,7 @@ object ClusterComponent {
 
         override private[components] val serializers = outerSelf.serializers
 
-        override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
+        override private[components] lazy val managedProjections = _innerComponent.managedProjections(actorSystem)
       }
 
       private[components] trait SingletonBaseComponentT extends super.BaseComponentT {
@@ -397,20 +401,22 @@ object ClusterComponent {
 
       override type BaseComponent <: ShardedBaseComponentT
 
-      override def init(innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) =
+      override def init(_innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) =
         new ShardedComponent[outerSelf.type] {
           override private[components] def delayedInit() = {
-            innerComponent.initSharding()(actorSystem)
+            _innerComponent.initSharding()(actorSystem)
             super.delayedInit()
           }
 
+          override private[components] lazy val innerComponent = _innerComponent
+
           override private[components] val component = outerSelf
 
-          override def entityRefFor(entityId: EntityId) = innerComponent.entityRefFor(entityId)(actorSystem)
+          override def entityRefFor(entityId: EntityId) = _innerComponent.entityRefFor(entityId)(actorSystem)
 
           override private[components] val serializers = outerSelf.serializers
 
-          override private[components] lazy val managedProjections = innerComponent.managedProjections(actorSystem)
+          override private[components] lazy val managedProjections = _innerComponent.managedProjections(actorSystem)
         }
 
       private[components] abstract class ShardedBaseComponentT(implicit classTag: ClassTag[outerSelf.SerializableCommand]) extends super.BaseComponentT {

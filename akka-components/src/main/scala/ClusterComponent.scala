@@ -59,6 +59,7 @@ object ClusterComponent {
 
     type BaseComponent <: BaseComponentT
 
+    // this can't be moved into the BaseComponent itself as otherwise circular dependencies between components lead to initialization loops
     def init(component: => BaseComponent)(implicit actorSystem: => ActorSystem[_]): Wiring
 
     val name: String

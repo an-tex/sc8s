@@ -156,6 +156,7 @@ trait ClusterComponentTestKit {
     new SingletonComponent[OuterComponentT] {
       override val actorRef: ActorRef[outerComponent.SerializableCommand] = testProbe.ref
 
+      override private[components] lazy val innerComponent = ???
       override private[components] lazy val component: outerComponent.type = outerComponent
 
       override private[components] val serializers = Nil
@@ -175,6 +176,7 @@ trait ClusterComponentTestKit {
     new ClusterComponent.ShardedComponent[OuterComponentT] {
       override def entityRefFor(entityId: outerComponent.EntityId): EntityRef[outerComponent.SerializableCommand] = TestEntityRef(outerComponent.generateTypeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
 
+      override private[components] lazy val innerComponent = ???
       override private[components] lazy val component: outerComponent.type = outerComponent
 
       override private[components] val serializers = Nil

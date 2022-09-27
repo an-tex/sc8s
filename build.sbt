@@ -285,7 +285,9 @@ inThisBuild(Seq(
       url("https://rob.ag")
     )
   ),
-  libraryDependencySchemes += "org.scala-lang.modules" %% "scala-java8-compat" % "always",
+  libraryDependencySchemes ++= Seq(
+    "org.scala-lang.modules" %% "scala-java8-compat" % "always",
+  ),
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),
   githubWorkflowTargetTags := Seq("*"),
@@ -300,7 +302,11 @@ inThisBuild(Seq(
   )),
   githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))),
   versionScheme := Some("early-semver"),
-  dependencyOverrides ++= Dependencies.overrides,
+  dependencyOverrides ++= Dependencies.overrides ++ Seq(
+    // circe-derivation depends on 0.13.0 which is binary compatible to 0.14.x https://github.com/circe/circe-derivation/issues/346
+    // needs to be added here instead of Dependencies.overrides due to .value call
+    circe.core.value
+  ),
 ))
 
 Global / excludeLintKeys += idePackagePrefix

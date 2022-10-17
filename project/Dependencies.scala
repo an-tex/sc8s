@@ -5,7 +5,7 @@ object Dependencies {
   val scala213 = "2.13.8"
 
   val chimney = Def.setting("io.scalaland" %%% "chimney" % "0.6.2")
-  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.13")
+  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.14")
   val scalamock = "org.scalamock" %% "scalamock" % "5.2.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "2.0.1"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.4.0")

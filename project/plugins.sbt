@@ -1,5 +1,5 @@
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.2.0")
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.11.0")
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.12.0")
 addSbtPlugin("com.codecommit" % "sbt-github-actions" % "0.14.2")
 addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.11")
 addSbtPlugin("org.jetbrains.scala" % "sbt-ide-settings" % "1.1.1")

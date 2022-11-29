@@ -1,7 +1,5 @@
 package net.sc8s.akka.components.testkit
 
-import ClusterComponentTestKitSpec._
-
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.scaladsl.Behaviors
@@ -12,6 +10,8 @@ import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
+import net.sc8s.akka.components.persistence.projection.cassandra.CassandraProjection
+import net.sc8s.akka.components.testkit.ClusterComponentTestKitSpec._
 import net.sc8s.logstage.elastic.Logging
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.matchers.should.Matchers
@@ -161,7 +161,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(projectionTarget: ProjectionTarget) extends BaseComponent {
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent with CassandraProjection {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -239,7 +239,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(projectionTarget: ProjectionTarget) extends BaseComponent {
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent with CassandraProjection {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),

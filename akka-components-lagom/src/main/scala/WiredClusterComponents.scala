@@ -5,14 +5,12 @@ import akka.cluster.ddata.typed.scaladsl.DistributedData
 import com.lightbend.lagom.scaladsl.server.LagomApplication
 import net.sc8s.akka.circe.CirceSerializerRegistry
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.projection.ProjectionUtils.ManagedProjection
-import net.sc8s.akka.projection.lagom.ProjectionComponents
 import net.sc8s.lagom.circe.CirceAkkaSerializationComponents
 
 /*
 ClusterComponents is taken by com.lightbend.lagom.scaladsl.cluster.ClusterComponents
  */
-trait WiredClusterComponents extends CirceAkkaSerializationComponents with ProjectionComponents {
+trait WiredClusterComponents extends CirceAkkaSerializationComponents {
   _: LagomApplication =>
 
   // for convenience try
@@ -37,6 +35,4 @@ trait WiredClusterComponents extends CirceAkkaSerializationComponents with Proje
     }
     clusterComponentsSortedByShardedFirst.foreach(_.delayedInit())
   }
-
-  override def projections: Set[ManagedProjection[_, _]] = super.projections ++ clusterComponents.flatMap(_.managedProjections)
 }

@@ -20,6 +20,7 @@ lazy val sc8s = (project in file("."))
     `akka-components-persistence-projection-lagom-api`.js,
     `akka-components-persistence-projection-lagom-api`.jvm,
     `akka-components-persistence-projection-lagom`,
+    `akka-components-persistence-utils`,
     `akka-stream-utils`.js,
     `akka-stream-utils`.jvm,
     `common-circe`.js,

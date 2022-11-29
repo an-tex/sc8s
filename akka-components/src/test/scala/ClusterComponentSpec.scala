@@ -26,6 +26,7 @@ This spec is only meant to illustrate the usage of ClusterComponent
 class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseString(
   """
     |akka.actor.provider = cluster
+    |akka.remote.artery.canonical.port = 0
     |""".stripMargin)) with AnyFreeSpecLike with Matchers with MockFactory {
 
   "ClusterComponents" - {

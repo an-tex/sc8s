@@ -21,6 +21,7 @@ This spec is only meant to illustrate the usage of CassandraProjections
 class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseString(
   """
     |akka.actor.provider = cluster
+    |akka.remote.artery.canonical.port = 0
     |""".stripMargin)) with AnyFreeSpecLike with Matchers {
 
   "ClusterComponents" - {
@@ -48,7 +49,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
     //
     //      override val projections = Set(
     //        ClusterComponent.Projection(
-    //          "projection",
+    //          "projectionSingleton",
     //          {
     //            case (event, projectionContext) => Future.successful(Done)
     //          }
@@ -88,7 +89,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
           override val projections = Set(
             ClusterComponent.Projection(
-              "projection",
+              "projectionSharded",
               {
                 case (event, projectionContext) => Future.successful(Done)
               }
@@ -103,6 +104,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
         override val eventSerializer = CirceSerializer()
         override val stateSerializer = CirceSerializer()
       }
+      ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
     }
   }
 }

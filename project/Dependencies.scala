@@ -49,11 +49,13 @@ object Dependencies {
     private val akkaVersion = "2.6.20"
     private val akkaHttpVersion = "10.1.13"
     private val akkaJs = "2.2.6.14"
+    private val r2dbcVersion = "0.7.7"
 
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion
     val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % akkaVersion
     val http = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
     val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.0.6"
+    val persistenceR2dbc = "com.lightbend.akka" %% "akka-persistence-r2dbc" % r2dbcVersion
     val persistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion
     val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akkaVersion
     val stream = "com.typesafe.akka" %% "akka-stream" % akkaVersion
@@ -101,6 +103,7 @@ object Dependencies {
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion
+      val r2dbc = "com.lightbend.akka" %% "akka-projection-r2dbc" % r2dbcVersion
       val testKit = "com.lightbend.akka" %% "akka-projection-testkit" % projectionVersion
     }
 

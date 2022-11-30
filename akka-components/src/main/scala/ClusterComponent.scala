@@ -1,7 +1,5 @@
 package net.sc8s.akka.components
 
-import ClusterComponent.Sharded.EntityIdCodec
-
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
@@ -17,8 +15,9 @@ import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.Log.CustomContext
 import izumi.logstage.api.Log.Level.Info
 import net.sc8s.akka.circe.CirceSerializer
+import net.sc8s.akka.components.ClusterComponent.Sharded.EntityIdCodec
+import net.sc8s.akka.components.persistence.projection.ManagedProjection
 import net.sc8s.akka.persistence.utils.SignalHandlers
-import net.sc8s.akka.projection.ProjectionUtils.{ManagedProjection, TagGenerator}
 import net.sc8s.logstage.elastic.Logging
 
 import scala.concurrent.Future
@@ -52,7 +51,7 @@ object ClusterComponent {
       // implicit classTag returned only these classes when used as an external dependency
       private[components] def generateLoggerClass(clazz: Class[_]) = clazz.getName.takeWhile(_ != '$')
 
-      private[components] def managedProjections(implicit actorSystem: ActorSystem[_]): Seq[ManagedProjection[_, _]] = Nil
+      private[components] def managedProjections(implicit actorSystem: ActorSystem[_]): Seq[ManagedProjection[_]] = Nil
 
       private[components] val componentCodePositionMaterializer: CodePositionMaterializer
     }
@@ -93,6 +92,9 @@ object ClusterComponent {
 
       private[components] trait EventSourcedBaseComponentT extends super.BaseComponentT {
 
+        // for subtraits
+        type EventT = Event
+
         override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
 
         override private[components] type ComponentContextS <: ComponentContext with ComponentContext.EventSourced
@@ -100,20 +102,18 @@ object ClusterComponent {
         override private[components] def behaviorTransformer = (context, behavior) => {
           val transformedBehavior = super.behaviorTransformer(context, behavior)
           transformedBehavior
-            .withTagger(_ => Set(generateTag(context)))
+            .withTagger(tagger(name, context))
             .onPersistFailure(SupervisorStrategy.restartWithBackoff(1.second, 1.minute, 0.2))
             .receiveSignal(withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, componentCodePositionMaterializer))
         }
 
-        val tagGenerator: TagGenerator
+        private[components] def tagger(name: String, context: ComponentContextS)(event: EventT) = Set.empty[String]
 
-        def generateTag(context: ComponentContextS): String
-
-        // helper method so you don't have to care about type parameters in case you create it outside of the member `projections`
-        def createProjection(name: String)(handler: PartialFunction[(Event, ComponentContextS with ComponentContext.Projection), Future[Done]]) = Projection(name, handler)
-
-        // Set[_] so you can use `com.softwaremill.macwire#wireSet`
-        val projections: Set[Projection[Event, ComponentContextS with ComponentContext.Projection]] = Set.empty
+        private[components] def projectionContext(
+                                                   projectionName: String,
+                                                   persistenceId: PersistenceId,
+                                                   actorSystem: ActorSystem[_]
+                                                 ): ComponentContextS with ComponentContext.Projection
       }
 
       override def serializers = super.serializers :+ eventSerializer
@@ -131,6 +131,23 @@ object ClusterComponent {
         val stateSerializer: CirceSerializer[State]
 
         override def serializers = super.serializers :+ stateSerializer
+      }
+
+      trait ProjectionT {
+        _: EventSourcedT#EventSourcedBaseComponentT =>
+
+        // Set[_] so you can use `com.softwaremill.macwire#wireSet`
+        val projections: Set[Projection[EventT, ComponentContextS with ComponentContext.Projection]]
+
+        // helper method so you don't have to care about type parameters in case you create it outside of the member `projections`
+        def createProjection(name: String)(handler: PartialFunction[(EventT, ComponentContextS with ComponentContext.Projection), Future[Done]]): Projection[EventT, ComponentContextS with ComponentContext.Projection] = Projection(name, handler)
+
+        override private[components] def managedProjections(implicit actorSystem: ActorSystem[_]) = projections.map(managedProjectionFactory(_, actorSystem)).toSeq
+
+        private[components] def managedProjectionFactory(
+                                                          projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
+                                                          actorSystem: ActorSystem[_]
+                                                        ): ManagedProjection[_]
       }
     }
   }
@@ -195,7 +212,7 @@ object ClusterComponent {
 
     private[components] val serializers: Seq[CirceSerializer[_]]
 
-    private[components] val managedProjections: Seq[ManagedProjection[_, _]]
+    private[components] val managedProjections: Seq[ManagedProjection[_]]
 
     private[components] def delayedInit(): Unit = managedProjections.foreach(_.init())
 
@@ -274,10 +291,6 @@ object ClusterComponent {
 
         private[components] val persistenceId = PersistenceId.ofUniqueId(name)
 
-        override val tagGenerator = TagGenerator(name, 1)
-
-        def generateTag(context: ComponentContextS) = tagGenerator.generateTag(0)
-
         override private[components] type BehaviorComponentContextS = ComponentContext with ComponentContext.Actor[Command] with ComponentContext.EventSourced
 
         override def fromActorContext(_actorContext: ActorContext[Command]) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.EventSourced {
@@ -288,20 +301,18 @@ object ClusterComponent {
           override protected def logContext = super.logContext + outerSelf.logContext
         }
 
-        override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = projections.toSeq.map(projection => new ManagedProjection[Event, String](projection.name, tagGenerator, identity) {
+        override private[components] def projectionContext(
+                                                            projectionName: String,
+                                                            _persistenceId: PersistenceId,
+                                                            _actorSystem: ActorSystem[_]
+                                                          ) = new ComponentContext with ComponentContext.EventSourced with ComponentContext.Projection {
+          override val persistenceId = _persistenceId
+          override val name = projectionName
+          override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
           override implicit val actorSystem = _actorSystem
 
-          override def handle = projection.handler.compose {
-            case (event, _) => event -> new ComponentContext with ComponentContext.EventSourced with ComponentContext.Projection {
-              override val persistenceId = self.persistenceId
-              override val name = projection.name
-              override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
-              override implicit val actorSystem = _actorSystem
-
-              protected override def logContext = super.logContext + outerSelf.logContext
-            }
-          }
-        })
+          protected override def logContext = super.logContext + outerSelf.logContext
+        }
       }
     }
 
@@ -472,10 +483,6 @@ object ClusterComponent {
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
 
-        override val tagGenerator = TagGenerator(name, 1)
-
-        override def generateTag(context: ComponentContextS) = tagGenerator.generateTag(entityIdCodec.encode(context.entityId))
-
         override def fromActorContext(
                                        _actorContext: ActorContext[Command],
                                        _entityContext: EntityContext[SerializableCommand],
@@ -499,35 +506,29 @@ object ClusterComponent {
           override private[components] val typeKey = self.typeKey
         }
 
-        override private[components] def managedProjections(implicit _actorSystem: ActorSystem[_]) = {
-          lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
+        override private[components] def projectionContext(
+                                                            projectionName: String,
+                                                            _persistenceId: PersistenceId,
+                                                            _actorSystem: ActorSystem[_]
+                                                          ) =
+          new ComponentContext with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.Projection {
+            private lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
 
-          projections.toSeq.map(projection => new ManagedProjection[Event, EntityId](
-            projection.name,
-            tagGenerator,
-            PersistenceId.extractEntityId(_).pipe(entityIdCodec.decode(_).get)
-          ) {
+            override def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
+
+            override private[components] val entityIdCodec = outerSelf.entityIdCodec
+
+            override val entityId = _persistenceId.entityId.pipe(entityIdCodec.decode(_).get)
+
+            override val name = projectionName
+            override val persistenceId = _persistenceId
+            override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
             override implicit val actorSystem = _actorSystem
 
-            override def handle = projection.handler.compose {
-              case (event, _entityId) => event -> new ComponentContext with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.Projection {
-                override val entityId = _entityId
+            protected override def logContext = super.logContext + outerSelf.logContext
 
-                override def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
-
-                override private[components] val entityIdCodec = outerSelf.entityIdCodec
-                override val name = projection.name
-                override val persistenceId = PersistenceId(self.typeKey.name, outerSelf.entityIdCodec.encode(_entityId))
-                override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
-                override implicit val actorSystem = _actorSystem
-
-                protected override def logContext = super.logContext + outerSelf.logContext
-
-                override private[components] val typeKey = self.typeKey
-              }
-            }
-          })
-        }
+            override private[components] val typeKey = self.typeKey
+          }
       }
     }
 

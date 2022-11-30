@@ -1,4 +1,4 @@
-package net.sc8s.akka.components.lagom
+package net.sc8s.akka.components.persistence.cassandra.lagom
 
 import akka.Done
 import akka.actor.typed.ActorSystem
@@ -10,12 +10,12 @@ import akka.stream.scaladsl.Sink
 import com.lightbend.lagom.scaladsl.api.ServiceCall
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.components.lagom.api.ClusterComponentsService
+import net.sc8s.akka.components.persistence.cassandra.lagom.api.ClusterComponentsCassandraPersistenceService
 import net.sc8s.logstage.elastic.Logging
 
 import scala.util.Success
 
-trait ClusterComponentsCassandraPersistenceServiceImpl extends ClusterComponentsService with Logging {
+trait ClusterComponentsCassandraPersistenceServiceImpl extends ClusterComponentsCassandraPersistenceService with Logging {
   val clusterComponents: Set[ClusterComponent.Component[_]]
 
   implicit val actorSystem: ActorSystem[_]

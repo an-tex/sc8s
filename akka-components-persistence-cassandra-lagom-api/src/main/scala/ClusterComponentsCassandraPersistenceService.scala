@@ -1,10 +1,10 @@
-package net.sc8s.akka.components.lagom.api
+package net.sc8s.akka.components.persistence.cassandra.lagom.api
 
 import akka.{Done, NotUsed}
 import com.lightbend.lagom.scaladsl.api.transport.Method
 import com.lightbend.lagom.scaladsl.api.{Service, ServiceCall}
 
-trait ClusterComponentsService extends Service {
+trait ClusterComponentsCassandraPersistenceService extends Service {
   val apiPrefix: String
 
   def deleteSingletonEntity(name: String): ServiceCall[NotUsed, Done]

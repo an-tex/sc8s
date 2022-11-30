@@ -17,6 +17,8 @@ lazy val sc8s = (project in file("."))
     `akka-components-persistence-projection`,
     `akka-components-persistence-projection-cassandra`,
     `akka-components-persistence-projection-r2dbc`,
+    `akka-components-persistence-projection-api`.js,
+    `akka-components-persistence-projection-api`.jvm,
     `akka-components-persistence-projection-lagom-api`.js,
     `akka-components-persistence-projection-lagom-api`.jvm,
     `akka-components-persistence-projection-lagom`,
@@ -141,7 +143,7 @@ lazy val `akka-components-persistence-cassandra-lagom-api` = crossProject(JSPlat
       circe.core.value,
       circe.parser.value,
     ),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.lagom.api")
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.cassandra.lagom.api")
   )
   .dependsOn(`common-circe`, `lagom-api-circe`)
 
@@ -152,7 +154,7 @@ lazy val `akka-components-persistence-cassandra-lagom` = (project in file("akka-
       macwire.macros,
       akka.persistenceCassandra,
     ),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.lagom")
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.cassandra.lagom")
   )
   .dependsOn(`akka-components`, `akka-components-persistence-cassandra-lagom-api`.jvm)
 

@@ -230,7 +230,7 @@ lazy val `akka-components-persistence-projection-lagom` = (project in file("akka
     ),
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.lagom")
   )
-  .dependsOn(`akka-components`, `akka-components-persistence-projection-lagom-api`.jvm)
+  .dependsOn(`akka-components`, `akka-components-persistence-projection-lagom-api`.jvm, `akka-components-lagom`)
 
 lazy val `akka-components-persistence-utils` = (project in file("akka-components-persistence-utils"))
   .settings(

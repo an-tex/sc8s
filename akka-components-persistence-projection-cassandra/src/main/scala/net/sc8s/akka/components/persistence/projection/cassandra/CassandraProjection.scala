@@ -21,7 +21,7 @@ trait CassandraProjection extends EventSourcedT.ProjectionT {
                                                              actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
     val projectionIds = (0 until numberOfProjectionInstances).map(tagIndex =>
-      ProjectionId(projection.name, generateTag(projection.name, tagIndex))
+      ProjectionId(projection.name, generateTag(componentName, tagIndex))
     )
 
     new ManagedProjection[EventEnvelope[EventT]](

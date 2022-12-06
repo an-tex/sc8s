@@ -1,6 +1,6 @@
 package net.sc8s.akka.components.persistence.projection.r2dbc
 
-import akka.NotUsed
+import akka.{Done, NotUsed}
 import akka.actor.typed.ActorSystem
 import akka.persistence.query.{PersistenceQuery, Sequence}
 import akka.persistence.query.typed.EventEnvelope
@@ -27,6 +27,8 @@ private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
 trait R2dbcShardedProjection extends R2dbcProjection {
   _: EventSourcedT#EventSourcedBaseComponentT
     with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent =>
+
+  private[this] val eventualDone = Future.successful(Done)
 
   override private[components] def managedProjectionFactory(
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
@@ -64,9 +66,9 @@ trait R2dbcShardedProjection extends R2dbcProjection {
               sliceRanges(i).max,
             ),
             () => (_: R2dbcSession, envelope: EventEnvelope[EventT]) =>
-              projection.handler(
-                envelope.event,
-                projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem)
+              projection.handler.applyOrElse(
+                envelope.event -> projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem),
+                { _: (EventT, ComponentContextS with ComponentContext.Projection) => eventualDone }
               )
           )
       }

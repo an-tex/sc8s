@@ -92,8 +92,9 @@ object ClusterComponent {
 
       private[components] trait EventSourcedBaseComponentT extends super.BaseComponentT {
 
-        // for subtraits
-        type EventT = Event
+        // for mixin traits accessibility, why don't they see the already defined types/objects?
+        private[components] type EventT = Event
+        private[components] val componentName = name
 
         override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
 

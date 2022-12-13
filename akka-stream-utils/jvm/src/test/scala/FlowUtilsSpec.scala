@@ -21,6 +21,8 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
   implicit val consoleLogger = IzLogger(Level.Trace, SimpleConsoleSink)
 
   "FlowUtils" should {
+    val mapAsyncOperation = { element: Int => Future.successful(element * 2) }
+
     "Seq" in {
       val input = Seq(Seq(1, 2), Nil, Seq(3))
 
@@ -59,6 +61,10 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     "Option" in {
       val input = Seq(Some(1), None, Some(2))
 
+      val flatMapAsyncOperation = { element: Int => Future.successful(Some(element * 2).filter(_ == 4)) }
+      val flatMapResult = Seq(None, None, Some(4))
+      val mapResult = Seq(Some(2), None, Some(4))
+
       val operations = Table[
         Source[Option[Int], NotUsed] => Source[Option[_], NotUsed],
         Seq[Option[_]],
@@ -68,25 +74,37 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           "Results",
         ), (
           _.mapF(_ * 2),
-          Seq(Some(2), None, Some(4))
+          mapResult
         ), (
           _.flatMapF(element => Some(element * 2).filter(_ == 4)),
-          Seq(None, None, Some(4))
+          flatMapResult
         ), (
           _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
           Seq(Some(2), Some(4), None, Some(4), Some(8))
         ), (
-          _.mapAsyncF(1)(element => Future.successful(element * 2)),
-          Seq(Some(2), None, Some(4))
+          _.mapAsyncF(1)(mapAsyncOperation),
+          mapResult
         ), (
-          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
-          Seq(Some(2), None, Some(4))
+          _.flatMapAsyncF(1)(flatMapAsyncOperation),
+          flatMapResult
         ), (
-          _.mapAsyncUnorderedF(1)(element => Future.successful(element * 2)),
-          Seq(Some(2), None, Some(4))
+          _.mapAsyncUnorderedF(1)(mapAsyncOperation),
+          mapResult
         ), (
-          _.mapAsyncUnorderedF(1)(element => Future.successful(element * 2)),
-          Seq(Some(2), None, Some(4))
+          _.flatMapAsyncUnorderedF(1)(flatMapAsyncOperation),
+          flatMapResult
+        ), (
+          _.mapAsyncRetryWithBackoffF(1)(mapAsyncOperation),
+          mapResult
+        ), (
+          _.flatMapAsyncRetryWithBackoffF(1)(flatMapAsyncOperation),
+          flatMapResult
+        ), (
+          _.mapAsyncUnorderedRetryWithBackoffF(1)(mapAsyncOperation),
+          mapResult
+        ), (
+          _.flatMapAsyncUnorderedRetryWithBackoffF(1)(flatMapAsyncOperation),
+          flatMapResult
         ), (
           _.filterF(_ > 1),
           Seq(None, None, Some(2))
@@ -123,6 +141,10 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     "Either" in {
       val input = Seq(Right(1), Left(true), Right(2))
 
+      val flatMapAsyncOperation = { element: Int => Future.successful(if (element == 2) Right(element * 2) else Left(false)) }
+      val flatMapResult = Seq(Left(false), Left(true), Right(4))
+      val mapResult = Seq(Right(2), Left(true), Right(4))
+
       val operations = Table[
         Source[Either[Boolean, Int], NotUsed] => Source[Either[_, _], NotUsed],
         Seq[Either[_, _]],
@@ -132,23 +154,35 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           "Output",
         ), (
           _.mapF(_ * 2),
-          Seq(Right(2), Left(true), Right(4))
+          mapResult
 
         ), (
-          _.mapAsyncF(1)(element => Future.successful(element * 2)),
-          Seq(Right(2), Left(true), Right(4))
+          _.mapAsyncF(1)(mapAsyncOperation),
+          mapResult
         ), (
-          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
-          Seq(Right(2), Left(true), Right(4))
+          _.flatMapAsyncF(1)(flatMapAsyncOperation),
+          flatMapResult
         ), (
-          _.mapAsyncUnorderedF(1)(element => Future.successful(element * 2)),
-          Seq(Right(2), Left(true), Right(4))
+          _.mapAsyncUnorderedF(1)(mapAsyncOperation),
+          mapResult
         ), (
-          _.mapAsyncUnorderedRetryWithBackoffF(1)(element => Future.successful(element * 2)),
-          Seq(Right(2), Left(true), Right(4))
+          _.flatMapAsyncUnorderedF(1)(flatMapAsyncOperation),
+          flatMapResult
+        ), (
+          _.mapAsyncRetryWithBackoffF(1)(mapAsyncOperation),
+          mapResult
+        ), (
+          _.flatMapAsyncRetryWithBackoffF(1)(flatMapAsyncOperation),
+          flatMapResult
+        ), (
+          _.mapAsyncUnorderedRetryWithBackoffF(1)(mapAsyncOperation),
+          mapResult
+        ), (
+          _.flatMapAsyncUnorderedRetryWithBackoffF(1)(flatMapAsyncOperation),
+          flatMapResult
         ), (
           _.flatMapF(element => if (element == 2) Right(element * 2) else Left(false)),
-          Seq(Left(false), Left(true), Right(4))
+          flatMapResult
         ), (
           _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
           Seq(Right(2), Right(4), Left(true), Right(4), Right(8))
@@ -190,6 +224,10 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
       val exception2 = new Exception
       val input: Seq[Try[Int]] = Seq(Success(1), Failure(exception), Success(2))
 
+      val flatMapAsyncOperation = { element: Int => Future.successful(if (element == 2) Success(element * 2) else Failure(exception2)) }
+      val mapResult = Seq(Success(2), Failure(exception), Success(4))
+      val flatMapResult = Seq(Failure(exception2), Failure(exception), Success(4))
+
       val operations: TableFor2[Source[Try[Int], NotUsed] => Source[Try[_], NotUsed], Seq[Try[_]]] = Table[
         Source[Try[Int], NotUsed] => Source[Try[_], NotUsed],
         Seq[Try[_]],
@@ -199,22 +237,34 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
           "Results",
         ), (
           _.mapF(_ * 2),
-          Seq(Success(2), Failure(exception), Success(4))
+          mapResult
         ), (
-          _.mapAsyncF(1)(element => Future.successful(element * 2)),
-          Seq(Success(2), Failure(exception), Success(4))
+          _.mapAsyncF(1)(mapAsyncOperation),
+          mapResult
         ), (
-          _.mapAsyncRetryWithBackoffF(1)(element => Future.successful(element * 2)),
-          Seq(Success(2), Failure(exception), Success(4))
+          _.flatMapAsyncF(1)(flatMapAsyncOperation),
+          flatMapResult
         ), (
-          _.mapAsyncUnorderedF(1)(element => Future.successful(element * 2)),
-          Seq(Success(2), Failure(exception), Success(4))
+          _.mapAsyncUnorderedF(1)(mapAsyncOperation),
+          mapResult
         ), (
-          _.mapAsyncUnorderedRetryWithBackoffF(1)(element => Future.successful(element * 2)),
-          Seq(Success(2), Failure(exception), Success(4))
+          _.flatMapAsyncUnorderedF(1)(flatMapAsyncOperation),
+          flatMapResult
+        ), (
+          _.mapAsyncRetryWithBackoffF(1)(mapAsyncOperation),
+          mapResult
+        ), (
+          _.flatMapAsyncRetryWithBackoffF(1)(flatMapAsyncOperation),
+          flatMapResult
+        ), (
+          _.mapAsyncUnorderedRetryWithBackoffF(1)(mapAsyncOperation),
+          mapResult
+        ), (
+          _.flatMapAsyncUnorderedRetryWithBackoffF(1)(flatMapAsyncOperation),
+          flatMapResult
         ), (
           _.flatMapF(element => if (element == 2) Success(element * 2) else Failure(exception2)),
-          Seq(Failure(exception2), Failure(exception), Success(4))
+          flatMapResult
         ), (
           _.flatMapConcatF(element => Source(Seq(element * 2, element * 4))),
           Seq(Success(2), Success(4), Failure(exception), Success(4), Success(8))

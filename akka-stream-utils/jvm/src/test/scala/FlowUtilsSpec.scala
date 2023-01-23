@@ -121,6 +121,9 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
             case 2 => "moin"
           },
           Seq(None, Some("moin"))
+        ), (
+          _.mapConcatF(element => Seq(s"x-$element", s"y-$element")),
+          Seq(Some("x-1"), Some("y-1"), None, Some("x-2"), Some("y-2"))
         )
       )
 
@@ -214,6 +217,9 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
             case 2 => "moin"
           },
           Seq(Left(true), Right("moin"))
+        ), (
+          _.mapConcatF(element => Seq(s"x-$element", s"y-$element")),
+          Seq(Right("x-1"), Right("y-1"), Left(true), Right("x-2"), Right("y-2"))
         )
       )
 
@@ -240,6 +246,14 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     "Either foldF" in {
       Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
         .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Seq(1, 2, 3, 4)))
+    }
+    "Either Subflow foldF" in {
+      Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
+        .groupBy(Int.MaxValue, _ => true)
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .mergeSubstreams
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Seq(1, 2, 3, 4)))
     }

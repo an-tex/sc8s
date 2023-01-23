@@ -1,6 +1,6 @@
 package net.sc8s.akka.stream
 
-import akka.stream.scaladsl.{Flow, FlowOps, FlowWithContext, FlowWithContextOps, Source, SourceWithContext}
+import akka.stream.scaladsl.{Flow, FlowOps, FlowWithContext, FlowWithContextOps, RunnableGraph, Source, SourceWithContext, SubFlow}
 import akka.stream.{Materializer, RestartSettings}
 import cats.instances.either._
 import cats.instances.future._
@@ -130,11 +130,11 @@ object FlowUtils {
                                                 val s: Source[Option[Out], Mat]
                                                   with FlowOps[Option[Out], Mat]
                                               ) {
-      def groupByF[K](maxSubstreams: Int, f: Out => K) = {
+      def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Option[Out], Mat, s.Repr, RunnableGraph[Mat]] = {
         s.groupBy(maxSubstreams, _.map(f))
       }
 
-      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2) =
+      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): Source[Option[Out2], Mat] =
         s.fold(
           zero -> Seq.empty[Option[Out2]]
         ) {
@@ -145,6 +145,11 @@ object FlowUtils {
         }.mapConcat { case (value, nones) =>
           nones :+ Some(value)
         }
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Option[Out2], Mat] = s.mapConcat {
+        case Some(value) => f(value).iterator.map(Some(_))
+        case None => Seq(None)
+      }
     }
 
     implicit class SourceEitherOpsF[OutL, OutR, Mat](
@@ -162,14 +167,14 @@ object FlowUtils {
         case Right(value) => value
       }
 
-      def groupByF[K](maxSubstreams: Int, f: OutR => K) = {
+      def groupByF[K](maxSubstreams: Int, f: OutR => K): SubFlow[Either[OutL, OutR], Mat, s.Repr, RunnableGraph[Mat]] = {
         s.groupBy(maxSubstreams, {
           case Right(value) => Some(f(value))
           case _ => None
         })
       }
 
-      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2) =
+      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): Source[Either[OutL, OutR2], Mat] =
         s.fold(
           zero -> Seq.empty[Either[OutL, OutR2]]
         ) {
@@ -180,6 +185,11 @@ object FlowUtils {
         }.mapConcat { case (value, lefts) =>
           lefts :+ Right(value)
         }
+
+      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): Source[Either[OutL, OutR2], Mat] = s.mapConcat {
+        case Right(value) => f(value).iterator.map(Right(_))
+        case Left(value) => Seq(Left(value))
+      }
     }
 
     implicit class SourceTryOpsF[Out, Mat](
@@ -200,19 +210,14 @@ object FlowUtils {
         case Success(value) => value
       }
 
-      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Try[Out2], Mat] = s.mapConcat {
-        case Failure(exception) => Seq(Failure(exception))
-        case Success(value) => f(value).iterator.map(Success(_))
-      }
-
-      def groupByF[K](maxSubstreams: Int, f: Out => K) = {
+      def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Try[Out], Mat, s.Repr, RunnableGraph[Mat]] = {
         s.groupBy(maxSubstreams, {
           case Success(value) => Some(f(value))
           case _ => None
         })
       }
 
-      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2) =
+      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): Source[Try[Out2], Mat] =
         s.fold(
           zero -> Seq.empty[Try[Out2]]
         ) {
@@ -223,6 +228,11 @@ object FlowUtils {
         }.mapConcat { case (value, failures) =>
           failures :+ Success(value)
         }
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Try[Out2], Mat] = s.mapConcat {
+        case Failure(exception) => Seq(Failure(exception))
+        case Success(value) => f(value).iterator.map(Success(_))
+      }
     }
 
     implicit class SourceOps[Out, Mat](
@@ -238,7 +248,7 @@ object FlowUtils {
                                           ec: ExecutionContext,
                                           log: IzLogger,
                                           pos: CodePositionMaterializer
-                                        ) =
+                                        ): Source[Out2, Mat] =
         s.mapAsync(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -252,7 +262,7 @@ object FlowUtils {
                                                    ec: ExecutionContext,
                                                    log: IzLogger,
                                                    pos: CodePositionMaterializer
-                                                 ) =
+                                                 ): Source[Out2, Mat] =
         s.mapAsyncUnordered(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -291,7 +301,7 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ) =
+                                         ): Source[F[Out2], Mat] =
         s.mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -305,7 +315,7 @@ object FlowUtils {
                                                ec: ExecutionContext,
                                                log: IzLogger,
                                                pos: CodePositionMaterializer
-                                             ) =
+                                             ): Source[F[Out2], Mat] =
         s.flatMapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -319,7 +329,7 @@ object FlowUtils {
                                                     ec: ExecutionContext,
                                                     log: IzLogger,
                                                     pos: CodePositionMaterializer
-                                                  ) =
+                                                  ): Source[F[Out2], Mat] =
         s.mapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -333,7 +343,7 @@ object FlowUtils {
                                                         ec: ExecutionContext,
                                                         log: IzLogger,
                                                         pos: CodePositionMaterializer
-                                                      ) =
+                                                      ): Source[F[Out2], Mat] =
         s.flatMapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -343,21 +353,21 @@ object FlowUtils {
                                                           val s: Source[F[OutA, OutB], Mat]
                                                             with FlowOps[F[OutA, OutB], Mat]
                                                         )(implicit wrapper: Wrapper2[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext) =
+      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext) =
+      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
         s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext) =
+      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
         s.mapAsyncUnordered(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext) =
+      def flatMapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
         s.mapAsyncUnordered(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      def filterS(p: OutB => Boolean) = s.filter(wrapper.filterS(_)(p))
+      def filterS(p: OutB => Boolean): Source[F[OutA, OutB], Mat] = s.filter(wrapper.filterS(_)(p))
 
-      def collectS[Out2](pf: PartialFunction[OutB, Out2]) = s.collect(wrapper.collectS(pf))
+      def collectS[Out2](pf: PartialFunction[OutB, Out2]): Source[F[OutA, Out2], Mat] = s.collect(wrapper.collectS(pf))
 
       def flatMapConcatF[Out2, Mat2](f: OutB => Source[Out2, Mat2]): Source[F[OutA, Out2], Mat] = s.flatMapConcat(wrapper.flatMapSource(f))
 
@@ -372,7 +382,7 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ) =
+                                         ): Source[F[OutA, Out2], Mat] =
         s.mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -386,7 +396,7 @@ object FlowUtils {
                                                ec: ExecutionContext,
                                                log: IzLogger,
                                                pos: CodePositionMaterializer
-                                             ) =
+                                             ): Source[F[OutA, Out2], Mat] =
         s.flatMapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -400,7 +410,7 @@ object FlowUtils {
                                                     ec: ExecutionContext,
                                                     log: IzLogger,
                                                     pos: CodePositionMaterializer
-                                                  ) =
+                                                  ): Source[F[OutA, Out2], Mat] =
         s.mapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -414,7 +424,7 @@ object FlowUtils {
                                                         ec: ExecutionContext,
                                                         log: IzLogger,
                                                         pos: CodePositionMaterializer
-                                                      ) =
+                                                      ): Source[F[OutA, Out2], Mat] =
         s.flatMapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -440,6 +450,25 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.map(traverseFilter.collect(_)(pf))
     }
 
+    implicit class SourceIterableOnceOpsF[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                       val s: SourceWithContext[F[Out], Ctx, Mat]
+                                                                                         with FlowWithContextOps[F[Out], Ctx, Mat]
+                                                                                     ) {
+      def flattenF: SourceWithContext[Out, Ctx, Mat] = s.mapConcat(identity)
+    }
+
+    implicit class SourceOptionsOpsF[Out, Ctx, Mat](
+                                                     val s: SourceWithContext[Option[Out], Ctx, Mat]
+                                                       with FlowWithContextOps[Option[Out], Ctx, Mat]
+                                                   ) {
+      // groupByF and foldF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): SourceWithContext[Option[Out2], Ctx, Mat] = s.mapConcat {
+        case Some(value) => f(value).iterator.map(Some(_))
+        case None => Seq(None)
+      }
+    }
+
     implicit class SourceEitherOpsF[OutL, OutR, Ctx, Mat](
                                                            val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
                                                              with FlowWithContextOps[Either[OutL, OutR], Ctx, Mat]
@@ -450,6 +479,17 @@ object FlowUtils {
         case right if pf.isDefinedAt(right) => Right(pf(right))
         case _ => Left(zero)
       })
+
+      def flattenF: SourceWithContext[OutR, Ctx, Mat] = s.collect {
+        case Right(value) => value
+      }
+
+      // groupByF and foldF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+
+      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): SourceWithContext[Either[OutL, OutR2], Ctx, Mat] = s.mapConcat {
+        case Right(value) => f(value).iterator.map(Right(_))
+        case Left(value) => Seq(Left(value))
+      }
     }
 
     implicit class SourceTryOpsF[Out, Ctx, Mat](
@@ -465,6 +505,38 @@ object FlowUtils {
         case value if pf.isDefinedAt(value) => Success(pf(value))
         case _ => Failure(zero)
       })
+
+      def flattenF: SourceWithContext[Out, Ctx, Mat] = s.collect {
+        case Success(value) => value
+      }
+
+      // groupByF and foldF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): SourceWithContext[Try[Out2], Ctx, Mat] = s.mapConcat {
+        case Failure(exception) => Seq(Failure(exception))
+        case Success(value) => f(value).iterator.map(Success(_))
+      }
+    }
+
+    implicit class SourceOps[Out, Ctx, Mat](
+                                             val s: SourceWithContext[Out, Ctx, Mat]
+                                               with FlowWithContextOps[Out, Ctx, Mat]
+                                           ) {
+      def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
+        f: Out => Future[Out2],
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                          implicit mat: Materializer,
+                                          ec: ExecutionContext,
+                                          log: IzLogger,
+                                          pos: CodePositionMaterializer
+                                        ) =
+        s.mapAsync(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+        })
+
+      // mapAsyncUnorderedRetryWithBackoff not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
     }
 
     implicit class SourceOpsS[Out, Ctx, Mat, F[_]](
@@ -474,9 +546,16 @@ object FlowUtils {
       def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): SourceWithContext[F[Out2], Ctx, Mat] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
+      def flatMapAsyncF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): SourceWithContext[F[Out2], Ctx, Mat] =
+        s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
+
+      // mapAsyncUnorderedF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+
       def filterS(p: Out => Boolean): SourceWithContext[F[Out], Ctx, Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[Out2](pf: PartialFunction[Out, Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.collect(wrapper.collectS(pf))
+
+      // flatMapConcatF and flatMapMergeF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
@@ -487,10 +566,26 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ) =
+                                         ): SourceWithContext[F[Out2], Ctx, Mat] =
         s.mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
+
+      def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: Out => Future[F[Out2]],
+        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                               implicit mat: Materializer,
+                                               ec: ExecutionContext,
+                                               log: IzLogger,
+                                               pos: CodePositionMaterializer
+                                             ): SourceWithContext[F[Out2], Ctx, Mat] =
+        s.flatMapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+        })
+
+      // mapAsyncUnorderedRetryWithBackoffF and flatMapAsyncUnorderedRetryWithBackoffF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
     }
 
     implicit class SourceOpsS2[OutA, OutB, Ctx, Mat, F[_, _]](
@@ -500,9 +595,16 @@ object FlowUtils {
       def mapAsyncF[OutB2](parallelism: Int)(f: OutB => Future[OutB2])(implicit executionContext: ExecutionContext): SourceWithContext[F[OutA, OutB2], Ctx, Mat] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
+      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): SourceWithContext[F[OutA, Out2], Ctx, Mat] =
+        s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
+
+      // mapAsyncUnorderedF and flatMapAsyncUnorderedF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+
       def filterS(p: OutB => Boolean): SourceWithContext[F[OutA, OutB], Ctx, Mat] = s.filter(wrapper.filterS(_)(p))
 
       def collectS[OutB2](pf: PartialFunction[OutB, OutB2]): SourceWithContext[F[OutA, OutB2], Ctx, Mat] = s.collect(wrapper.collectS(pf))
+
+      // flatMapConcatF and flatMapMergeF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
@@ -513,10 +615,26 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ) =
+                                         ): SourceWithContext[F[OutA, Out2], Ctx, Mat] =
         s.mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
+
+      def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
+        f: OutB => Future[F[OutA, Out2]],
+        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+      )(
+                                               implicit mat: Materializer,
+                                               ec: ExecutionContext,
+                                               log: IzLogger,
+                                               pos: CodePositionMaterializer
+                                             ): SourceWithContext[F[OutA, Out2], Ctx, Mat] =
+        s.flatMapAsyncF(parallelism)({ element =>
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+        })
+
+      // mapAsyncUnorderedRetryWithBackoffF and flatMapAsyncUnorderedRetryWithBackoffF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
     }
   }
 
@@ -814,6 +932,28 @@ object FlowUtils {
         s.mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
+    }
+  }
+
+  object subflow {
+    implicit class SubFlowEitherOps[+OutL, +OutR, +Mat, +Repr[+_], C](val s: SubFlow[Either[OutL, OutR], Mat, Repr, C]
+                                                                     ) {
+      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): SubFlow[Either[OutL, OutR2], Mat, Repr, C] =
+        s.fold(
+          zero -> Seq.empty[Either[OutL, OutR2]]
+        ) {
+          case ((acc, lefts), next) => next match {
+            case Right(value) => f(acc, value) -> lefts
+            case Left(value) => acc -> (lefts :+ Left(value))
+          }
+        }.mapConcat { case (value, lefts) =>
+          lefts :+ Right(value)
+        }
+
+      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): SubFlow[Either[OutL, OutR2], Mat, Repr, C] = s.mapConcat {
+        case Right(value) => f(value).iterator.map(Right(_))
+        case Left(value) => Seq(Left(value))
+      }
     }
   }
 }

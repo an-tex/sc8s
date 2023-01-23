@@ -144,6 +144,12 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Seq(Some(1), Some(2)), Seq(Some(3), Some(4)), Seq(None, None))
     }
+    "Option foldF" in {
+      Source(Seq(Some(1), None, Some(2), Some(3), None, Some(4)))
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(None, None, Some(Seq(1, 2, 3, 4)))
+    }
     "Either" in {
       val input = Seq(Right(1), Left(true), Right(2))
 
@@ -230,6 +236,12 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .groupByF(Int.MaxValue, _ > 2).fold(Seq.empty[Either[Boolean, Int]])(_ :+ _).mergeSubstreams
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Seq(Left(true), Left(false)), Seq(Right(1), Right(2)), Seq(Right(3), Right(4)))
+    }
+    "Either foldF" in {
+      Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Seq(1, 2, 3, 4)))
     }
     "Try" in {
       val exception = new Exception
@@ -324,6 +336,14 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .groupByF(Int.MaxValue, _ > 2).fold(List.empty[Try[Int]])(_ :+ _).mergeSubstreams
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Seq(Success(1), Success(2)), Seq(Failure(exception1), Failure(exception2)), Seq(Success(3), Success(4)))
+    }
+    "Try foldF" in {
+      val exception1 = new Exception
+      val exception2 = new Exception
+      Source(Seq(Success(1), Failure(exception1), Success(2), Success(3), Failure(exception2), Success(4)))
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2), Success(Seq(1, 2, 3, 4)))
     }
     "Generic Try in Flow" in {
       val flow: Flow[Try[(Int, String)], Try[Either[Int, String]], NotUsed] = Flow[Try[(Int, String)]]

@@ -133,6 +133,18 @@ object FlowUtils {
       def groupByF[K](maxSubstreams: Int, f: Out => K) = {
         s.groupBy(maxSubstreams, _.map(f))
       }
+
+      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2) =
+        s.fold(
+          zero -> Seq.empty[Option[Out2]]
+        ) {
+          case ((acc, nones), maybeNext) => maybeNext match {
+            case Some(value) => f(acc, value) -> nones
+            case None => acc -> (nones :+ None)
+          }
+        }.mapConcat { case (value, nones) =>
+          nones :+ Some(value)
+        }
     }
 
     implicit class SourceEitherOpsF[OutL, OutR, Mat](
@@ -156,6 +168,18 @@ object FlowUtils {
           case _ => None
         })
       }
+
+      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2) =
+        s.fold(
+          zero -> Seq.empty[Either[OutL, OutR2]]
+        ) {
+          case ((acc, lefts), next) => next match {
+            case Right(value) => f(acc, value) -> lefts
+            case Left(value) => acc -> (lefts :+ Left(value))
+          }
+        }.mapConcat { case (value, lefts) =>
+          lefts :+ Right(value)
+        }
     }
 
     implicit class SourceTryOpsF[Out, Mat](
@@ -187,6 +211,18 @@ object FlowUtils {
           case _ => None
         })
       }
+
+      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2) =
+        s.fold(
+          zero -> Seq.empty[Try[Out2]]
+        ) {
+          case ((acc, failures), maybeNext) => maybeNext match {
+            case Success(value) => f(acc, value) -> failures
+            case Failure(exception) => acc -> (failures :+ Failure(exception))
+          }
+        }.mapConcat { case (value, failures) =>
+          failures :+ Success(value)
+        }
     }
 
     implicit class SourceOps[Out, Mat](

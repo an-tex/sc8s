@@ -12,7 +12,7 @@ import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Right, Success, Try}
 
 object FlowUtils {
   trait Wrapper[F[_]] {
@@ -105,7 +105,7 @@ object FlowUtils {
                                                     val s: Source[F[Out], Mat]
                                                       with FlowOps[F[Out], Mat]
                                                   )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): Source[F[Out2], Mat] = s.map(monad.map(_)(f))
+      def mapF[Out2](f: Out => Out2): Source[F[Out2], Mat] = s.map(monad.lift(f))
 
       def flatMapF[Out2](f: Out => F[Out2]): Source[F[Out2], Mat] = s.map(monad.flatMap(_)(f))
     }
@@ -126,6 +126,15 @@ object FlowUtils {
       def flattenF: Source[Out, Mat] = s.mapConcat(identity)
     }
 
+    implicit class SourceOptionsOpsF[Out, Mat](
+                                                val s: Source[Option[Out], Mat]
+                                                  with FlowOps[Option[Out], Mat]
+                                              ) {
+      def groupByF[K](maxSubstreams: Int, f: Out => K) = {
+        s.groupBy(maxSubstreams, _.map(f))
+      }
+    }
+
     implicit class SourceEitherOpsF[OutL, OutR, Mat](
                                                       val s: Source[Either[OutL, OutR], Mat]
                                                         with FlowOps[Either[OutL, OutR], Mat]
@@ -139,6 +148,13 @@ object FlowUtils {
 
       def flattenF: Source[OutR, Mat] = s.collect {
         case Right(value) => value
+      }
+
+      def groupByF[K](maxSubstreams: Int, f: OutR => K) = {
+        s.groupBy(maxSubstreams, {
+          case Right(value) => Some(f(value))
+          case _ => None
+        })
       }
     }
 
@@ -163,6 +179,13 @@ object FlowUtils {
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Try[Out2], Mat] = s.mapConcat {
         case Failure(exception) => Seq(Failure(exception))
         case Success(value) => f(value).iterator.map(Success(_))
+      }
+
+      def groupByF[K](maxSubstreams: Int, f: Out => K) = {
+        s.groupBy(maxSubstreams, {
+          case Success(value) => Some(f(value))
+          case _ => None
+        })
       }
     }
 
@@ -367,7 +390,7 @@ object FlowUtils {
                                                          val s: SourceWithContext[F[Out], Ctx, Mat]
                                                            with FlowWithContextOps[F[Out], Ctx, Mat]
                                                        )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): SourceWithContext[F[Out2], Ctx, Mat] = s.map(monad.map(_)(f))
+      def mapF[Out2](f: Out => Out2): SourceWithContext[F[Out2], Ctx, Mat] = s.map(monad.lift(f))
 
       def flatMapF[Out2](f: Out => F[Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.map(monad.flatMap(_)(f))
     }
@@ -466,7 +489,7 @@ object FlowUtils {
                                                       val s: Flow[In, F[Out], Mat]
                                                         with FlowOps[F[Out], Mat]
                                                     )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): Flow[In, F[Out2], Mat] = s.map(monad.map(_)(f))
+      def mapF[Out2](f: Out => Out2): Flow[In, F[Out2], Mat] = s.map(monad.lift(f))
 
       def flatMapF[Out2](f: Out => F[Out2]): Flow[In, F[Out2], Mat] = s.map(monad.flatMap(_)(f))
     }
@@ -645,7 +668,7 @@ object FlowUtils {
                                                                                 val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
                                                                                   with FlowWithContextOps[F[Out], CtxOut, Mat]
                                                                               )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(monad.map(_)(f))
+      def mapF[Out2](f: Out => Out2): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(monad.lift(f))
 
       def flatMapF[Out2](f: Out => F[Out2]): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(monad.flatMap(_)(f))
     }

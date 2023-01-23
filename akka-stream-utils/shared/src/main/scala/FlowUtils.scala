@@ -100,41 +100,90 @@ object FlowUtils {
 
   // This needs "duplication" https://doc.akka.io/docs/akka/current/stream/stream-customize.html#extending-flow-operators-with-custom-operators :(
 
-  object source {
+  object flow {
+    trait MonadOpsF[Out, Mat, F[_]] {
+
+      val s: FlowOps[F[Out], Mat]
+      val monad: Monad[F]
+
+      def mapF[Out2](f: Out => Out2): s.Repr[F[Out2]] = s.map(monad.lift(f))
+
+      def flatMapF[Out2](f: Out => F[Out2]): s.Repr[F[Out2]] = s.map(monad.flatMap(_)(f))
+    }
+
     implicit class SourceMonadOpsF[Out, Mat, F[_]](
                                                     val s: Source[F[Out], Mat]
-                                                      with FlowOps[F[Out], Mat]
-                                                  )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): Source[F[Out2], Mat] = s.map(monad.lift(f))
+                                                  )(
+                                                    implicit val monad: Monad[F]
+                                                  ) extends MonadOpsF[Out, Mat, F]
 
-      def flatMapF[Out2](f: Out => F[Out2]): Source[F[Out2], Mat] = s.map(monad.flatMap(_)(f))
+    implicit class FlowMonadOpsF[In, Out, Mat, F[_]](
+                                                      val s: Flow[F[In], F[Out], Mat]
+                                                    )(
+                                                      implicit val monad: Monad[F]
+                                                    ) extends MonadOpsF[Out, Mat, F]
+
+    implicit class SubFlowMonadOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                      val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                    )(
+                                                                      implicit val monad: Monad[F]
+                                                                    ) extends MonadOpsF[Out, Mat, F]
+
+    trait FilterOpsF[Out, Mat, F[_]] {
+      val s: FlowOps[F[Out], Mat]
+      val traverseFilter: TraverseFilter[F]
+
+      def filterF(p: Out => Boolean): s.Repr[F[Out]] = s.map(traverseFilter.filter(_)(p))
+
+      def collectF[Out2](pf: PartialFunction[Out, Out2]): s.Repr[F[Out2]] = s.map(traverseFilter.collect(_)(pf))
     }
 
     implicit class SourceFilterOpsF[Out, Mat, F[_]](
                                                      val s: Source[F[Out], Mat]
-                                                       with FlowOps[F[Out], Mat]
-                                                   )(implicit traverseFilter: TraverseFilter[F]) {
-      def filterF(p: Out => Boolean): Source[F[Out], Mat] = s.map(traverseFilter.filter(_)(p))
+                                                   )(
+                                                     implicit val traverseFilter: TraverseFilter[F]
+                                                   ) extends FilterOpsF[Out, Mat, F]
 
-      def collectF[Out2](pf: PartialFunction[Out, Out2]): Source[F[Out2], Mat] = s.map(traverseFilter.collect(_)(pf))
+    implicit class FlowFilterOpsF[In, Out, Mat, F[_]](
+                                                       val s: Flow[F[In], F[Out], Mat]
+                                                     )(
+                                                       implicit val traverseFilter: TraverseFilter[F]
+                                                     ) extends FilterOpsF[Out, Mat, F]
+
+    implicit class SubFlowFilterOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                       val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                     )(
+                                                                       implicit val traverseFilter: TraverseFilter[F]
+                                                                     ) extends FilterOpsF[Out, Mat, F]
+
+    trait IterableOnceOpsF[Out, Mat, F[Out] <: IterableOnce[Out]] {
+      val s: FlowOps[F[Out], Mat]
+
+      def flattenF: s.Repr[Out] = s.mapConcat(identity)
     }
 
     implicit class SourceIterableOnceOpsF[Out, Mat, F[Out] <: IterableOnce[Out]](
                                                                                   val s: Source[F[Out], Mat]
-                                                                                    with FlowOps[F[Out], Mat]
-                                                                                ) {
-      def flattenF: Source[Out, Mat] = s.mapConcat(identity)
-    }
+                                                                                ) extends IterableOnceOpsF[Out, Mat, F]
 
-    implicit class SourceOptionsOpsF[Out, Mat](
-                                                val s: Source[Option[Out], Mat]
-                                                  with FlowOps[Option[Out], Mat]
-                                              ) {
-      def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Option[Out], Mat, s.Repr, RunnableGraph[Mat]] = {
+    implicit class FlowIterableOnceOpsF[In, Out, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                    val s: Flow[F[In], F[Out], Mat]
+                                                                                  ) extends IterableOnceOpsF[Out, Mat, F]
+
+    implicit class SubFlowIterableOnceOpsF[Out, Mat, SubFlowF[+_], C, F[Out] <: IterableOnce[Out]](
+                                                                                                    val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                                                  )(
+                                                                                                    implicit val traverseFilter: TraverseFilter[F]
+                                                                                                  ) extends IterableOnceOpsF[Out, Mat, F]
+
+    trait OptionOpsF[Out, Mat] {
+      val s: FlowOps[Option[Out], Mat]
+
+      def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Option[Out], Mat, s.Repr, s.Closed] = {
         s.groupBy(maxSubstreams, _.map(f))
       }
 
-      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): Source[Option[Out2], Mat] =
+      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Option[Out2]] =
         s.fold(
           zero -> Seq.empty[Option[Out2]]
         ) {
@@ -146,35 +195,46 @@ object FlowUtils {
           nones :+ Some(value)
         }
 
-      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Option[Out2], Mat] = s.mapConcat {
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Option[Out2]] = s.mapConcat {
         case Some(value) => f(value).iterator.map(Some(_))
         case None => Seq(None)
       }
     }
 
-    implicit class SourceEitherOpsF[OutL, OutR, Mat](
-                                                      val s: Source[Either[OutL, OutR], Mat]
-                                                        with FlowOps[Either[OutL, OutR], Mat]
-                                                    ) {
-      def filterOrElseF(p: OutR => Boolean, zero: => OutL): Source[Either[OutL, OutR], Mat] = s.map(_.filterOrElse(p, zero))
+    implicit class SourceOptionOpsF[Out, Mat](
+                                               val s: Source[Option[Out], Mat]
+                                             ) extends OptionOpsF[Out, Mat]
 
-      def collectF[OutR2](pf: PartialFunction[OutR, OutR2])(zero: => OutL): Source[Either[OutL, OutR2], Mat] = s.map(_.flatMap {
+    implicit class FlowOptionOpsF[In, Out, Mat](
+                                                 val s: Flow[Option[In], Option[Out], Mat]
+                                               ) extends OptionOpsF[Out, Mat]
+
+    implicit class SubFlowOptionOpsF[Out, Mat, SubFlowF[+_], C](
+                                                                 val s: SubFlow[Option[Out], Mat, SubFlowF, C]
+                                                               ) extends OptionOpsF[Out, Mat]
+
+    trait EitherOpsF[OutL, OutR, Mat] {
+      val s: FlowOps[Either[OutL, OutR], Mat]
+
+      def filterOrElseF(p: OutR => Boolean, zero: => OutL): s.Repr[Either[OutL, OutR]] = s.map(_.filterOrElse(p, zero))
+
+      def collectF[OutR2](pf: PartialFunction[OutR, OutR2])(zero: => OutL): s.Repr[Either[OutL, OutR2]] = s.map(_.flatMap {
         case right if pf.isDefinedAt(right) => Right(pf(right))
         case _ => Left(zero)
       })
 
-      def flattenF: Source[OutR, Mat] = s.collect {
+      def flattenF: s.Repr[OutR] = s.collect {
         case Right(value) => value
       }
 
-      def groupByF[K](maxSubstreams: Int, f: OutR => K): SubFlow[Either[OutL, OutR], Mat, s.Repr, RunnableGraph[Mat]] = {
+      def groupByF[K](maxSubstreams: Int, f: OutR => K): SubFlow[Either[OutL, OutR], Mat, s.Repr, s.Closed] = {
         s.groupBy(maxSubstreams, {
           case Right(value) => Some(f(value))
           case _ => None
         })
       }
 
-      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): Source[Either[OutL, OutR2], Mat] =
+      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
         s.fold(
           zero -> Seq.empty[Either[OutL, OutR2]]
         ) {
@@ -186,38 +246,49 @@ object FlowUtils {
           lefts :+ Right(value)
         }
 
-      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): Source[Either[OutL, OutR2], Mat] = s.mapConcat {
+      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): s.Repr[Either[OutL, OutR2]] = s.mapConcat {
         case Right(value) => f(value).iterator.map(Right(_))
         case Left(value) => Seq(Left(value))
       }
     }
 
-    implicit class SourceTryOpsF[Out, Mat](
-                                            val s: Source[Try[Out], Mat]
-                                              with FlowOps[Try[Out], Mat]
-                                          ) {
-      def filterOrElseF(p: Out => Boolean, zero: => Throwable): Source[Try[Out], Mat] = s.map(_.flatMap {
+    implicit class SourceEitherOpsF[OutL, OutR, Mat](
+                                                      val s: Source[Either[OutL, OutR], Mat]
+                                                    ) extends EitherOpsF[OutL, OutR, Mat]
+
+    implicit class FlowEitherOpsF[In, OutL, OutR, Mat](
+                                                        val s: Flow[In, Either[OutL, OutR], Mat]
+                                                      ) extends EitherOpsF[OutL, OutR, Mat]
+
+    implicit class SubFlowEitherOpsF[OutL, OutR, Mat, SubFlowF[+_], C, F[_]](
+                                                                              val s: SubFlow[Either[OutL, OutR], Mat, SubFlowF, C]
+                                                                            ) extends EitherOpsF[OutL, OutR, Mat]
+
+    trait TryOpsF[Out, Mat] {
+      val s: FlowOps[Try[Out], Mat]
+
+      def filterOrElseF(p: Out => Boolean, zero: => Throwable): s.Repr[Try[Out]] = s.map(_.flatMap {
         case value if p(value) => Success(value)
         case _ => Failure(zero)
       })
 
-      def collectF[Out2](pf: PartialFunction[Out, Out2])(zero: => Throwable): Source[Try[Out2], Mat] = s.map(_.flatMap {
+      def collectF[Out2](pf: PartialFunction[Out, Out2])(zero: => Throwable): s.Repr[Try[Out2]] = s.map(_.flatMap {
         case value if pf.isDefinedAt(value) => Success(pf(value))
         case _ => Failure(zero)
       })
 
-      def flattenF: Source[Out, Mat] = s.collect {
+      def flattenF: s.Repr[Out] = s.collect {
         case Success(value) => value
       }
 
-      def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Try[Out], Mat, s.Repr, RunnableGraph[Mat]] = {
+      def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Try[Out], Mat, s.Repr, s.Closed] = {
         s.groupBy(maxSubstreams, {
           case Success(value) => Some(f(value))
           case _ => None
         })
       }
 
-      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): Source[Try[Out2], Mat] =
+      def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Try[Out2]] =
         s.fold(
           zero -> Seq.empty[Try[Out2]]
         ) {
@@ -229,16 +300,27 @@ object FlowUtils {
           failures :+ Success(value)
         }
 
-      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Source[Try[Out2], Mat] = s.mapConcat {
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Try[Out2]] = s.mapConcat {
         case Failure(exception) => Seq(Failure(exception))
         case Success(value) => f(value).iterator.map(Success(_))
       }
     }
 
-    implicit class SourceOps[Out, Mat](
-                                        val s: Source[Out, Mat]
-                                          with FlowOps[Out, Mat]
-                                      ) {
+    implicit class SourceTryOpsF[Out, Mat](
+                                            val s: Source[Try[Out], Mat]
+                                          ) extends TryOpsF[Out, Mat]
+
+    implicit class FlowTryOpsF[In, Out, Mat](
+                                              val s: Flow[In, Try[Out], Mat]
+                                            ) extends TryOpsF[Out, Mat]
+
+    implicit class SubFlowTryOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                    val s: SubFlow[Try[Out], Mat, SubFlowF, C]
+                                                                  ) extends TryOpsF[Out, Mat]
+
+    trait AsyncOps[Out, Mat] {
+      val s: FlowOps[Out, Mat]
+
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
@@ -248,7 +330,7 @@ object FlowUtils {
                                           ec: ExecutionContext,
                                           log: IzLogger,
                                           pos: CodePositionMaterializer
-                                        ): Source[Out2, Mat] =
+                                        ): s.Repr[Out2] =
         s.mapAsync(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
@@ -262,35 +344,47 @@ object FlowUtils {
                                                    ec: ExecutionContext,
                                                    log: IzLogger,
                                                    pos: CodePositionMaterializer
-                                                 ): Source[Out2, Mat] =
+                                                 ): s.Repr[Out2] =
         s.mapAsyncUnordered(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
-    implicit class SourceOpsS[Out, Mat, F[_]](
-                                               val s: Source[F[Out], Mat]
-                                                 with FlowOps[F[Out], Mat]
-                                             )(implicit wrapper: Wrapper[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[Out2], Mat] =
+    implicit class AsyncSourceOps[Out, Mat](
+                                             val s: Source[Out, Mat]
+                                           ) extends AsyncOps[Out, Mat]
+
+    implicit class AsyncFlowOps[In, Out, Mat](
+                                               val s: Flow[In, Out, Mat]
+                                             ) extends AsyncOps[Out, Mat]
+
+    implicit class AsyncSubFlowOps[Out, Mat, SubFlowF[+_], C](
+                                                               val s: SubFlow[Out, Mat, SubFlowF, C]
+                                                             ) extends AsyncOps[Out, Mat]
+
+    trait WrapperOpsF[Out, Mat, F[_]] {
+      val s: FlowOps[F[Out], Mat]
+      val wrapper: Wrapper[F]
+
+      def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): s.Repr[F[Out2]] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): Source[F[Out2], Mat] =
+      def flatMapAsyncF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): s.Repr[F[Out2]] =
         s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[Out2], Mat] =
+      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): s.Repr[F[Out2]] =
         s.mapAsyncUnordered(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncUnorderedF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): Source[F[Out2], Mat] =
+      def flatMapAsyncUnorderedF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): s.Repr[F[Out2]] =
         s.mapAsyncUnordered(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      def filterS(p: Out => Boolean): Source[F[Out], Mat] = s.filter(wrapper.filterS(_)(p))
+      def filterS(p: Out => Boolean): s.Repr[F[Out]] = s.filter(wrapper.filterS(_)(p))
 
-      def collectS[Out2](pf: PartialFunction[Out, Out2]): Source[F[Out2], Mat] = s.collect(wrapper.collectS(pf))
+      def collectS[Out2](pf: PartialFunction[Out, Out2]): s.Repr[F[Out2]] = s.collect(wrapper.collectS(pf))
 
-      def flatMapConcatF[Out2, Mat2](f: Out => Source[Out2, Mat2]): Source[F[Out2], Mat] = s.flatMapConcat(wrapper.flatMapSource(f))
+      def flatMapConcatF[Out2, Mat2](f: Out => Source[Out2, Mat2]): s.Repr[F[Out2]] = s.flatMapConcat(wrapper.flatMapSource(f))
 
-      def flatMapMergeF[Out2, Mat2](breadth: Int, f: Out => Source[Out2, Mat2]): Source[F[Out2], Mat] = s.flatMapMerge(breadth, wrapper.flatMapSource(f))
+      def flatMapMergeF[Out2, Mat2](breadth: Int, f: Out => Source[Out2, Mat2]): s.Repr[F[Out2]] = s.flatMapMerge(breadth, wrapper.flatMapSource(f))
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
@@ -301,8 +395,8 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ): Source[F[Out2], Mat] =
-        s.mapAsyncF(parallelism)({ element =>
+                                         ): s.Repr[F[Out2]] =
+        mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -315,8 +409,8 @@ object FlowUtils {
                                                ec: ExecutionContext,
                                                log: IzLogger,
                                                pos: CodePositionMaterializer
-                                             ): Source[F[Out2], Mat] =
-        s.flatMapAsyncF(parallelism)({ element =>
+                                             ): s.Repr[F[Out2]] =
+        flatMapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -329,8 +423,8 @@ object FlowUtils {
                                                     ec: ExecutionContext,
                                                     log: IzLogger,
                                                     pos: CodePositionMaterializer
-                                                  ): Source[F[Out2], Mat] =
-        s.mapAsyncUnorderedF(parallelism)({ element =>
+                                                  ): s.Repr[F[Out2]] =
+        mapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -343,35 +437,53 @@ object FlowUtils {
                                                         ec: ExecutionContext,
                                                         log: IzLogger,
                                                         pos: CodePositionMaterializer
-                                                      ): Source[F[Out2], Mat] =
-        s.flatMapAsyncUnorderedF(parallelism)({ element =>
+                                                      ): s.Repr[F[Out2]] =
+        flatMapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
-    implicit class SourceOpsS2[OutA, OutB, Mat, F[_, _]](
-                                                          val s: Source[F[OutA, OutB], Mat]
-                                                            with FlowOps[F[OutA, OutB], Mat]
-                                                        )(implicit wrapper: Wrapper2[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
+    implicit class SourceWrapperOpsF[Out, Mat, F[_]](
+                                                      val s: Source[F[Out], Mat]
+                                                    )(
+                                                      implicit val wrapper: Wrapper[F]
+                                                    ) extends WrapperOpsF[Out, Mat, F]
+
+    implicit class FlowWrapperOpsF[In, Out, Mat, F[_]](
+                                                        val s: Flow[F[In], F[Out], Mat]
+                                                      )(
+                                                        implicit val wrapper: Wrapper[F]
+                                                      ) extends WrapperOpsF[Out, Mat, F]
+
+    implicit class SubFlowWrapperOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                        val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                      )(
+                                                                        implicit val wrapper: Wrapper[F]
+                                                                      ) extends WrapperOpsF[Out, Mat, F]
+
+    trait Wrapper2OpsF[OutA, OutB, Mat, F[_, _]] {
+      val s: FlowOps[F[OutA, OutB], Mat]
+      val wrapper: Wrapper2[F]
+
+      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): s.Repr[F[OutA, Out2]] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
+      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): s.Repr[F[OutA, Out2]] =
         s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
+      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): s.Repr[F[OutA, Out2]] =
         s.mapAsyncUnordered(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): Source[F[OutA, Out2], Mat] =
+      def flatMapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): s.Repr[F[OutA, Out2]] =
         s.mapAsyncUnordered(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      def filterS(p: OutB => Boolean): Source[F[OutA, OutB], Mat] = s.filter(wrapper.filterS(_)(p))
+      def filterS(p: OutB => Boolean): s.Repr[F[OutA, OutB]] = s.filter(wrapper.filterS(_)(p))
 
-      def collectS[Out2](pf: PartialFunction[OutB, Out2]): Source[F[OutA, Out2], Mat] = s.collect(wrapper.collectS(pf))
+      def collectS[Out2](pf: PartialFunction[OutB, Out2]): s.Repr[F[OutA, Out2]] = s.collect(wrapper.collectS(pf))
 
-      def flatMapConcatF[Out2, Mat2](f: OutB => Source[Out2, Mat2]): Source[F[OutA, Out2], Mat] = s.flatMapConcat(wrapper.flatMapSource(f))
+      def flatMapConcatF[Out2, Mat2](f: OutB => Source[Out2, Mat2]): s.Repr[F[OutA, Out2]] = s.flatMapConcat(wrapper.flatMapSource(f))
 
-      def flatMapMergeF[Out2, Mat2](breadth: Int, f: OutB => Source[Out2, Mat2]): Source[F[OutA, Out2], Mat] = s.flatMapMerge(breadth, wrapper.flatMapSource(f))
+      def flatMapMergeF[Out2, Mat2](breadth: Int, f: OutB => Source[Out2, Mat2]): s.Repr[F[OutA, Out2]] = s.flatMapMerge(breadth, wrapper.flatMapSource(f))
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
@@ -382,8 +494,8 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ): Source[F[OutA, Out2], Mat] =
-        s.mapAsyncF(parallelism)({ element =>
+                                         ): s.Repr[F[OutA, Out2]] =
+        mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -396,8 +508,8 @@ object FlowUtils {
                                                ec: ExecutionContext,
                                                log: IzLogger,
                                                pos: CodePositionMaterializer
-                                             ): Source[F[OutA, Out2], Mat] =
-        s.flatMapAsyncF(parallelism)({ element =>
+                                             ): s.Repr[F[OutA, Out2]] =
+        flatMapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -410,8 +522,8 @@ object FlowUtils {
                                                     ec: ExecutionContext,
                                                     log: IzLogger,
                                                     pos: CodePositionMaterializer
-                                                  ): Source[F[OutA, Out2], Mat] =
-        s.mapAsyncUnorderedF(parallelism)({ element =>
+                                                  ): s.Repr[F[OutA, Out2]] =
+        mapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -424,104 +536,169 @@ object FlowUtils {
                                                         ec: ExecutionContext,
                                                         log: IzLogger,
                                                         pos: CodePositionMaterializer
-                                                      ): Source[F[OutA, Out2], Mat] =
-        s.flatMapAsyncUnorderedF(parallelism)({ element =>
+                                                      ): s.Repr[F[OutA, Out2]] =
+        flatMapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
+
+    implicit class SourceWrapper2OpsF[OutA, OutB, Mat, F[_, _]](
+                                                                 val s: Source[F[OutA, OutB], Mat]
+                                                               )(
+                                                                 implicit val wrapper: Wrapper2[F]
+                                                               ) extends Wrapper2OpsF[OutA, OutB, Mat, F]
+
+    implicit class FlowWrapper2OpsF[In, OutA, OutB, Mat, F[_, _]](
+                                                                   val s: Flow[In, F[OutA, OutB], Mat]
+                                                                 )(
+                                                                   implicit val wrapper: Wrapper2[F]
+                                                                 ) extends Wrapper2OpsF[OutA, OutB, Mat, F]
+
+    implicit class SubFlowWrapper2OpsF[OutA, OutB, Mat, SubFlowF[+_], C, F[_, _]](
+                                                                                   val s: SubFlow[F[OutA, OutB], Mat, SubFlowF, C]
+                                                                                 )(
+                                                                                   implicit val wrapper: Wrapper2[F]
+                                                                                 ) extends Wrapper2OpsF[OutA, OutB, Mat, F]
   }
 
-  object sourceWithContext {
+  // groupBy, fold and mapAsyncUnordered*, flatMapConcat, flatMapConcatMerge not possible due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions , hence SubFlow not available either
+  object flowWithContext {
+    trait MonadOpsF[Out, Ctx, Mat, F[_]] {
+
+      val s: FlowWithContextOps[F[Out], Ctx, Mat]
+      val monad: Monad[F]
+
+      def mapF[Out2](f: Out => Out2): s.Repr[F[Out2], Ctx] = s.map(monad.lift(f))
+
+      def flatMapF[Out2](f: Out => F[Out2]): s.Repr[F[Out2], Ctx] = s.map(monad.flatMap(_)(f))
+    }
+
     implicit class SourceMonadOpsF[Out, Ctx, Mat, F[_]](
                                                          val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                           with FlowWithContextOps[F[Out], Ctx, Mat]
-                                                       )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): SourceWithContext[F[Out2], Ctx, Mat] = s.map(monad.lift(f))
+                                                       )(
+                                                         implicit val monad: Monad[F]
+                                                       ) extends MonadOpsF[Out, Ctx, Mat, F]
 
-      def flatMapF[Out2](f: Out => F[Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.map(monad.flatMap(_)(f))
+    implicit class FlowMonadOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
+                                                                     val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
+                                                                   )(
+                                                                     implicit val monad: Monad[F]
+                                                                   ) extends MonadOpsF[Out, CtxOut, Mat, F]
+
+    trait FilterOpsF[Out, Ctx, Mat, F[_]] {
+      val s: FlowWithContextOps[F[Out], Ctx, Mat]
+      val traverseFilter: TraverseFilter[F]
+
+      def filterF(p: Out => Boolean): s.Repr[F[Out], Ctx] = s.map(traverseFilter.filter(_)(p))
+
+      def collectF[Out2](pf: PartialFunction[Out, Out2]): s.Repr[F[Out2], Ctx] = s.map(traverseFilter.collect(_)(pf))
     }
 
     implicit class SourceFilterOpsF[Out, Ctx, Mat, F[_]](
                                                           val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                            with FlowWithContextOps[F[Out], Ctx, Mat]
-                                                        )(implicit traverseFilter: TraverseFilter[F]) {
-      def filterF(p: Out => Boolean): SourceWithContext[F[Out], Ctx, Mat] = s.map(traverseFilter.filter(_)(p))
+                                                        )(
+                                                          implicit val traverseFilter: TraverseFilter[F]
+                                                        ) extends FilterOpsF[Out, Ctx, Mat, F]
 
-      def collectF[Out2](pf: PartialFunction[Out, Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.map(traverseFilter.collect(_)(pf))
+    implicit class FlowFilterOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
+                                                                      val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
+                                                                    )(
+                                                                      implicit val traverseFilter: TraverseFilter[F]
+                                                                    ) extends FilterOpsF[Out, CtxOut, Mat, F]
+
+    trait IterableOnceOpsF[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]] {
+      val s: FlowWithContextOps[F[Out], Ctx, Mat]
+
+      def flattenF: s.Repr[Out, Ctx] = s.mapConcat(identity)
     }
 
     implicit class SourceIterableOnceOpsF[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]](
                                                                                        val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                                                         with FlowWithContextOps[F[Out], Ctx, Mat]
-                                                                                     ) {
-      def flattenF: SourceWithContext[Out, Ctx, Mat] = s.mapConcat(identity)
-    }
+                                                                                     ) extends IterableOnceOpsF[Out, Ctx, Mat, F]
 
-    implicit class SourceOptionsOpsF[Out, Ctx, Mat](
-                                                     val s: SourceWithContext[Option[Out], Ctx, Mat]
-                                                       with FlowWithContextOps[Option[Out], Ctx, Mat]
-                                                   ) {
-      // groupByF and foldF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+    implicit class FlowIterableOnceOpsF[In, CtxIn, Out, CtxOut, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                                   val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
+                                                                                                 ) extends IterableOnceOpsF[Out, CtxOut, Mat, F]
 
-      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): SourceWithContext[Option[Out2], Ctx, Mat] = s.mapConcat {
+    trait OptionOpsF[Out, Ctx, Mat] {
+      val s: FlowWithContextOps[Option[Out], Ctx, Mat]
+
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Option[Out2], Ctx] = s.mapConcat {
         case Some(value) => f(value).iterator.map(Some(_))
         case None => Seq(None)
       }
     }
 
-    implicit class SourceEitherOpsF[OutL, OutR, Ctx, Mat](
-                                                           val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
-                                                             with FlowWithContextOps[Either[OutL, OutR], Ctx, Mat]
-                                                         ) {
-      def filterOrElseF(p: OutR => Boolean, zero: => OutL): SourceWithContext[Either[OutL, OutR], Ctx, Mat] = s.map(_.filterOrElse(p, zero))
+    implicit class SourceOptionOpsF[Out, Ctx, Mat](
+                                                    val s: SourceWithContext[Option[Out], Ctx, Mat]
+                                                  ) extends OptionOpsF[Out, Ctx, Mat]
 
-      def collectF[OutR2](pf: PartialFunction[OutR, OutR2])(zero: => OutL): SourceWithContext[Either[OutL, OutR2], Ctx, Mat] = s.map(_.flatMap {
+    implicit class FlowOptionOpsF[In, CtxIn, Out, CtxOut, Mat](
+                                                                val s: FlowWithContext[Option[In], CtxIn, Option[Out], CtxOut, Mat]
+                                                              ) extends OptionOpsF[Out, CtxOut, Mat]
+
+    trait EitherOpsF[OutL, OutR, Ctx, Mat] {
+      val s: FlowWithContextOps[Either[OutL, OutR], Ctx, Mat]
+
+      def filterOrElseF(p: OutR => Boolean, zero: => OutL): s.Repr[Either[OutL, OutR], Ctx] = s.map(_.filterOrElse(p, zero))
+
+      def collectF[OutR2](pf: PartialFunction[OutR, OutR2])(zero: => OutL): s.Repr[Either[OutL, OutR2], Ctx] = s.map(_.flatMap {
         case right if pf.isDefinedAt(right) => Right(pf(right))
         case _ => Left(zero)
       })
 
-      def flattenF: SourceWithContext[OutR, Ctx, Mat] = s.collect {
+      def flattenF: s.Repr[OutR, Ctx] = s.collect {
         case Right(value) => value
       }
 
-      // groupByF and foldF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
-
-      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): SourceWithContext[Either[OutL, OutR2], Ctx, Mat] = s.mapConcat {
+      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): s.Repr[Either[OutL, OutR2], Ctx] = s.mapConcat {
         case Right(value) => f(value).iterator.map(Right(_))
         case Left(value) => Seq(Left(value))
       }
     }
 
-    implicit class SourceTryOpsF[Out, Ctx, Mat](
-                                                 val s: SourceWithContext[Try[Out], Ctx, Mat]
-                                                   with FlowWithContextOps[Try[Out], Ctx, Mat]
-                                               ) {
-      def filterOrElseF(p: Out => Boolean, zero: => Throwable): SourceWithContext[Try[Out], Ctx, Mat] = s.map(_.flatMap {
+    implicit class SourceEitherOpsF[OutL, OutR, Ctx, Mat](
+                                                           val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
+                                                         ) extends EitherOpsF[OutL, OutR, Ctx, Mat]
+
+    implicit class FlowEitherOpsF[In, CtxIn, OutL, OutR, CtxOut, Mat](
+                                                                       val s: FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat]
+                                                                     ) extends EitherOpsF[OutL, OutR, CtxOut, Mat]
+
+    trait TryOpsF[Out, Ctx, Mat] {
+      val s: FlowWithContextOps[Try[Out], Ctx, Mat]
+
+      def filterOrElseF(p: Out => Boolean, zero: => Throwable): s.Repr[Try[Out], Ctx] = s.map(_.flatMap {
         case value if p(value) => Success(value)
         case _ => Failure(zero)
       })
 
-      def collectF[Out2](pf: PartialFunction[Out, Out2])(zero: => Throwable): SourceWithContext[Try[Out2], Ctx, Mat] = s.map(_.flatMap {
+      def collectF[Out2](pf: PartialFunction[Out, Out2])(zero: => Throwable): s.Repr[Try[Out2], Ctx] = s.map(_.flatMap {
         case value if pf.isDefinedAt(value) => Success(pf(value))
         case _ => Failure(zero)
       })
 
-      def flattenF: SourceWithContext[Out, Ctx, Mat] = s.collect {
+      def flattenF: s.Repr[Out, Ctx] = s.collect {
         case Success(value) => value
       }
 
-      // groupByF and foldF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
-
-      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): SourceWithContext[Try[Out2], Ctx, Mat] = s.mapConcat {
+      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Try[Out2], Ctx] = s.mapConcat {
         case Failure(exception) => Seq(Failure(exception))
         case Success(value) => f(value).iterator.map(Success(_))
       }
     }
 
-    implicit class SourceOps[Out, Ctx, Mat](
-                                             val s: SourceWithContext[Out, Ctx, Mat]
-                                               with FlowWithContextOps[Out, Ctx, Mat]
-                                           ) {
+    implicit class SourceTryOpsF[Out, Ctx, Mat](
+                                                 val s: SourceWithContext[Try[Out], Ctx, Mat]
+                                               ) extends TryOpsF[Out, Ctx, Mat]
+
+    implicit class FlowTryOpsF[In, CtxIn, Out, CtxOut, Mat](
+                                                             val s: FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat]
+                                                           ) extends TryOpsF[Out, CtxOut, Mat]
+
+    trait AsyncOps[Out, Ctx, Mat] {
+      val s: FlowWithContextOps[Out, Ctx, Mat]
+
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
@@ -531,31 +708,33 @@ object FlowUtils {
                                           ec: ExecutionContext,
                                           log: IzLogger,
                                           pos: CodePositionMaterializer
-                                        ) =
+                                        ): s.Repr[Out2, Ctx] =
         s.mapAsync(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
-
-      // mapAsyncUnorderedRetryWithBackoff not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
     }
 
-    implicit class SourceOpsS[Out, Ctx, Mat, F[_]](
-                                                    val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                      with FlowWithContextOps[F[Out], Ctx, Mat]
-                                                  )(implicit wrapper: Wrapper[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): SourceWithContext[F[Out2], Ctx, Mat] =
+    implicit class AsyncSourceOps[Out, Ctx, Mat](
+                                                  val s: SourceWithContext[Out, Ctx, Mat]
+                                                ) extends AsyncOps[Out, Ctx, Mat]
+
+    implicit class AsyncFlowOps[In, CtxIn, Out, CtxOut, Mat](
+                                                              val s: FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
+                                                            ) extends AsyncOps[Out, CtxOut, Mat]
+
+    trait WrapperOpsF[Out, Ctx, Mat, F[_]] {
+      val s: FlowWithContextOps[F[Out], Ctx, Mat]
+      val wrapper: Wrapper[F]
+
+      def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): s.Repr[F[Out2], Ctx] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): SourceWithContext[F[Out2], Ctx, Mat] =
+      def flatMapAsyncF[Out2](parallelism: Int)(f: Out => Future[F[Out2]])(implicit executionContext: ExecutionContext): s.Repr[F[Out2], Ctx] =
         s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      // mapAsyncUnorderedF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+      def filterS(p: Out => Boolean): s.Repr[F[Out], Ctx] = s.filter(wrapper.filterS(_)(p))
 
-      def filterS(p: Out => Boolean): SourceWithContext[F[Out], Ctx, Mat] = s.filter(wrapper.filterS(_)(p))
-
-      def collectS[Out2](pf: PartialFunction[Out, Out2]): SourceWithContext[F[Out2], Ctx, Mat] = s.collect(wrapper.collectS(pf))
-
-      // flatMapConcatF and flatMapMergeF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+      def collectS[Out2](pf: PartialFunction[Out, Out2]): s.Repr[F[Out2], Ctx] = s.collect(wrapper.collectS(pf))
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
@@ -566,8 +745,8 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ): SourceWithContext[F[Out2], Ctx, Mat] =
-        s.mapAsyncF(parallelism)({ element =>
+                                         ): s.Repr[F[Out2], Ctx] =
+        mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -580,31 +759,37 @@ object FlowUtils {
                                                ec: ExecutionContext,
                                                log: IzLogger,
                                                pos: CodePositionMaterializer
-                                             ): SourceWithContext[F[Out2], Ctx, Mat] =
-        s.flatMapAsyncF(parallelism)({ element =>
+                                             ): s.Repr[F[Out2], Ctx] =
+        flatMapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
-
-      // mapAsyncUnorderedRetryWithBackoffF and flatMapAsyncUnorderedRetryWithBackoffF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
     }
 
-    implicit class SourceOpsS2[OutA, OutB, Ctx, Mat, F[_, _]](
-                                                               val s: SourceWithContext[F[OutA, OutB], Ctx, Mat]
-                                                                 with FlowWithContextOps[F[OutA, OutB], Ctx, Mat]
-                                                             )(implicit wrapper: Wrapper2[F]) {
-      def mapAsyncF[OutB2](parallelism: Int)(f: OutB => Future[OutB2])(implicit executionContext: ExecutionContext): SourceWithContext[F[OutA, OutB2], Ctx, Mat] =
+    implicit class SourceWrapperOpsF[Out, Ctx, Mat, F[_]](
+                                                           val s: SourceWithContext[F[Out], Ctx, Mat]
+                                                         )(
+                                                           implicit val wrapper: Wrapper[F]
+                                                         ) extends WrapperOpsF[Out, Ctx, Mat, F]
+
+    implicit class FlowWrapperOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
+                                                                       val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
+                                                                     )(
+                                                                       implicit val wrapper: Wrapper[F]
+                                                                     ) extends WrapperOpsF[Out, CtxOut, Mat, F]
+
+    trait Wrapper2OpsF[OutA, OutB, Ctx, Mat, F[_, _]] {
+      val s: FlowWithContextOps[F[OutA, OutB], Ctx, Mat]
+      val wrapper: Wrapper2[F]
+
+      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): s.Repr[F[OutA, Out2], Ctx] =
         s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
 
-      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): SourceWithContext[F[OutA, Out2], Ctx, Mat] =
+      def flatMapAsyncF[Out2](parallelism: Int)(f: OutB => Future[F[OutA, Out2]])(implicit executionContext: ExecutionContext): s.Repr[F[OutA, Out2], Ctx] =
         s.mapAsync(parallelism)(wrapper.flatMapAsync(_)(f))
 
-      // mapAsyncUnorderedF and flatMapAsyncUnorderedF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+      def filterS(p: OutB => Boolean): s.Repr[F[OutA, OutB], Ctx] = s.filter(wrapper.filterS(_)(p))
 
-      def filterS(p: OutB => Boolean): SourceWithContext[F[OutA, OutB], Ctx, Mat] = s.filter(wrapper.filterS(_)(p))
-
-      def collectS[OutB2](pf: PartialFunction[OutB, OutB2]): SourceWithContext[F[OutA, OutB2], Ctx, Mat] = s.collect(wrapper.collectS(pf))
-
-      // flatMapConcatF and flatMapMergeF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
+      def collectS[Out2](pf: PartialFunction[OutB, Out2]): s.Repr[F[OutA, Out2], Ctx] = s.collect(wrapper.collectS(pf))
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
@@ -615,8 +800,8 @@ object FlowUtils {
                                            ec: ExecutionContext,
                                            log: IzLogger,
                                            pos: CodePositionMaterializer
-                                         ): SourceWithContext[F[OutA, Out2], Ctx, Mat] =
-        s.mapAsyncF(parallelism)({ element =>
+                                         ): s.Repr[F[OutA, Out2], Ctx] =
+        mapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
 
@@ -629,331 +814,22 @@ object FlowUtils {
                                                ec: ExecutionContext,
                                                log: IzLogger,
                                                pos: CodePositionMaterializer
-                                             ): SourceWithContext[F[OutA, Out2], Ctx, Mat] =
-        s.flatMapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-
-      // mapAsyncUnorderedRetryWithBackoffF and flatMapAsyncUnorderedRetryWithBackoffF not applicable due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions
-    }
-  }
-
-  object flow {
-    implicit class FlowMonadOpsF[In, Out, Mat, F[_]](
-                                                      val s: Flow[In, F[Out], Mat]
-                                                        with FlowOps[F[Out], Mat]
-                                                    )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): Flow[In, F[Out2], Mat] = s.map(monad.lift(f))
-
-      def flatMapF[Out2](f: Out => F[Out2]): Flow[In, F[Out2], Mat] = s.map(monad.flatMap(_)(f))
-    }
-
-    implicit class FlowFilterOpsF[In, Out, Mat, F[_]](
-                                                       val s: Flow[In, F[Out], Mat]
-                                                         with FlowOps[F[Out], Mat]
-                                                     )(implicit traverseFilter: TraverseFilter[F]) {
-      def filterF(p: Out => Boolean): Flow[In, F[Out], Mat] = s.map(traverseFilter.filter(_)(p))
-
-      def collectF[Out2](pf: PartialFunction[Out, Out2]): Flow[In, F[Out2], Mat] = s.map(traverseFilter.collect(_)(pf))
-    }
-
-    implicit class FlowOptionOpsF[In, Out, Mat](
-                                                 val s: Flow[In, Option[Out], Mat]
-                                               ) {
-      def flattenF: Flow[In, Out, Mat] = s.collect {
-        case Some(value) => value
-      }
-    }
-
-    implicit class FlowEitherOpsF[In, OutL, OutR, Mat](
-                                                        val s: Flow[In, Either[OutL, OutR], Mat]
-                                                          with FlowOps[Either[OutL, OutR], Mat]
-                                                      ) {
-      def filterOrElseF(p: OutR => Boolean, zero: => OutL): Flow[In, Either[OutL, OutR], Mat] = s.map(_.filterOrElse(p, zero))
-
-      def collectF[Out2](pf: PartialFunction[OutR, Out2])(zero: => OutL): Flow[In, Either[OutL, Out2], Mat] = s.map(_.flatMap {
-        case right if pf.isDefinedAt(right) => Right(pf(right))
-        case _ => Left(zero)
-      })
-    }
-
-    implicit class FlowTryOpsF[In, Out, Mat](
-                                              val s: Flow[In, Try[Out], Mat]
-                                                with FlowOps[Try[Out], Mat]
-                                            ) {
-      def filterOrElseF(p: Out => Boolean, zero: => Throwable): Flow[In, Try[Out], Mat] = s.map(_.flatMap {
-        case value if p(value) => Success(value)
-        case _ => Failure(zero)
-      })
-
-      def collectF[Out2](pf: PartialFunction[Out, Out2])(zero: => Throwable): Flow[In, Try[Out2], Mat] = s.map(_.flatMap {
-        case value if pf.isDefinedAt(value) => Success(pf(value))
-        case _ => Failure(zero)
-      })
-
-      def mapConcatF[Out2](f: Out => IterableOnce[Out2]): Flow[In, Try[Out2], Mat] = s.mapConcat {
-        case Failure(exception) => Seq(Failure(exception))
-        case Success(value) => f(value).iterator.map(Success(_))
-      }
-    }
-
-    implicit class FlowOpsBase[In, Out, Mat](
-                                              val s: Flow[In, Out, Mat]
-                                                with FlowOps[Out, Mat]
-                                            ) {
-      def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                          implicit mat: Materializer,
-                                          ec: ExecutionContext,
-                                          log: IzLogger,
-                                          pos: CodePositionMaterializer
-                                        ) =
-        s.mapAsync(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-
-      def mapAsyncUnorderedRetryWithBackoff[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                                   implicit mat: Materializer,
-                                                   ec: ExecutionContext,
-                                                   log: IzLogger,
-                                                   pos: CodePositionMaterializer
-                                                 ) =
-        s.mapAsyncUnordered(parallelism)({ element =>
+                                             ): s.Repr[F[OutA, Out2], Ctx] =
+        flatMapAsyncF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
     }
 
-    implicit class FlowOpsS[In, Out, Mat, F[_]](
-                                                 val s: Flow[In, F[Out], Mat]
-                                                   with FlowOps[F[Out], Mat]
-                                               )(implicit wrapper: Wrapper[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): Flow[In, F[Out2], Mat] =
-        s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
+    implicit class SourceWrapper2OpsF[OutA, OutB, Ctx, Mat, F[_, _]](
+                                                                      val s: SourceWithContext[F[OutA, OutB], Ctx, Mat]
+                                                                    )(
+                                                                      implicit val wrapper: Wrapper2[F]
+                                                                    ) extends Wrapper2OpsF[OutA, OutB, Ctx, Mat, F]
 
-      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): Flow[In, F[Out2], Mat] =
-        s.mapAsyncUnordered(parallelism)(wrapper.mapAsync(_)(f))
-
-      def filterS(p: Out => Boolean): Flow[In, F[Out], Mat] = s.filter(wrapper.filterS(_)(p))
-
-      def collectS[Out2](pf: PartialFunction[Out, Out2]): Flow[In, F[Out2], Mat] = s.collect(wrapper.collectS(pf))
-
-      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                           implicit mat: Materializer,
-                                           ec: ExecutionContext,
-                                           log: IzLogger,
-                                           pos: CodePositionMaterializer
-                                         ) =
-        s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-
-      def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                                    implicit mat: Materializer,
-                                                    ec: ExecutionContext,
-                                                    log: IzLogger,
-                                                    pos: CodePositionMaterializer
-                                                  ) =
-        s.mapAsyncUnorderedF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-    }
-
-    implicit class FlowOpsS2[In, OutA, OutB, Mat, F[_, _]](
-                                                            val s: Flow[In, F[OutA, OutB], Mat]
-                                                              with FlowOps[F[OutA, OutB], Mat]
-                                                          )(implicit wrapper: Wrapper2[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): Flow[In, F[OutA, Out2], Mat] =
-        s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
-
-      def mapAsyncUnorderedF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): Flow[In, F[OutA, Out2], Mat] =
-        s.mapAsyncUnordered(parallelism)(wrapper.mapAsync(_)(f))
-
-      def filterS(p: OutB => Boolean): Flow[In, F[OutA, OutB], Mat] = s.filter(wrapper.filterS(_)(p))
-
-      def collectS[Out2](pf: PartialFunction[OutB, Out2]): Flow[In, F[OutA, Out2], Mat] = s.collect(wrapper.collectS(pf))
-
-      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
-        f: OutB => Future[Out2],
-        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                           implicit mat: Materializer,
-                                           ec: ExecutionContext,
-                                           log: IzLogger,
-                                           pos: CodePositionMaterializer
-                                         ) =
-        s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-
-      def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
-        f: OutB => Future[Out2],
-        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                                    implicit mat: Materializer,
-                                                    ec: ExecutionContext,
-                                                    log: IzLogger,
-                                                    pos: CodePositionMaterializer
-                                                  ) =
-        s.mapAsyncUnorderedF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-    }
-  }
-
-  object flowWithContext {
-    implicit class FlowWithContextMonadOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
-                                                                                val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
-                                                                                  with FlowWithContextOps[F[Out], CtxOut, Mat]
-                                                                              )(implicit monad: Monad[F]) {
-      def mapF[Out2](f: Out => Out2): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(monad.lift(f))
-
-      def flatMapF[Out2](f: Out => F[Out2]): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(monad.flatMap(_)(f))
-    }
-
-    implicit class FlowWithContextFilterOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
-                                                                                 val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
-                                                                                   with FlowWithContextOps[F[Out], CtxOut, Mat]
-                                                                               )(implicit traverseFilter: TraverseFilter[F]) {
-      def filterF(p: Out => Boolean): FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat] = s.map(traverseFilter.filter(_)(p))
-
-      def collectF[Out2](pf: PartialFunction[Out, Out2]): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.map(traverseFilter.collect(_)(pf))
-    }
-
-    implicit class FlowWithContextEitherOpsF[In, CtxIn, OutL, OutR, CtxOut, Mat](
-                                                                                  val s: FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat]
-                                                                                    with FlowWithContextOps[Either[OutL, OutR], CtxOut, Mat]
-                                                                                ) {
-      def filterOrElseF(p: OutR => Boolean, zero: => OutL): FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat] = s.map(_.filterOrElse(p, zero))
-
-      def collectF[Out2](pf: PartialFunction[OutR, Out2])(zero: => OutL): FlowWithContext[In, CtxIn, Either[OutL, Out2], CtxOut, Mat] = s.map(_.flatMap {
-        case right if pf.isDefinedAt(right) => Right(pf(right))
-        case _ => Left(zero)
-      })
-    }
-
-    implicit class FlowWithContextTryOpsF[In, CtxIn, Out, CtxOut, Mat](
-                                                                        val s: FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat]
-                                                                          with FlowWithContextOps[Try[Out], CtxOut, Mat]
-                                                                      ) {
-      def filterOrElseF(p: Out => Boolean, zero: => Throwable): FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat] = s.map(_.flatMap {
-        case value if p(value) => Success(value)
-        case _ => Failure(zero)
-      })
-
-      def collectF[Out2](pf: PartialFunction[Out, Out2])(zero: => Throwable): FlowWithContext[In, CtxIn, Try[Out2], CtxOut, Mat] = s.map(_.flatMap {
-        case value if pf.isDefinedAt(value) => Success(pf(value))
-        case _ => Failure(zero)
-      })
-    }
-
-    implicit class FlowWithContextOpsBase[In, CtxIn, Out, CtxOut, Mat](
-                                                                        val s: FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
-                                                                          with FlowWithContextOps[Out, CtxOut, Mat]
-                                                                      ) {
-      def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                          implicit mat: Materializer,
-                                          ec: ExecutionContext,
-                                          log: IzLogger,
-                                          pos: CodePositionMaterializer
-                                        ) =
-        s.mapAsync(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-    }
-
-    implicit class FlowWithContextOpsS[In, CtxIn, Out, CtxOut, Mat, F[_]](
-                                                                           val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
-                                                                             with FlowWithContextOps[F[Out], CtxOut, Mat]
-                                                                         )(implicit wrapper: Wrapper[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: Out => Future[Out2])(implicit executionContext: ExecutionContext): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] =
-        s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
-
-      def filterS(p: Out => Boolean): FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat] = s.filter(wrapper.filterS(_)(p))
-
-      def collectS[Out2](pf: PartialFunction[Out, Out2]): FlowWithContext[In, CtxIn, F[Out2], CtxOut, Mat] = s.collect(wrapper.collectS(pf))
-
-      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
-        f: Out => Future[Out2],
-        message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                           implicit mat: Materializer,
-                                           ec: ExecutionContext,
-                                           log: IzLogger,
-                                           pos: CodePositionMaterializer
-                                         ) =
-        s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-    }
-
-    implicit class FlowWithContextOpsS2[In, CtxIn, OutA, OutB, CtxOut, Mat, F[_, _]](
-                                                                                      val s: FlowWithContext[In, CtxIn, F[OutA, OutB], CtxOut, Mat]
-                                                                                        with FlowWithContextOps[F[OutA, OutB], CtxOut, Mat]
-                                                                                    )(implicit wrapper: Wrapper2[F]) {
-      def mapAsyncF[Out2](parallelism: Int)(f: OutB => Future[Out2])(implicit executionContext: ExecutionContext): FlowWithContext[In, CtxIn, F[OutA, Out2], CtxOut, Mat] =
-        s.mapAsync(parallelism)(wrapper.mapAsync(_)(f))
-
-      def filterS(p: OutB => Boolean): FlowWithContext[In, CtxIn, F[OutA, OutB], CtxOut, Mat] = s.filter(wrapper.filterS(_)(p))
-
-      def collectS[Out2](pf: PartialFunction[OutB, Out2]): FlowWithContext[In, CtxIn, F[OutA, Out2], CtxOut, Mat] = s.collect(wrapper.collectS(pf))
-
-      def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
-        f: OutB => Future[Out2],
-        message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
-      )(
-                                           implicit mat: Materializer,
-                                           ec: ExecutionContext,
-                                           log: IzLogger,
-                                           pos: CodePositionMaterializer
-                                         ) =
-        s.mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
-        })
-    }
-  }
-
-  object subflow {
-    implicit class SubFlowEitherOps[+OutL, +OutR, +Mat, +Repr[+_], C](val s: SubFlow[Either[OutL, OutR], Mat, Repr, C]
-                                                                     ) {
-      def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): SubFlow[Either[OutL, OutR2], Mat, Repr, C] =
-        s.fold(
-          zero -> Seq.empty[Either[OutL, OutR2]]
-        ) {
-          case ((acc, lefts), next) => next match {
-            case Right(value) => f(acc, value) -> lefts
-            case Left(value) => acc -> (lefts :+ Left(value))
-          }
-        }.mapConcat { case (value, lefts) =>
-          lefts :+ Right(value)
-        }
-
-      def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): SubFlow[Either[OutL, OutR2], Mat, Repr, C] = s.mapConcat {
-        case Right(value) => f(value).iterator.map(Right(_))
-        case Left(value) => Seq(Left(value))
-      }
-    }
+    implicit class FlowWrapper2OpsF[In, CtxIn, OutA, OutB, CtxOut, Mat, F[_, _]](
+                                                                                  val s: FlowWithContext[In, CtxIn, F[OutA, OutB], CtxOut, Mat]
+                                                                                )(
+                                                                                  implicit val wrapper: Wrapper2[F]
+                                                                                ) extends Wrapper2OpsF[OutA, OutB, CtxOut, Mat, F]
   }
 }

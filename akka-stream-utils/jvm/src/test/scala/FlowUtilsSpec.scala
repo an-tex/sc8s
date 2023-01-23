@@ -7,8 +7,7 @@ import cats.implicits.{catsStdInstancesForEither, catsStdInstancesForOption, cat
 import izumi.logstage.api.IzLogger
 import izumi.logstage.api.Log.Level
 import izumi.logstage.sink.ConsoleSink.SimpleConsoleSink
-import net.sc8s.akka.stream.FlowUtils.flow.{FlowMonadOpsF, FlowOptionOpsF}
-import net.sc8s.akka.stream.FlowUtils.source._
+import net.sc8s.akka.stream.FlowUtils.flow._
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
 import org.scalatest.wordspec.AnyWordSpecLike
 

@@ -364,6 +364,7 @@ inThisBuild(Seq(
     // needs to be added here instead of Dependencies.overrides due to .value call
     circe.core.value
   ),
+  githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 ))
 
 Global / excludeLintKeys += idePackagePrefix

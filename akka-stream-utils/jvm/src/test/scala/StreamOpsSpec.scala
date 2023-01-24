@@ -2,19 +2,19 @@ package net.sc8s.akka.stream
 
 import akka.NotUsed
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.stream.scaladsl.{Flow, FlowWithContext, Sink, Source}
 import cats.implicits.{catsStdInstancesForEither, catsStdInstancesForOption, catsStdInstancesForTry, catsStdTraverseFilterForOption}
 import izumi.logstage.api.IzLogger
 import izumi.logstage.api.Log.Level
 import izumi.logstage.sink.ConsoleSink.SimpleConsoleSink
-import net.sc8s.akka.stream.FlowUtils.flow._
+import net.sc8s.akka.stream.implicits._
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
 import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
-class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with TableDrivenPropertyChecks {
+class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with TableDrivenPropertyChecks {
   implicit val executionContext = testKit.system.executionContext
 
   implicit val consoleLogger = IzLogger(Level.Trace, SimpleConsoleSink)
@@ -372,6 +372,12 @@ class FlowUtilsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .via(Flow[Option[Int]].flattenF)
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(1, 2)
+    }
+    "FlowWithContext operators" in {
+      Flow[Option[Int]].flattenF
+      FlowWithContext[Option[Int], Boolean].flatMapF(Option(_))
+      FlowWithContext[Option[Int], Boolean].mapAsyncF(1)(Future.successful)
+      Flow[Int].mapAsyncUnorderedRetryWithBackoff(8)(Future.successful)
     }
   }
 

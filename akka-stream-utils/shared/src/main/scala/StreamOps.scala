@@ -1,6 +1,6 @@
 package net.sc8s.akka.stream
 
-import akka.stream.scaladsl.{Flow, FlowOps, FlowWithContext, FlowWithContextOps, RunnableGraph, Source, SourceWithContext, SubFlow}
+import akka.stream.scaladsl.{Flow, FlowOps, FlowWithContext, FlowWithContextOps, Source, SourceWithContext, SubFlow}
 import akka.stream.{Materializer, RestartSettings}
 import cats.instances.either._
 import cats.instances.future._
@@ -14,7 +14,7 @@ import izumi.logstage.api.{IzLogger, Log}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Right, Success, Try}
 
-object FlowUtils {
+object StreamOps {
   trait Wrapper[F[_]] {
 
     def mapAsync[A, B](fa: F[A])(f: A => Future[B])(implicit executionContext: ExecutionContext): Future[F[B]]
@@ -98,10 +98,33 @@ object FlowUtils {
     }
   }
 
+  trait SourceImplicits
+    extends source.MonadOpsImplicits
+      with source.FilterOpsImplicits
+      with source.IterableOnceOpsImplicits
+      with source.OptionOpsImplicits
+      with source.EitherOpsImplicits
+      with source.TryOpsImplicits
+      with source.AsyncOpsImplicits
+      with source.WrapperOpsImplicits
+      with source.Wrapper2OpsImplicits
+
+  trait SourceWithContextImplicits
+    extends sourceWithContext.MonadOpsImplicits
+      with sourceWithContext.FilterOpsImplicits
+      with sourceWithContext.IterableOnceOpsImplicits
+      with sourceWithContext.OptionOpsImplicits
+      with sourceWithContext.EitherOpsImplicits
+      with sourceWithContext.TryOpsImplicits
+      with sourceWithContext.AsyncOpsImplicits
+      with sourceWithContext.WrapperOpsImplicits
+      with sourceWithContext.Wrapper2OpsImplicits
+
+
   // This needs "duplication" https://doc.akka.io/docs/akka/current/stream/stream-customize.html#extending-flow-operators-with-custom-operators :(
 
-  object flow {
-    trait MonadOpsF[Out, Mat, F[_]] {
+  object source {
+    trait MonadOps[Out, Mat, F[_]] {
 
       val s: FlowOps[F[Out], Mat]
       val monad: Monad[F]
@@ -111,25 +134,27 @@ object FlowUtils {
       def flatMapF[Out2](f: Out => F[Out2]): s.Repr[F[Out2]] = s.map(monad.flatMap(_)(f))
     }
 
-    implicit class SourceMonadOpsF[Out, Mat, F[_]](
-                                                    val s: Source[F[Out], Mat]
-                                                  )(
-                                                    implicit val monad: Monad[F]
-                                                  ) extends MonadOpsF[Out, Mat, F]
+    trait MonadOpsImplicits {
+      implicit class SourceMonadOps[Out, Mat, F[_]](
+                                                     val s: Source[F[Out], Mat]
+                                                   )(
+                                                     implicit val monad: Monad[F]
+                                                   ) extends MonadOps[Out, Mat, F]
 
-    implicit class FlowMonadOpsF[In, Out, Mat, F[_]](
-                                                      val s: Flow[F[In], F[Out], Mat]
-                                                    )(
-                                                      implicit val monad: Monad[F]
-                                                    ) extends MonadOpsF[Out, Mat, F]
+      implicit class FlowMonadOps[In, Out, Mat, F[_]](
+                                                       val s: Flow[In, F[Out], Mat]
+                                                     )(
+                                                       implicit val monad: Monad[F]
+                                                     ) extends MonadOps[Out, Mat, F]
 
-    implicit class SubFlowMonadOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
-                                                                      val s: SubFlow[F[Out], Mat, SubFlowF, C]
-                                                                    )(
-                                                                      implicit val monad: Monad[F]
-                                                                    ) extends MonadOpsF[Out, Mat, F]
+      implicit class SubFlowMonadOps[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                       val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                     )(
+                                                                       implicit val monad: Monad[F]
+                                                                     ) extends MonadOps[Out, Mat, F]
+    }
 
-    trait FilterOpsF[Out, Mat, F[_]] {
+    trait FilterOps[Out, Mat, F[_]] {
       val s: FlowOps[F[Out], Mat]
       val traverseFilter: TraverseFilter[F]
 
@@ -138,45 +163,50 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): s.Repr[F[Out2]] = s.map(traverseFilter.collect(_)(pf))
     }
 
-    implicit class SourceFilterOpsF[Out, Mat, F[_]](
-                                                     val s: Source[F[Out], Mat]
-                                                   )(
-                                                     implicit val traverseFilter: TraverseFilter[F]
-                                                   ) extends FilterOpsF[Out, Mat, F]
+    trait FilterOpsImplicits {
+      implicit class SourceFilterOps[Out, Mat, F[_]](
+                                                      val s: Source[F[Out], Mat]
+                                                    )(
+                                                      implicit val traverseFilter: TraverseFilter[F]
+                                                    ) extends FilterOps[Out, Mat, F]
 
-    implicit class FlowFilterOpsF[In, Out, Mat, F[_]](
-                                                       val s: Flow[F[In], F[Out], Mat]
-                                                     )(
-                                                       implicit val traverseFilter: TraverseFilter[F]
-                                                     ) extends FilterOpsF[Out, Mat, F]
+      implicit class FlowFilterOps[In, Out, Mat, F[_]](
+                                                        val s: Flow[In, F[Out], Mat]
+                                                      )(
+                                                        implicit val traverseFilter: TraverseFilter[F]
+                                                      ) extends FilterOps[Out, Mat, F]
 
-    implicit class SubFlowFilterOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
-                                                                       val s: SubFlow[F[Out], Mat, SubFlowF, C]
-                                                                     )(
-                                                                       implicit val traverseFilter: TraverseFilter[F]
-                                                                     ) extends FilterOpsF[Out, Mat, F]
+      implicit class SubFlowFilterOps[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                        val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                      )(
+                                                                        implicit val traverseFilter: TraverseFilter[F]
+                                                                      ) extends FilterOps[Out, Mat, F]
+    }
 
-    trait IterableOnceOpsF[Out, Mat, F[Out] <: IterableOnce[Out]] {
+    trait IterableOnceOps[Out, Mat, F[Out] <: IterableOnce[Out]] {
       val s: FlowOps[F[Out], Mat]
 
       def flattenF: s.Repr[Out] = s.mapConcat(identity)
     }
 
-    implicit class SourceIterableOnceOpsF[Out, Mat, F[Out] <: IterableOnce[Out]](
-                                                                                  val s: Source[F[Out], Mat]
-                                                                                ) extends IterableOnceOpsF[Out, Mat, F]
+    trait IterableOnceOpsImplicits {
 
-    implicit class FlowIterableOnceOpsF[In, Out, Mat, F[Out] <: IterableOnce[Out]](
-                                                                                    val s: Flow[F[In], F[Out], Mat]
-                                                                                  ) extends IterableOnceOpsF[Out, Mat, F]
+      implicit class SourceIterableOnceOps[Out, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                   val s: Source[F[Out], Mat]
+                                                                                 ) extends IterableOnceOps[Out, Mat, F]
 
-    implicit class SubFlowIterableOnceOpsF[Out, Mat, SubFlowF[+_], C, F[Out] <: IterableOnce[Out]](
-                                                                                                    val s: SubFlow[F[Out], Mat, SubFlowF, C]
-                                                                                                  )(
-                                                                                                    implicit val traverseFilter: TraverseFilter[F]
-                                                                                                  ) extends IterableOnceOpsF[Out, Mat, F]
+      implicit class FlowIterableOnceOps[In, Out, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                     val s: Flow[In, F[Out], Mat]
+                                                                                   ) extends IterableOnceOps[Out, Mat, F]
 
-    trait OptionOpsF[Out, Mat] {
+      implicit class SubFlowIterableOnceOps[Out, Mat, SubFlowF[+_], C, F[Out] <: IterableOnce[Out]](
+                                                                                                     val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                                                   )(
+                                                                                                     implicit val traverseFilter: TraverseFilter[F]
+                                                                                                   ) extends IterableOnceOps[Out, Mat, F]
+    }
+
+    trait OptionOps[Out, Mat] {
       val s: FlowOps[Option[Out], Mat]
 
       def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[Option[Out], Mat, s.Repr, s.Closed] = {
@@ -201,19 +231,21 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceOptionOpsF[Out, Mat](
-                                               val s: Source[Option[Out], Mat]
-                                             ) extends OptionOpsF[Out, Mat]
+    trait OptionOpsImplicits {
+      implicit class SourceOptionOps[Out, Mat](
+                                                val s: Source[Option[Out], Mat]
+                                              ) extends OptionOps[Out, Mat]
 
-    implicit class FlowOptionOpsF[In, Out, Mat](
-                                                 val s: Flow[Option[In], Option[Out], Mat]
-                                               ) extends OptionOpsF[Out, Mat]
+      implicit class FlowOptionOps[In, Out, Mat](
+                                                  val s: Flow[In, Option[Out], Mat]
+                                                ) extends OptionOps[Out, Mat]
 
-    implicit class SubFlowOptionOpsF[Out, Mat, SubFlowF[+_], C](
-                                                                 val s: SubFlow[Option[Out], Mat, SubFlowF, C]
-                                                               ) extends OptionOpsF[Out, Mat]
+      implicit class SubFlowOptionOps[Out, Mat, SubFlowF[+_], C](
+                                                                  val s: SubFlow[Option[Out], Mat, SubFlowF, C]
+                                                                ) extends OptionOps[Out, Mat]
+    }
 
-    trait EitherOpsF[OutL, OutR, Mat] {
+    trait EitherOps[OutL, OutR, Mat] {
       val s: FlowOps[Either[OutL, OutR], Mat]
 
       def filterOrElseF(p: OutR => Boolean, zero: => OutL): s.Repr[Either[OutL, OutR]] = s.map(_.filterOrElse(p, zero))
@@ -252,19 +284,21 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceEitherOpsF[OutL, OutR, Mat](
-                                                      val s: Source[Either[OutL, OutR], Mat]
-                                                    ) extends EitherOpsF[OutL, OutR, Mat]
+    trait EitherOpsImplicits {
+      implicit class SourceEitherOps[OutL, OutR, Mat](
+                                                       val s: Source[Either[OutL, OutR], Mat]
+                                                     ) extends EitherOps[OutL, OutR, Mat]
 
-    implicit class FlowEitherOpsF[In, OutL, OutR, Mat](
-                                                        val s: Flow[In, Either[OutL, OutR], Mat]
-                                                      ) extends EitherOpsF[OutL, OutR, Mat]
+      implicit class FlowEitherOps[In, OutL, OutR, Mat](
+                                                         val s: Flow[In, Either[OutL, OutR], Mat]
+                                                       ) extends EitherOps[OutL, OutR, Mat]
 
-    implicit class SubFlowEitherOpsF[OutL, OutR, Mat, SubFlowF[+_], C, F[_]](
-                                                                              val s: SubFlow[Either[OutL, OutR], Mat, SubFlowF, C]
-                                                                            ) extends EitherOpsF[OutL, OutR, Mat]
+      implicit class SubFlowEitherOps[OutL, OutR, Mat, SubFlowF[+_], C, F[_]](
+                                                                               val s: SubFlow[Either[OutL, OutR], Mat, SubFlowF, C]
+                                                                             ) extends EitherOps[OutL, OutR, Mat]
+    }
 
-    trait TryOpsF[Out, Mat] {
+    trait TryOps[Out, Mat] {
       val s: FlowOps[Try[Out], Mat]
 
       def filterOrElseF(p: Out => Boolean, zero: => Throwable): s.Repr[Try[Out]] = s.map(_.flatMap {
@@ -306,17 +340,20 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceTryOpsF[Out, Mat](
-                                            val s: Source[Try[Out], Mat]
-                                          ) extends TryOpsF[Out, Mat]
+    trait TryOpsImplicits {
 
-    implicit class FlowTryOpsF[In, Out, Mat](
-                                              val s: Flow[In, Try[Out], Mat]
-                                            ) extends TryOpsF[Out, Mat]
+      implicit class SourceTryOps[Out, Mat](
+                                             val s: Source[Try[Out], Mat]
+                                           ) extends TryOps[Out, Mat]
 
-    implicit class SubFlowTryOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
-                                                                    val s: SubFlow[Try[Out], Mat, SubFlowF, C]
-                                                                  ) extends TryOpsF[Out, Mat]
+      implicit class FlowTryOps[In, Out, Mat](
+                                               val s: Flow[In, Try[Out], Mat]
+                                             ) extends TryOps[Out, Mat]
+
+      implicit class SubFlowTryOps[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                     val s: SubFlow[Try[Out], Mat, SubFlowF, C]
+                                                                   ) extends TryOps[Out, Mat]
+    }
 
     trait AsyncOps[Out, Mat] {
       val s: FlowOps[Out, Mat]
@@ -350,19 +387,22 @@ object FlowUtils {
         })
     }
 
-    implicit class AsyncSourceOps[Out, Mat](
-                                             val s: Source[Out, Mat]
-                                           ) extends AsyncOps[Out, Mat]
+    trait AsyncOpsImplicits {
 
-    implicit class AsyncFlowOps[In, Out, Mat](
-                                               val s: Flow[In, Out, Mat]
+      implicit class AsyncSourceOps[Out, Mat](
+                                               val s: Source[Out, Mat]
                                              ) extends AsyncOps[Out, Mat]
 
-    implicit class AsyncSubFlowOps[Out, Mat, SubFlowF[+_], C](
-                                                               val s: SubFlow[Out, Mat, SubFlowF, C]
-                                                             ) extends AsyncOps[Out, Mat]
+      implicit class AsyncFlowOps[In, Out, Mat](
+                                                 val s: Flow[In, Out, Mat]
+                                               ) extends AsyncOps[Out, Mat]
 
-    trait WrapperOpsF[Out, Mat, F[_]] {
+      implicit class AsyncSubFlowOps[Out, Mat, SubFlowF[+_], C](
+                                                                 val s: SubFlow[Out, Mat, SubFlowF, C]
+                                                               ) extends AsyncOps[Out, Mat]
+    }
+
+    trait WrapperOps[Out, Mat, F[_]] {
       val s: FlowOps[F[Out], Mat]
       val wrapper: Wrapper[F]
 
@@ -441,27 +481,41 @@ object FlowUtils {
         flatMapAsyncUnorderedF(parallelism)({ element =>
           RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
         })
+
+      //def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[F[Out], Mat, s.Repr, s.Closed] = {
+      //  s.groupBy(maxSubstreams, _.map(f))
+      //}
+      //
+      //def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[F[Out], Mat, s.Repr, s.Closed] = {
+      //  s.groupBy(maxSubstreams, {
+      //    case Success(value) => Some(f(value))
+      //    case _ => None
+      //  })
+      //}
     }
 
-    implicit class SourceWrapperOpsF[Out, Mat, F[_]](
-                                                      val s: Source[F[Out], Mat]
-                                                    )(
-                                                      implicit val wrapper: Wrapper[F]
-                                                    ) extends WrapperOpsF[Out, Mat, F]
+    trait WrapperOpsImplicits {
 
-    implicit class FlowWrapperOpsF[In, Out, Mat, F[_]](
-                                                        val s: Flow[F[In], F[Out], Mat]
-                                                      )(
-                                                        implicit val wrapper: Wrapper[F]
-                                                      ) extends WrapperOpsF[Out, Mat, F]
+      implicit class SourceWrapperOps[Out, Mat, F[_]](
+                                                       val s: Source[F[Out], Mat]
+                                                     )(
+                                                       implicit val wrapper: Wrapper[F]
+                                                     ) extends WrapperOps[Out, Mat, F]
 
-    implicit class SubFlowWrapperOpsF[Out, Mat, SubFlowF[+_], C, F[_]](
-                                                                        val s: SubFlow[F[Out], Mat, SubFlowF, C]
-                                                                      )(
-                                                                        implicit val wrapper: Wrapper[F]
-                                                                      ) extends WrapperOpsF[Out, Mat, F]
+      implicit class FlowWrapperOps[In, Out, Mat, F[_]](
+                                                         val s: Flow[In, F[Out], Mat]
+                                                       )(
+                                                         implicit val wrapper: Wrapper[F]
+                                                       ) extends WrapperOps[Out, Mat, F]
 
-    trait Wrapper2OpsF[OutA, OutB, Mat, F[_, _]] {
+      implicit class SubFlowWrapperOps[Out, Mat, SubFlowF[+_], C, F[_]](
+                                                                         val s: SubFlow[F[Out], Mat, SubFlowF, C]
+                                                                       )(
+                                                                         implicit val wrapper: Wrapper[F]
+                                                                       ) extends WrapperOps[Out, Mat, F]
+    }
+
+    trait Wrapper2Ops[OutA, OutB, Mat, F[_, _]] {
       val s: FlowOps[F[OutA, OutB], Mat]
       val wrapper: Wrapper2[F]
 
@@ -542,28 +596,30 @@ object FlowUtils {
         })
     }
 
-    implicit class SourceWrapper2OpsF[OutA, OutB, Mat, F[_, _]](
-                                                                 val s: Source[F[OutA, OutB], Mat]
-                                                               )(
-                                                                 implicit val wrapper: Wrapper2[F]
-                                                               ) extends Wrapper2OpsF[OutA, OutB, Mat, F]
+    trait Wrapper2OpsImplicits {
+      implicit class SourceWrapper2Ops[OutA, OutB, Mat, F[_, _]](
+                                                                  val s: Source[F[OutA, OutB], Mat]
+                                                                )(
+                                                                  implicit val wrapper: Wrapper2[F]
+                                                                ) extends Wrapper2Ops[OutA, OutB, Mat, F]
 
-    implicit class FlowWrapper2OpsF[In, OutA, OutB, Mat, F[_, _]](
-                                                                   val s: Flow[In, F[OutA, OutB], Mat]
-                                                                 )(
-                                                                   implicit val wrapper: Wrapper2[F]
-                                                                 ) extends Wrapper2OpsF[OutA, OutB, Mat, F]
+      implicit class FlowWrapper2Ops[In, OutA, OutB, Mat, F[_, _]](
+                                                                    val s: Flow[In, F[OutA, OutB], Mat]
+                                                                  )(
+                                                                    implicit val wrapper: Wrapper2[F]
+                                                                  ) extends Wrapper2Ops[OutA, OutB, Mat, F]
 
-    implicit class SubFlowWrapper2OpsF[OutA, OutB, Mat, SubFlowF[+_], C, F[_, _]](
-                                                                                   val s: SubFlow[F[OutA, OutB], Mat, SubFlowF, C]
-                                                                                 )(
-                                                                                   implicit val wrapper: Wrapper2[F]
-                                                                                 ) extends Wrapper2OpsF[OutA, OutB, Mat, F]
+      implicit class SubFlowWrapper2Ops[OutA, OutB, Mat, SubFlowF[+_], C, F[_, _]](
+                                                                                    val s: SubFlow[F[OutA, OutB], Mat, SubFlowF, C]
+                                                                                  )(
+                                                                                    implicit val wrapper: Wrapper2[F]
+                                                                                  ) extends Wrapper2Ops[OutA, OutB, Mat, F]
+    }
   }
 
   // groupBy, fold and mapAsyncUnordered*, flatMapConcat, flatMapConcatMerge not possible due to https://doc.akka.io/docs/akka/current/stream/stream-context.html#restrictions , hence SubFlow not available either
-  object flowWithContext {
-    trait MonadOpsF[Out, Ctx, Mat, F[_]] {
+  object sourceWithContext {
+    trait MonadOps[Out, Ctx, Mat, F[_]] {
 
       val s: FlowWithContextOps[F[Out], Ctx, Mat]
       val monad: Monad[F]
@@ -573,19 +629,21 @@ object FlowUtils {
       def flatMapF[Out2](f: Out => F[Out2]): s.Repr[F[Out2], Ctx] = s.map(monad.flatMap(_)(f))
     }
 
-    implicit class SourceMonadOpsF[Out, Ctx, Mat, F[_]](
-                                                         val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                       )(
-                                                         implicit val monad: Monad[F]
-                                                       ) extends MonadOpsF[Out, Ctx, Mat, F]
+    trait MonadOpsImplicits {
+      implicit class SourceMonadOps[Out, Ctx, Mat, F[_]](
+                                                          val s: SourceWithContext[F[Out], Ctx, Mat]
+                                                        )(
+                                                          implicit val monad: Monad[F]
+                                                        ) extends MonadOps[Out, Ctx, Mat, F]
 
-    implicit class FlowMonadOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
-                                                                     val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
-                                                                   )(
-                                                                     implicit val monad: Monad[F]
-                                                                   ) extends MonadOpsF[Out, CtxOut, Mat, F]
+      implicit class FlowMonadOps[In, CtxIn, Out, CtxOut, Mat, F[_]](
+                                                                      val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
+                                                                    )(
+                                                                      implicit val monad: Monad[F]
+                                                                    ) extends MonadOps[Out, CtxOut, Mat, F]
+    }
 
-    trait FilterOpsF[Out, Ctx, Mat, F[_]] {
+    trait FilterOps[Out, Ctx, Mat, F[_]] {
       val s: FlowWithContextOps[F[Out], Ctx, Mat]
       val traverseFilter: TraverseFilter[F]
 
@@ -594,33 +652,39 @@ object FlowUtils {
       def collectF[Out2](pf: PartialFunction[Out, Out2]): s.Repr[F[Out2], Ctx] = s.map(traverseFilter.collect(_)(pf))
     }
 
-    implicit class SourceFilterOpsF[Out, Ctx, Mat, F[_]](
-                                                          val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                        )(
-                                                          implicit val traverseFilter: TraverseFilter[F]
-                                                        ) extends FilterOpsF[Out, Ctx, Mat, F]
+    trait FilterOpsImplicits {
 
-    implicit class FlowFilterOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
-                                                                      val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
-                                                                    )(
-                                                                      implicit val traverseFilter: TraverseFilter[F]
-                                                                    ) extends FilterOpsF[Out, CtxOut, Mat, F]
+      implicit class SourceFilterOps[Out, Ctx, Mat, F[_]](
+                                                           val s: SourceWithContext[F[Out], Ctx, Mat]
+                                                         )(
+                                                           implicit val traverseFilter: TraverseFilter[F]
+                                                         ) extends FilterOps[Out, Ctx, Mat, F]
 
-    trait IterableOnceOpsF[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]] {
+      implicit class FlowFilterOps[In, CtxIn, Out, CtxOut, Mat, F[_]](
+                                                                       val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
+                                                                     )(
+                                                                       implicit val traverseFilter: TraverseFilter[F]
+                                                                     ) extends FilterOps[Out, CtxOut, Mat, F]
+    }
+
+    trait IterableOnceOps[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]] {
       val s: FlowWithContextOps[F[Out], Ctx, Mat]
 
       def flattenF: s.Repr[Out, Ctx] = s.mapConcat(identity)
     }
 
-    implicit class SourceIterableOnceOpsF[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]](
-                                                                                       val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                                                     ) extends IterableOnceOpsF[Out, Ctx, Mat, F]
+    trait IterableOnceOpsImplicits {
 
-    implicit class FlowIterableOnceOpsF[In, CtxIn, Out, CtxOut, Mat, F[Out] <: IterableOnce[Out]](
-                                                                                                   val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
-                                                                                                 ) extends IterableOnceOpsF[Out, CtxOut, Mat, F]
+      implicit class SourceIterableOnceOps[Out, Ctx, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                        val s: SourceWithContext[F[Out], Ctx, Mat]
+                                                                                      ) extends IterableOnceOps[Out, Ctx, Mat, F]
 
-    trait OptionOpsF[Out, Ctx, Mat] {
+      implicit class FlowIterableOnceOps[In, CtxIn, Out, CtxOut, Mat, F[Out] <: IterableOnce[Out]](
+                                                                                                    val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
+                                                                                                  ) extends IterableOnceOps[Out, CtxOut, Mat, F]
+    }
+
+    trait OptionOps[Out, Ctx, Mat] {
       val s: FlowWithContextOps[Option[Out], Ctx, Mat]
 
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Option[Out2], Ctx] = s.mapConcat {
@@ -629,15 +693,18 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceOptionOpsF[Out, Ctx, Mat](
-                                                    val s: SourceWithContext[Option[Out], Ctx, Mat]
-                                                  ) extends OptionOpsF[Out, Ctx, Mat]
+    trait OptionOpsImplicits {
 
-    implicit class FlowOptionOpsF[In, CtxIn, Out, CtxOut, Mat](
-                                                                val s: FlowWithContext[Option[In], CtxIn, Option[Out], CtxOut, Mat]
-                                                              ) extends OptionOpsF[Out, CtxOut, Mat]
+      implicit class SourceOptionOps[Out, Ctx, Mat](
+                                                     val s: SourceWithContext[Option[Out], Ctx, Mat]
+                                                   ) extends OptionOps[Out, Ctx, Mat]
 
-    trait EitherOpsF[OutL, OutR, Ctx, Mat] {
+      implicit class FlowOptionOps[In, CtxIn, Out, CtxOut, Mat](
+                                                                 val s: FlowWithContext[In, CtxIn, Option[Out], CtxOut, Mat]
+                                                               ) extends OptionOps[Out, CtxOut, Mat]
+    }
+
+    trait EitherOps[OutL, OutR, Ctx, Mat] {
       val s: FlowWithContextOps[Either[OutL, OutR], Ctx, Mat]
 
       def filterOrElseF(p: OutR => Boolean, zero: => OutL): s.Repr[Either[OutL, OutR], Ctx] = s.map(_.filterOrElse(p, zero))
@@ -657,15 +724,17 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceEitherOpsF[OutL, OutR, Ctx, Mat](
-                                                           val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
-                                                         ) extends EitherOpsF[OutL, OutR, Ctx, Mat]
+    trait EitherOpsImplicits {
+      implicit class SourceEitherOps[OutL, OutR, Ctx, Mat](
+                                                            val s: SourceWithContext[Either[OutL, OutR], Ctx, Mat]
+                                                          ) extends EitherOps[OutL, OutR, Ctx, Mat]
 
-    implicit class FlowEitherOpsF[In, CtxIn, OutL, OutR, CtxOut, Mat](
-                                                                       val s: FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat]
-                                                                     ) extends EitherOpsF[OutL, OutR, CtxOut, Mat]
+      implicit class FlowEitherOps[In, CtxIn, OutL, OutR, CtxOut, Mat](
+                                                                        val s: FlowWithContext[In, CtxIn, Either[OutL, OutR], CtxOut, Mat]
+                                                                      ) extends EitherOps[OutL, OutR, CtxOut, Mat]
+    }
 
-    trait TryOpsF[Out, Ctx, Mat] {
+    trait TryOps[Out, Ctx, Mat] {
       val s: FlowWithContextOps[Try[Out], Ctx, Mat]
 
       def filterOrElseF(p: Out => Boolean, zero: => Throwable): s.Repr[Try[Out], Ctx] = s.map(_.flatMap {
@@ -688,13 +757,15 @@ object FlowUtils {
       }
     }
 
-    implicit class SourceTryOpsF[Out, Ctx, Mat](
-                                                 val s: SourceWithContext[Try[Out], Ctx, Mat]
-                                               ) extends TryOpsF[Out, Ctx, Mat]
+    trait TryOpsImplicits {
+      implicit class SourceTryOps[Out, Ctx, Mat](
+                                                  val s: SourceWithContext[Try[Out], Ctx, Mat]
+                                                ) extends TryOps[Out, Ctx, Mat]
 
-    implicit class FlowTryOpsF[In, CtxIn, Out, CtxOut, Mat](
-                                                             val s: FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat]
-                                                           ) extends TryOpsF[Out, CtxOut, Mat]
+      implicit class FlowTryOps[In, CtxIn, Out, CtxOut, Mat](
+                                                              val s: FlowWithContext[In, CtxIn, Try[Out], CtxOut, Mat]
+                                                            ) extends TryOps[Out, CtxOut, Mat]
+    }
 
     trait AsyncOps[Out, Ctx, Mat] {
       val s: FlowWithContextOps[Out, Ctx, Mat]
@@ -714,15 +785,17 @@ object FlowUtils {
         })
     }
 
-    implicit class AsyncSourceOps[Out, Ctx, Mat](
-                                                  val s: SourceWithContext[Out, Ctx, Mat]
-                                                ) extends AsyncOps[Out, Ctx, Mat]
+    trait AsyncOpsImplicits {
+      implicit class AsyncSourceOps[Out, Ctx, Mat](
+                                                    val s: SourceWithContext[Out, Ctx, Mat]
+                                                  ) extends AsyncOps[Out, Ctx, Mat]
 
-    implicit class AsyncFlowOps[In, CtxIn, Out, CtxOut, Mat](
-                                                              val s: FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
-                                                            ) extends AsyncOps[Out, CtxOut, Mat]
+      implicit class AsyncFlowOps[In, CtxIn, Out, CtxOut, Mat](
+                                                                val s: FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
+                                                              ) extends AsyncOps[Out, CtxOut, Mat]
+    }
 
-    trait WrapperOpsF[Out, Ctx, Mat, F[_]] {
+    trait WrapperOps[Out, Ctx, Mat, F[_]] {
       val s: FlowWithContextOps[F[Out], Ctx, Mat]
       val wrapper: Wrapper[F]
 
@@ -765,19 +838,21 @@ object FlowUtils {
         })
     }
 
-    implicit class SourceWrapperOpsF[Out, Ctx, Mat, F[_]](
-                                                           val s: SourceWithContext[F[Out], Ctx, Mat]
-                                                         )(
-                                                           implicit val wrapper: Wrapper[F]
-                                                         ) extends WrapperOpsF[Out, Ctx, Mat, F]
+    trait WrapperOpsImplicits {
+      implicit class SourceWrapperOps[Out, Ctx, Mat, F[_]](
+                                                            val s: SourceWithContext[F[Out], Ctx, Mat]
+                                                          )(
+                                                            implicit val wrapper: Wrapper[F]
+                                                          ) extends WrapperOps[Out, Ctx, Mat, F]
 
-    implicit class FlowWrapperOpsF[In, CtxIn, Out, CtxOut, Mat, F[_]](
-                                                                       val s: FlowWithContext[F[In], CtxIn, F[Out], CtxOut, Mat]
-                                                                     )(
-                                                                       implicit val wrapper: Wrapper[F]
-                                                                     ) extends WrapperOpsF[Out, CtxOut, Mat, F]
+      implicit class FlowWrapperOps[In, CtxIn, Out, CtxOut, Mat, F[_]](
+                                                                        val s: FlowWithContext[In, CtxIn, F[Out], CtxOut, Mat]
+                                                                      )(
+                                                                        implicit val wrapper: Wrapper[F]
+                                                                      ) extends WrapperOps[Out, CtxOut, Mat, F]
+    }
 
-    trait Wrapper2OpsF[OutA, OutB, Ctx, Mat, F[_, _]] {
+    trait Wrapper2Ops[OutA, OutB, Ctx, Mat, F[_, _]] {
       val s: FlowWithContextOps[F[OutA, OutB], Ctx, Mat]
       val wrapper: Wrapper2[F]
 
@@ -820,16 +895,18 @@ object FlowUtils {
         })
     }
 
-    implicit class SourceWrapper2OpsF[OutA, OutB, Ctx, Mat, F[_, _]](
-                                                                      val s: SourceWithContext[F[OutA, OutB], Ctx, Mat]
-                                                                    )(
-                                                                      implicit val wrapper: Wrapper2[F]
-                                                                    ) extends Wrapper2OpsF[OutA, OutB, Ctx, Mat, F]
+    trait Wrapper2OpsImplicits {
+      implicit class SourceWrapper2Ops[OutA, OutB, Ctx, Mat, F[_, _]](
+                                                                       val s: SourceWithContext[F[OutA, OutB], Ctx, Mat]
+                                                                     )(
+                                                                       implicit val wrapper: Wrapper2[F]
+                                                                     ) extends Wrapper2Ops[OutA, OutB, Ctx, Mat, F]
 
-    implicit class FlowWrapper2OpsF[In, CtxIn, OutA, OutB, CtxOut, Mat, F[_, _]](
-                                                                                  val s: FlowWithContext[In, CtxIn, F[OutA, OutB], CtxOut, Mat]
-                                                                                )(
-                                                                                  implicit val wrapper: Wrapper2[F]
-                                                                                ) extends Wrapper2OpsF[OutA, OutB, CtxOut, Mat, F]
+      implicit class FlowWrapper2Ops[In, CtxIn, OutA, OutB, CtxOut, Mat, F[_, _]](
+                                                                                   val s: FlowWithContext[In, CtxIn, F[OutA, OutB], CtxOut, Mat]
+                                                                                 )(
+                                                                                   implicit val wrapper: Wrapper2[F]
+                                                                                 ) extends Wrapper2Ops[OutA, OutB, CtxOut, Mat, F]
+    }
   }
 }

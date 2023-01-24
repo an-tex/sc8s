@@ -19,7 +19,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
 
   implicit val consoleLogger = IzLogger(Level.Trace, SimpleConsoleSink)
 
-  "FlowUtils" should {
+  "StreamOps" should {
     val mapAsyncOperation = { element: Int => Future.successful(element * 2) }
 
     "Seq" in {

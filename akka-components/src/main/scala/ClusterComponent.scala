@@ -224,6 +224,12 @@ object ClusterComponent {
     val actorRef: ActorRef[component.SerializableCommand]
   }
 
+  private def supervised[T](behavior: Behavior[T]) =
+    Behaviors
+      .supervise(
+        Behaviors.supervise(behavior).onFailure[SkipSupervisedRestartException](SupervisorStrategy.stop)
+      ).onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2))
+
   object Singleton {
 
     private[components] sealed trait SingletonT extends ComponentT {
@@ -256,18 +262,14 @@ object ClusterComponent {
         self =>
 
         private[components] def actorRef(implicit actorSystem: ActorSystem[_]) = {
-          val singletonActor = SingletonActor(
-            Behaviors
-              .supervise(Behaviors.setup[Command] { actorContext =>
-                val componentContext = fromActorContext(actorContext)
-                initializationMessage(componentContext)
-                transformedBehavior(componentContext)
-              }.narrow[SerializableCommand])
-              .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
-            name
-          )
+          val behavior = Behaviors.setup[Command] { actorContext =>
+            val componentContext = fromActorContext(actorContext)
+            initializationMessage(componentContext)
+            transformedBehavior(componentContext)
+          }.narrow[SerializableCommand]
+
           ClusterSingleton(actorSystem).init(
-            singletonTransformation(singletonActor)
+            singletonTransformation(SingletonActor(supervised(behavior), name))
               .withSettings(clusterSingletonSettings(ClusterSingletonSettings(actorSystem)))
           )
         }
@@ -449,13 +451,11 @@ object ClusterComponent {
           val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)
 
           val entity = Entity(typeKey)(entityContext =>
-            Behaviors.supervise(
-              Behaviors.setup[Command](actorContext => transformedBehavior(fromActorContext(
-                actorContext,
-                entityContext,
-                entityIdCodec.decode(entityContext.entityId).get
-              ))).narrow[SerializableCommand]
-            ).onFailure(SupervisorStrategy.restartWithBackoff(1.second, 5.minute, 0.2)),
+            supervised(Behaviors.setup[Command](actorContext => transformedBehavior(fromActorContext(
+              actorContext,
+              entityContext,
+              entityIdCodec.decode(entityContext.entityId).get
+            ))).narrow[SerializableCommand])
           ).withSettings(clusterShardingSettings(ClusterShardingSettings(actorSystem)))
 
           clusterSharding.init(entityTransformation(entity))
@@ -578,4 +578,7 @@ object ClusterComponent {
       }
     }
   }
+
+  // throw this to avoid actor restart by supervisor
+  class SkipSupervisedRestartException(message: String) extends Throwable(message)
 }

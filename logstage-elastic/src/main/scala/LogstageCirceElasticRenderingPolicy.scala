@@ -13,20 +13,26 @@ import izumi.logstage.api.rendering.{RenderedParameter, RenderingOptions}
 import scala.collection.mutable
 
 /*
- The only difference to the original rendering policy is that all parameters are scoped (aka prefixed) with the logging classname. This way parameter name clashes of different types are avoided which leads to dropped events in elastic due to mixing of mapping types for the same path.
+ There two differences compared to the original rendering policy:
+  1. All parameters are scoped (aka prefixed) with the logging classname. This way parameter name clashes of different types are avoided which leads to dropped events in elastic due to mixing of mapping types for the same path.
+  2. Context parameters are additionally added to EventKey with a typeSuffix (to avoid the above mentioned mapping issue) for easier filtering in ElasticSearch
+  3. Names are NOT normalized as per https://www.elastic.co/guide/en/ecs/8.6/ecs-custom-fields-in-ecs.html#_capitalization
  */
 class LogstageCirceElasticRenderingPolicy(
                                            loggerClass: String,
-                                           prettyPrint: Boolean = false
-                                         ) extends LogstageCirceRenderingPolicy(prettyPrint) {
+                                           legacyNameNormalisation: Boolean = false
+                                         ) extends LogstageCirceRenderingPolicy(false) {
 
   override def render(entry: Log.Entry): String = {
     val result = mutable.ArrayBuffer[(String, Json)]()
 
-    val formatted = Format.formatMessage(entry, RenderingOptions(withExceptions = true, colored = false))
+    val formatted = Format.formatMessage(entry, RenderingOptions.colorless)
     val params = parametersToJson[RenderedParameter](
       formatted.parameters ++ formatted.unbalanced,
-      _.normalizedName,
+      // by default logstage normalizes the name by transforming camelCase to snake_case . I find this unnecessary and even annoying when e.g. prefixing fields with the full class name (which is camelCased). ECS even recommends using camelCase https://www.elastic.co/guide/en/ecs/8.6/ecs-custom-fields-in-ecs.html#_capitalization
+      parameter =>
+        if (legacyNameNormalisation) parameter.normalizedName
+        else parameter.arg.name,
       repr,
     )
 
@@ -39,6 +45,8 @@ class LogstageCirceElasticRenderingPolicy(
     if (params.nonEmpty) {
       val paramsWithoutTag = params - eventTagName
 
+      val paramsWithoutTagWithTypeSuffix = addTypeSuffix(paramsWithoutTag).asJsonObject
+
       // custom wrapper scoping parameters using tag and loggerClass
       val wrapped =
         if (paramsWithoutTag.isEmpty) params.asJson
@@ -50,7 +58,14 @@ class LogstageCirceElasticRenderingPolicy(
               eventTagName -> tag.asJson,
               tag -> paramsWithoutTag.asJsonObject.asJson
             ))
-          val jsonObject = JsonObject(loggerClass -> wrappedEvent.asJson)
+          val jsonObject = {
+            // add context fields to EventKey to allow a single filter spanning context & message. message fields take precedence (but all context fields are still in ContextKey)
+            addTypeSuffix(ctx)
+              .asJsonObject
+              .deepMerge(
+                paramsWithoutTagWithTypeSuffix.add(loggerClass, wrappedEvent.asJson)
+              )
+          }
           params.get(eventTagName).fold(jsonObject)(eventTag => jsonObject.add(eventTagName, eventTag)).asJson
         }
 
@@ -58,8 +73,8 @@ class LogstageCirceElasticRenderingPolicy(
     }
 
     if (ctx.nonEmpty) {
-      // additionally scope context by loggerClass
-      result += ContextKey -> JsonObject(loggerClass -> ctx.asJson).deepMerge(ctx.asJsonObject).asJson
+      // scope context by loggerClass (unscoped and with type suffix is already inside EventKey)
+      result += ContextKey -> JsonObject(loggerClass -> ctx.asJson).asJson
     }
 
     result ++= makeEventEnvelope(entry, formatted)
@@ -68,10 +83,24 @@ class LogstageCirceElasticRenderingPolicy(
 
     dump(json)
   }
+
+  // allows indexing of fields with a common name but different types (which elastic rejects)
+  private def addTypeSuffix(params: Map[String, Json]) =
+    params.map { case (name, value) =>
+      val typeSuffix = value.fold(
+        "",
+        _ => "b",
+        _ => "n",
+        _ => "s",
+        _ => "a",
+        _ => "o",
+      ).toUpperCase
+      s"${name}_$typeSuffix" -> value
+    }
 }
 
 object LogstageCirceElasticRenderingPolicy {
-  @inline def apply(loggerClass: String, prettyPrint: Boolean = false): LogstageCirceElasticRenderingPolicy = new LogstageCirceElasticRenderingPolicy(loggerClass, prettyPrint)
+  @inline def apply(loggerClass: String, legacyNameNormalisation: Boolean = false): LogstageCirceElasticRenderingPolicy = new LogstageCirceElasticRenderingPolicy(loggerClass, legacyNameNormalisation)
 
   val eventTagName = "tag"
 }

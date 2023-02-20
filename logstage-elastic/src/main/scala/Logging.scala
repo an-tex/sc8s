@@ -16,7 +16,9 @@ trait Logging extends LoggerTags {
   protected lazy val loggerClass: String = this.getClass.getName.takeWhile(_ != '$')
 
   implicit lazy val log: IzLogger = {
-    lazy val jsonPolicy = LogstageCirceElasticRenderingPolicy(loggerClass)
+    val legacyNameNormalisation = sys.props.get("logger.izumi.legacyNameNormalisation").contains("true")
+
+    lazy val jsonPolicy = LogstageCirceElasticRenderingPolicy(loggerClass, legacyNameNormalisation)
     lazy val stringPolicy = new StringRenderingPolicy(RenderingOptions.default, Some(Logging.template))
 
     val renderPolicies = sys.props.get("logger.izumi.sink") match {

@@ -24,17 +24,17 @@ class LoggingSpec extends AnyWordSpecLike {
 
       consoleLogger.infoT("myTag", s"prefix ${"value" -> "another"} suffix")
     }
-    "test json logging" in {
+    "json logging" in {
       val caseClass = CaseClass(3)
       val elasticLogger = IzLogger(Level.Debug, ConsoleSink(LogstageCirceElasticRenderingPolicy("loggerClass.prefix")))()
       elasticLogger.withCustomContext("myContext" -> "value0").info(s"prefix ${"value1" -> "field1"} middle ${"value2" -> "field2"} $caseClass suffix")
     }
-    "test case class json logging" in {
+    "case class json logging" in {
       val caseClass = CaseClass(3)
       val elasticLogger = IzLogger(Level.Debug, ConsoleSink(LogstageCirceElasticRenderingPolicy("prefix")))()
       elasticLogger.info(s"$caseClass")
     }
-    "test typeSuffixes" in {
+    "typeSuffixes" in {
       val elasticLogger = IzLogger(Level.Debug, ConsoleSink(LogstageCirceElasticRenderingPolicy("loggerClass.prefix")))()
 
       val numberInt = 7
@@ -66,6 +66,10 @@ class LoggingSpec extends AnyWordSpecLike {
       elasticLoggerWithContext.info(s"$numberInt $numberLong $numberDouble $boolean $string $list $mapObject $caseClassObject")
 
       elasticLoggerWithContext.info(s"${"withTag" -> "tag"} $numberInt $numberLong $numberDouble $boolean $string $list $mapObject $caseClassObject")
+    }
+    "legacy logger" in {
+      val elasticLogger = IzLogger(Level.Debug, ConsoleSink(LogstageCirceElasticRenderingPolicy("loggerClass.prefix", legacyNameNormalisation = true)))()
+      elasticLogger.info(s"${true -> "testWithCamelCase"}")
     }
   }
 }

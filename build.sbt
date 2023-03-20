@@ -100,7 +100,6 @@ lazy val `akka-components` = (project in file("akka-components"))
     libraryDependencies ++= Seq(
       akka.persistenceTyped,
       akka.persistenceTestkit,
-      chimney.value,
       scalaTest.value,
       scalamock,
       macwire.macros

@@ -23,7 +23,7 @@ object Dependencies {
     - https://github.com/playframework/twirl/pull/525/files
     - https://github.com/lagom/lagom/pull/3333/files
      */
-    scalaXml
+    scalaXml,
   )
 
   object play {
@@ -139,5 +139,12 @@ object Dependencies {
 
   object cats {
     val core = Def.setting("org.typelevel" %%% "cats-core" % "2.9.0")
+  }
+
+  object logback {
+    private val logback = "1.4.1"
+
+    val core = "ch.qos.logback" % "logback-core" % logback
+    val classic = "ch.qos.logback" % "logback-classic" % logback
   }
 }

@@ -6,8 +6,8 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
 import akka.cluster.sharding.typed.scaladsl._
 import akka.cluster.sharding.typed.{ClusterShardingSettings, ShardingEnvelope}
 import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings, SingletonActor}
-import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.stream.Materializer
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, parser}
@@ -530,6 +530,11 @@ object ClusterComponent {
 
             override private[components] val typeKey = self.typeKey
           }
+
+        override private[components] def behaviorTransformer = (context, behavior) => super.behaviorTransformer(context, behavior).receiveSignal {
+          case (_, RecoveryCompleted) =>
+          // don't log recovery for sharded components as there might be alot
+        }
       }
     }
 

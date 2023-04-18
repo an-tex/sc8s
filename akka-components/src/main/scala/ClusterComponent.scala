@@ -2,7 +2,7 @@ package net.sc8s.akka.components
 
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Signal, SupervisorStrategy}
 import akka.cluster.sharding.typed.scaladsl._
 import akka.cluster.sharding.typed.{ClusterShardingSettings, ShardingEnvelope}
 import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings, SingletonActor}
@@ -105,7 +105,6 @@ object ClusterComponent {
           transformedBehavior
             .withTagger(tagger(name, context))
             .onPersistFailure(SupervisorStrategy.restartWithBackoff(1.second, 1.minute, 0.2))
-            .receiveSignal(withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, componentCodePositionMaterializer))
         }
 
         private[components] def tagger(name: String, context: ComponentContextS)(event: EventT) = Set.empty[String]
@@ -315,6 +314,13 @@ object ClusterComponent {
           override implicit val actorSystem = _actorSystem
 
           protected override def logContext = super.logContext + outerSelf.logContext
+        }
+
+        override private[components] def behaviorTransformer = (context, behavior) => {
+          val transformedBehavior = super.behaviorTransformer(context, behavior)
+          transformedBehavior.receiveSignal(
+            withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, componentCodePositionMaterializer)
+          )
         }
       }
     }
@@ -531,9 +537,14 @@ object ClusterComponent {
             override private[components] val typeKey = self.typeKey
           }
 
-        override private[components] def behaviorTransformer = (context, behavior) => super.behaviorTransformer(context, behavior).receiveSignal {
-          case (_, RecoveryCompleted) =>
-          // don't log recovery for sharded components as there might be alot
+        override private[components] def behaviorTransformer = (context, behavior) => {
+          val transformedBehavior = super.behaviorTransformer(context, behavior)
+          transformedBehavior.receiveSignal(
+            withDefaultSignalHandler(transformedBehavior.signalHandler.orElse {
+              case (_, RecoveryCompleted) =>
+              // don't log recovery for sharded components as there might be a lot
+            }: PartialFunction[(State, Signal), Unit])(context.log, componentCodePositionMaterializer)
+          )
         }
       }
     }

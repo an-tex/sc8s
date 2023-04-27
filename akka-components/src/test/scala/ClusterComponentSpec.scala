@@ -281,6 +281,31 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
         ComponentObject.init(component).delayedInit()
         component.entityRefFor(123L)
       }
+      "int EntityId" in {
+        object ComponentObject
+          extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.IntEntityId {
+          case class Command()
+
+          object Command {
+            implicit val codec: Codec[Command] = deriveCodec
+          }
+
+          class Component extends BaseComponent {
+            override val behavior = _ =>
+              Behaviors.receiveMessage {
+                case Command() => Behaviors.same
+              }
+          }
+
+          override val name = randomName
+
+          override val commandSerializer = CirceSerializer()
+        }
+
+        val component = new ComponentObject.Component
+        ComponentObject.init(component).delayedInit()
+        component.entityRefFor(123)
+      }
       "custom clusterShardingSettings and stopMessage" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
           case class Command()

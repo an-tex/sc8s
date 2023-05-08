@@ -10,6 +10,7 @@ import cats.syntax.traverse._
 import cats.{Monad, TraverseFilter}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
+import net.sc8s.akka.stream.implicits.SubFlowWrapper2Ops
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Right, Success, Try}
@@ -222,7 +223,9 @@ object StreamOps {
             case None => acc -> (nones :+ None)
           }
         }.mapConcat { case (value, nones) =>
-          nones :+ Some(value)
+          // avoid Some(zero) which happens when there are only Nones
+          if (value == zero) nones
+          else nones :+ Some(value)
         }
 
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Option[Out2]] = s.mapConcat {
@@ -268,14 +271,16 @@ object StreamOps {
 
       def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
         s.fold(
-          zero -> Seq.empty[Either[OutL, OutR2]]
+          zero -> Seq.empty[Left[OutL, OutR2]]
         ) {
           case ((acc, lefts), next) => next match {
             case Right(value) => f(acc, value) -> lefts
             case Left(value) => acc -> (lefts :+ Left(value))
           }
         }.mapConcat { case (value, lefts) =>
-          lefts :+ Right(value)
+          // avoid Right(zero) which happens when there are only Lefts
+          if (value == zero) lefts
+          else lefts :+ Right(value)
         }
 
       def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): s.Repr[Either[OutL, OutR2]] = s.mapConcat {
@@ -331,7 +336,9 @@ object StreamOps {
             case Failure(exception) => acc -> (failures :+ Failure(exception))
           }
         }.mapConcat { case (value, failures) =>
-          failures :+ Success(value)
+          // avoid Success(zero) which happens when there are only Failures
+          if (value == zero) failures
+          else failures :+ Success(value)
         }
 
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Try[Out2]] = s.mapConcat {

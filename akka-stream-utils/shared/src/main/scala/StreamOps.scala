@@ -223,10 +223,14 @@ object StreamOps {
             case None => acc -> (nones :+ None)
           }
         }.mapConcat { case (value, nones) =>
-          // avoid Some(zero) which happens when there are only Nones
-          if (value == zero) nones
-          else nones :+ Some(value)
+          nones :+ Some(value)
         }
+
+      /*
+      this produces a Some(zero) even if there are no Some(...) in the stream, if you want to skip those use foldS
+       */
+      def foldS[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Option[Out2]] =
+        foldF(zero)(f).filterNot(_.contains(zero))
 
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Option[Out2]] = s.mapConcat {
         case Some(value) => f(value).iterator.map(Some(_))
@@ -278,10 +282,14 @@ object StreamOps {
             case Left(value) => acc -> (lefts :+ Left(value))
           }
         }.mapConcat { case (value, lefts) =>
-          // avoid Right(zero) which happens when there are only Lefts
-          if (value == zero) lefts
-          else lefts :+ Right(value)
+          lefts :+ Right(value)
         }
+
+      /*
+      this produces a Right(zero) even if there are no Right(...) in the stream, if you want to skip those use foldS
+       */
+      def foldS[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
+        foldF(zero)(f).filterNot(_.contains(zero))
 
       def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): s.Repr[Either[OutL, OutR2]] = s.mapConcat {
         case Right(value) => f(value).iterator.map(Right(_))
@@ -327,6 +335,9 @@ object StreamOps {
         })
       }
 
+      /*
+      this produces a Success(zero) even if there are no Success(...) in the stream, if you want to skip those use foldS
+       */
       def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Try[Out2]] =
         s.fold(
           zero -> Seq.empty[Try[Out2]]
@@ -336,10 +347,11 @@ object StreamOps {
             case Failure(exception) => acc -> (failures :+ Failure(exception))
           }
         }.mapConcat { case (value, failures) =>
-          // avoid Success(zero) which happens when there are only Failures
-          if (value == zero) failures
-          else failures :+ Success(value)
+          failures :+ Success(value)
         }
+
+      def foldS[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Try[Out2]] =
+        foldF(zero)(f).filterNot(_ == Success(zero))
 
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Try[Out2]] = s.mapConcat {
         case Failure(exception) => Seq(Failure(exception))

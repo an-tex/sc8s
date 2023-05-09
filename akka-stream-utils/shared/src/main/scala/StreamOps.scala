@@ -214,6 +214,9 @@ object StreamOps {
         s.groupBy(maxSubstreams, _.map(f))
       }
 
+      /*
+      this produces a Some(zero) even if there are no Some(...) in the stream, if you want to skip those use foldS
+       */
       def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Option[Out2]] =
         s.fold(
           zero -> Seq.empty[Option[Out2]]
@@ -226,9 +229,6 @@ object StreamOps {
           nones :+ Some(value)
         }
 
-      /*
-      this produces a Some(zero) even if there are no Some(...) in the stream, if you want to skip those use foldS
-       */
       def foldS[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Option[Out2]] =
         foldF(zero)(f).filterNot(_.contains(zero))
 
@@ -273,6 +273,9 @@ object StreamOps {
         })
       }
 
+      /*
+      this produces a Right(zero) even if there are no Right(...) in the stream, if you want to skip those use foldS
+       */
       def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
         s.fold(
           zero -> Seq.empty[Left[OutL, OutR2]]
@@ -285,9 +288,6 @@ object StreamOps {
           lefts :+ Right(value)
         }
 
-      /*
-      this produces a Right(zero) even if there are no Right(...) in the stream, if you want to skip those use foldS
-       */
       def foldS[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
         foldF(zero)(f).filterNot(_.contains(zero))
 

@@ -10,6 +10,7 @@ import cats.syntax.traverse._
 import cats.{Monad, TraverseFilter}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
+import net.sc8s.akka.stream.implicits.SubFlowWrapper2Ops
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Right, Success, Try}
@@ -225,6 +226,12 @@ object StreamOps {
           nones :+ Some(value)
         }
 
+      /*
+      this produces a Some(zero) even if there are no Some(...) in the stream, if you want to skip those use foldS
+       */
+      def foldS[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Option[Out2]] =
+        foldF(zero)(f).filterNot(_.contains(zero))
+
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Option[Out2]] = s.mapConcat {
         case Some(value) => f(value).iterator.map(Some(_))
         case None => Seq(None)
@@ -268,7 +275,7 @@ object StreamOps {
 
       def foldF[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
         s.fold(
-          zero -> Seq.empty[Either[OutL, OutR2]]
+          zero -> Seq.empty[Left[OutL, OutR2]]
         ) {
           case ((acc, lefts), next) => next match {
             case Right(value) => f(acc, value) -> lefts
@@ -277,6 +284,12 @@ object StreamOps {
         }.mapConcat { case (value, lefts) =>
           lefts :+ Right(value)
         }
+
+      /*
+      this produces a Right(zero) even if there are no Right(...) in the stream, if you want to skip those use foldS
+       */
+      def foldS[OutR2](zero: OutR2)(f: (OutR2, OutR) => OutR2): s.Repr[Either[OutL, OutR2]] =
+        foldF(zero)(f).filterNot(_.contains(zero))
 
       def mapConcatF[OutR2](f: OutR => IterableOnce[OutR2]): s.Repr[Either[OutL, OutR2]] = s.mapConcat {
         case Right(value) => f(value).iterator.map(Right(_))
@@ -322,6 +335,9 @@ object StreamOps {
         })
       }
 
+      /*
+      this produces a Success(zero) even if there are no Success(...) in the stream, if you want to skip those use foldS
+       */
       def foldF[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Try[Out2]] =
         s.fold(
           zero -> Seq.empty[Try[Out2]]
@@ -333,6 +349,9 @@ object StreamOps {
         }.mapConcat { case (value, failures) =>
           failures :+ Success(value)
         }
+
+      def foldS[Out2](zero: Out2)(f: (Out2, Out) => Out2): s.Repr[Try[Out2]] =
+        foldF(zero)(f).filterNot(_ == Success(zero))
 
       def mapConcatF[Out2](f: Out => IterableOnce[Out2]): s.Repr[Try[Out2]] = s.mapConcat {
         case Failure(exception) => Seq(Failure(exception))

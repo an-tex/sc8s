@@ -152,6 +152,24 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(None, None, Some(Seq(1, 2, 3, 4)))
     }
+    "Option foldF with no Some" in {
+      Source(Seq(None, None))
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(None, None, Some(Nil))
+    }
+    "Option foldS" in {
+      Source(Seq(Some(1), None, Some(2), Some(3), None, Some(4)))
+        .foldS(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(None, None, Some(Seq(1, 2, 3, 4)))
+    }
+    "Option foldS with no Some" in {
+      Source(Seq(None, None))
+        .foldS(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(None, None)
+    }
     "Either" in {
       val input = Seq(Right(1), Left(true), Right(2))
 
@@ -247,6 +265,24 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .foldF(Seq.empty[Int])(_ :+ _)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Seq(1, 2, 3, 4)))
+    }
+    "Either foldF with no Rights" in {
+      Source(Seq(Left(false), Left(true)))
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Nil))
+    }
+    "Either fold2" in {
+      Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
+        .foldS(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Seq(1, 2, 3, 4)))
+    }
+    "Either foldS with no Rights" in {
+      Source(Seq(Left(false), Left(true)))
+        .foldS(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Left(true), Left(false))
     }
     "Either Subflow foldF" in {
       Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
@@ -357,6 +393,30 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .foldF(Seq.empty[Int])(_ :+ _)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2), Success(Seq(1, 2, 3, 4)))
+    }
+    "Try foldF with no Success" in {
+      val exception1 = new Exception
+      val exception2 = new Exception
+      Source(Seq(Failure(exception1), Failure(exception2)))
+        .foldF(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2), Success(Nil))
+    }
+    "Try foldS" in {
+      val exception1 = new Exception
+      val exception2 = new Exception
+      Source(Seq(Success(1), Failure(exception1), Success(2), Success(3), Failure(exception2), Success(4)))
+        .foldS(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2), Success(Seq(1, 2, 3, 4)))
+    }
+    "Try foldS with no Success" in {
+      val exception1 = new Exception
+      val exception2 = new Exception
+      Source(Seq(Failure(exception1), Failure(exception2)))
+        .foldS(Seq.empty[Int])(_ :+ _)
+        .runWith(Sink.seq)
+        .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2))
     }
     "Generic Try in Flow" in {
       val flow: Flow[Try[(Int, String)], Try[Either[Int, String]], NotUsed] = Flow[Try[(Int, String)]]

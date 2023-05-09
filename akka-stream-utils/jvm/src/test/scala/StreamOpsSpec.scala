@@ -272,7 +272,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Nil))
     }
-    "Either fold2" in {
+    "Either foldS" in {
       Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
         .foldS(Seq.empty[Int])(_ :+ _)
         .runWith(Sink.seq)

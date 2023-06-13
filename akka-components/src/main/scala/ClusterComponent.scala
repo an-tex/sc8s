@@ -44,9 +44,13 @@ object ClusterComponent {
 
       private[components] val behavior: BehaviorComponentContextS => BehaviorS
 
+      // allows the user to wrap the behavior, especially useful to wrap EventSourcedBehavior in e.g. Behaviors.withTimers
+      def wrapBehavior: BehaviorComponentContextS => BehaviorS => Behavior[Command] = _ => identity
+
       private[components] def behaviorTransformer: (BehaviorComponentContextS, BehaviorS) => BehaviorS = (_, behavior) => behavior
 
-      final val transformedBehavior: BehaviorComponentContextS => BehaviorS = context => behaviorTransformer(context, behavior(context))
+      final val transformedBehavior: BehaviorComponentContextS => Behavior[outerSelf.Command] =
+        context => wrapBehavior(context)(behaviorTransformer(context, behavior(context)))
 
       // implicit classTag returned only these classes when used as an external dependency
       private[components] def generateLoggerClass(clazz: Class[_]) = clazz.getName.takeWhile(_ != '$')

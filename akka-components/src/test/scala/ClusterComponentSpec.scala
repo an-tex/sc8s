@@ -362,6 +362,39 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
           ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
         }
+        "with wrapped behavior" in {
+          object ComponentObject extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+            case class Command()
+            implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+            case class Event()
+            implicit val eventCodec: Codec[Event] = deriveCodec
+
+            case class State()
+
+            class Component(dependency: Dependency) extends BaseComponent {
+              override val behavior = componentContext => EventSourcedBehavior(
+                componentContext.persistenceId,
+                State(),
+                {
+                  case (state, command) => Effect.none
+                },
+                {
+                  case (state, event) => state
+                })
+
+              override def wrapBehavior = _ => behavior => Behaviors.withTimers[Command](_ => behavior)
+            }
+
+            override val name = randomName
+
+            override val commandSerializer = CirceSerializer()
+
+            override val eventSerializer = CirceSerializer()
+          }
+
+          ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
+        }
         "with snapshots" in {
           object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
             case class Command()

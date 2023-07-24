@@ -417,3 +417,4 @@ inThisBuild(Seq(
 ))
 
 Global / excludeLintKeys += idePackagePrefix
+Global / onChangedBuildSource := ReloadOnSourceChanges

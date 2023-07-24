@@ -1,0 +1,18 @@
+# used for tests only
+
+services:
+  elastic8:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.2
+    restart: always
+    environment:
+      discovery.type: single-node
+      network.host: 0.0.0.0
+      xpack.security.http.ssl.enabled: false
+      xpack.security.enabled: false
+    ports:
+      - 9200
+      - 9300
+    deploy:
+      resources:
+        limits:
+          memory: 1024M

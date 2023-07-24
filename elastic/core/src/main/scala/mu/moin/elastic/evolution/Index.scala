@@ -135,6 +135,12 @@ object Index {
     override def hitIdFromId(id: Id) = id.asJson
   }
 
+  abstract class LongId(baseName: String) extends Index(baseName) {
+    type Id = Long
+
+    override def hitIdFromId(id: Id) = id.asJson
+  }
+
   abstract class JsonId(baseName: String) extends Index(baseName) {
     implicit val idCodec: Codec[Id]
 

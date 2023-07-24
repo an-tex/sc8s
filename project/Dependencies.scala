@@ -5,10 +5,12 @@ object Dependencies {
   val scala213 = "2.13.11"
 
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.16")
+  val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.16")
   val scalamock = "org.scalamock" %% "scalamock" % "5.2.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "2.0.7"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.5.0")
   val scalaXml = "org.scala-lang.modules" %% "scala-xml" % "2.1.0"
+  val nameOf = "com.github.dwickern" %% "scala-nameof" % "3.0.0-antex"
 
   val overrides = akka.overrides ++ Seq(
     /*
@@ -46,7 +48,7 @@ object Dependencies {
 
   object akka {
     private val akkaVersion = "2.6.20"
-    private val akkaHttpVersion = "10.1.13"
+    private val akkaHttpVersion = "10.2.10"
     private val akkaJs = "2.2.6.14"
     private val r2dbcVersion = "0.7.7"
 
@@ -146,5 +148,20 @@ object Dependencies {
 
     val core = "ch.qos.logback" % "logback-core" % logback
     val classic = "ch.qos.logback" % "logback-classic" % logback
+  }
+
+  object elastic4s {
+    private val elastic4s = "8.8.0"
+    private val elasticsearch = "7.14.1"
+    val clientAkka = "com.sksamuel.elastic4s" %% "elastic4s-client-akka" % elastic4s
+    val clientJava = "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" % elastic4s
+    val core = "com.sksamuel.elastic4s" %% "elastic4s-core" % elastic4s
+    val elasticTestFramework = "org.elasticsearch.test" % "framework" % elasticsearch
+    val httpStreams = "com.sksamuel.elastic4s" %% "elastic4s-http-streams" % elastic4s
+    val jsonCirce = "com.sksamuel.elastic4s" %% "elastic4s-json-circe" % elastic4s
+    val jsonPlay = "com.sksamuel.elastic4s" %% "elastic4s-json-play" % elastic4s
+    // does not work, use httpStreams instead
+    val streamsAkka = "com.sksamuel.elastic4s" %% "elastic4s-streams-akka" % elastic4s
+    val testkit = "com.sksamuel.elastic4s" %% "elastic4s-testkit" % elastic4s
   }
 }

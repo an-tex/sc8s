@@ -40,6 +40,8 @@ jobs:
           java-version: 17
           cache: sbt
 
+      - run: docker compose up -d
+
       - name: Check that workflows are up to date
         run: sbt '++ ${{ matrix.scala }}' githubWorkflowCheck
 
@@ -47,7 +49,7 @@ jobs:
         run: sbt '++ ${{ matrix.scala }}' test
 
       - name: Compress target directories
-        run: tar cf targets.tar akka-components-persistence-projection-lagom-api/.js/target akka-components-testkit/target akka-components-persistence-projection-api/.jvm/target target schevo/.js/target akka-components-persistence-projection-api/.js/target lagom-api-circe/.jvm/target common-circe/.js/target akka-stream-utils/jvm/target akka-components-persistence-projection/target akka-components-persistence-projection-r2dbc/target akka-components-persistence-projection-cassandra/target akka-stream-utils/js/target schevo-circe/.js/target lagom-server-circe/target schevo/.jvm/target akka-components-persistence-utils/target akka-components-persistence-projection-lagom-api/.jvm/target akka-components-persistence-cassandra-lagom-api/.jvm/target common-circe/.jvm/target akka-components-persistence-cassandra-lagom-api/.js/target akka-circe/target lagom-api-circe/.js/target akka-components-persistence-projection-lagom/target akka-components/target lagom-server-circe-testkit/target akka-components-lagom/target schevo-circe-example-akka/target schevo-circe/.jvm/target logstage-elastic/target common-tzdb/.js/target akka-components-persistence-cassandra-lagom/target project/target
+        run: tar cf targets.tar akka-components-persistence-projection-lagom-api/.js/target akka-components-testkit/target akka-components-persistence-projection-api/.jvm/target target schevo/.js/target elastic/core/target akka-components-persistence-projection-api/.js/target lagom-api-circe/.jvm/target common-circe/.js/target akka-stream-utils/jvm/target akka-components-persistence-projection/target akka-components-persistence-projection-r2dbc/target akka-components-persistence-projection-cassandra/target akka-stream-utils/js/target schevo-circe/.js/target lagom-server-circe/target schevo/.jvm/target akka-components-persistence-utils/target elastic/lagom/service/target akka-components-persistence-projection-lagom-api/.jvm/target akka-components-persistence-cassandra-lagom-api/.jvm/target common-circe/.jvm/target akka-components-persistence-cassandra-lagom-api/.js/target akka-circe/target lagom-api-circe/.js/target akka-components-persistence-projection-lagom/target akka-components/target lagom-server-circe-testkit/target akka-components-lagom/target schevo-circe-example-akka/target schevo-circe/.jvm/target elastic/lagom/api/.jvm/target logstage-elastic/target common-tzdb/.js/target akka-components-persistence-cassandra-lagom/target elastic/lagom/api/.js/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v3
@@ -78,6 +80,8 @@ jobs:
           distribution: temurin
           java-version: 17
           cache: sbt
+
+      - run: docker compose up -d
 
       - name: Download target directories (2.13.11)
         uses: actions/download-artifact@v3

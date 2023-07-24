@@ -1,4 +1,4 @@
-import Dependencies._
+import Dependencies.*
 import sbtcrossproject.CrossType
 import sbtghactions.JavaSpec.Distribution.Adopt
 
@@ -28,6 +28,10 @@ lazy val sc8s = (project in file("."))
     `common-circe`.js,
     `common-circe`.jvm,
     `common-tzdb`.js,
+    `elastic-core`,
+    `elastic-lagom-api`.js,
+    `elastic-lagom-api`.jvm,
+    `elastic-lagom-service`,
     `lagom-api-circe`.js,
     `lagom-api-circe`.jvm,
     `lagom-server-circe-testkit`,
@@ -320,6 +324,47 @@ lazy val `akka-stream-utils` = crossProject(JSPlatform, JVMPlatform)
     idePackagePrefix := Some("net.sc8s.akka.stream")
   )
 
+lazy val `elastic-core` = (project in file("elastic/core"))
+  .settings(
+    libraryDependencies ++= Seq(
+      scalaTest.value % Test,
+      akka.actor,
+      akka.typed,
+      akka.stream,
+      akka.testkitTyped % Test,
+      elastic4s.core,
+      elastic4s.jsonCirce,
+      elastic4s.clientAkka % Test,
+      elastic4s.testkit % Test,
+      elastic4s.elasticTestFramework % Test,
+      elastic4s.httpStreams,
+      circe.core.value,
+      circe.parser.value,
+      circe.generic.value,
+      circe.genericExtras.value,
+      nameOf,
+      macwire.macros,
+    ),
+  )
+  .dependsOn(`logstage-elastic`, `schevo-circe`.jvm, `akka-stream-utils`.jvm, `akka-components`)
+
+lazy val `elastic-lagom-api` =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("elastic/lagom/api"))
+    .jvmSettings(libraryDependencies += lagom.scaladslApi)
+    .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
+
+lazy val `elastic-lagom-service` = (project in file("elastic/lagom/service"))
+  .settings(
+    libraryDependencies ++= Seq(
+      elastic4s.core,
+      elastic4s.clientAkka,
+      macwire.macros
+    )
+  )
+  .dependsOn(`elastic-core`, `elastic-lagom-api`.jvm)
+
 // empty project to avoid regeneration in other projects https://github.com/cquiroz/sbt-tzdb/issues/88
 lazy val `common-tzdb` = crossProject(JSPlatform)
   .crossType(CrossType.Pure)
@@ -346,6 +391,9 @@ inThisBuild(Seq(
   libraryDependencySchemes ++= Seq(
     "org.scala-lang.modules" %% "scala-java8-compat" % "always",
   ),
+  resolvers ++= Seq(
+    "antex public" at "https://mymavenrepo.com/repo/zeKhQjbzBED1vIds46Kj/"
+  ),
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),
   githubWorkflowTargetTags := Seq("*"),
@@ -358,6 +406,7 @@ inThisBuild(Seq(
       "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}"
     )
   )),
+  githubWorkflowJobSetup += WorkflowStep.Run(List("docker compose up -d")),
   githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))),
   versionScheme := Some("early-semver"),
   dependencyOverrides ++= Dependencies.overrides ++ Seq(
@@ -369,3 +418,4 @@ inThisBuild(Seq(
 ))
 
 Global / excludeLintKeys += idePackagePrefix
+Global / onChangedBuildSource := ReloadOnSourceChanges

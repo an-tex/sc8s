@@ -406,7 +406,7 @@ inThisBuild(Seq(
       "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}"
     )
   )),
-  githubWorkflowJobSetup += WorkflowStep.Run(List("docker compose -d")),
+  githubWorkflowJobSetup += WorkflowStep.Run(List("docker compose up -d")),
   githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))),
   versionScheme := Some("early-semver"),
   dependencyOverrides ++= Dependencies.overrides ++ Seq(

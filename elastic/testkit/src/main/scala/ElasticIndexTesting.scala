@@ -18,7 +18,7 @@ trait ElasticIndexTesting extends BeforeAndAfterEach with BeforeAndAfterAll with
 
   val elasticIndices: Set[Index]
 
-  implicit lazy val elasticClient = ElasticClient(AkkaHttpClient(AkkaHttpClientSettings(Seq("localhost:9210")))(system.toClassic))
+  implicit lazy val elasticClient = ElasticClient(AkkaHttpClient(AkkaHttpClientSettings())(system.toClassic))
 
   implicit lazy val indexSetup: IndexSetup = IndexSetup(
     elasticClient,

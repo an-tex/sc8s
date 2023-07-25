@@ -1,4 +1,4 @@
-package mu.moin.elastic.evolution
+package net.sc8s.elastic.testkit
 
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
@@ -7,6 +7,7 @@ import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s.akka.{AkkaHttpClient, AkkaHttpClientSettings}
 import com.sksamuel.elastic4s.requests.mappings.MappingDefinition
+import net.sc8s.elastic.{Index, IndexSetup}
 import org.scalatest.Inspectors.forAll
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, EitherValues, Suite}
 
@@ -17,7 +18,7 @@ trait ElasticIndexTesting extends BeforeAndAfterEach with BeforeAndAfterAll with
 
   val elasticIndices: Set[Index]
 
-  implicit lazy val elasticClient = ElasticClient(AkkaHttpClient(AkkaHttpClientSettings(Seq("localhost:9210")))(system.toClassic))
+  implicit lazy val elasticClient = ElasticClient(AkkaHttpClient(AkkaHttpClientSettings())(system.toClassic))
 
   implicit lazy val indexSetup: IndexSetup = IndexSetup(
     elasticClient,

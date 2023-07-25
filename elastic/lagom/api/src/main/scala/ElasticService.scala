@@ -1,4 +1,4 @@
-package mu.moin.elastic.api
+package net.sc8s.elastic.lagom.api
 
 import akka.NotUsed
 import com.lightbend.lagom.scaladsl.api.transport.Method

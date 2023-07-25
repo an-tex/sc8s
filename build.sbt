@@ -32,6 +32,7 @@ lazy val sc8s = (project in file("."))
     `elastic-lagom-api`.js,
     `elastic-lagom-api`.jvm,
     `elastic-lagom-service`,
+    `elastic-testkit`,
     `lagom-api-circe`.js,
     `lagom-api-circe`.jvm,
     `lagom-server-circe-testkit`,
@@ -345,8 +346,30 @@ lazy val `elastic-core` = (project in file("elastic/core"))
       nameOf,
       macwire.macros,
     ),
+    idePackagePrefix := Some("net.sc8s.elastic")
   )
   .dependsOn(`logstage-elastic`, `schevo-circe`.jvm, `akka-stream-utils`.jvm, `akka-components`)
+
+lazy val `elastic-testkit` = (project in file("elastic/testkit"))
+  .settings(
+    libraryDependencies ++= Seq(
+      scalaTest.value,
+      akka.testkitTyped,
+      elastic4s.core,
+      elastic4s.jsonCirce,
+      elastic4s.clientAkka,
+      elastic4s.testkit,
+      elastic4s.elasticTestFramework,
+      elastic4s.httpStreams,
+      circe.core.value,
+      circe.parser.value,
+      circe.generic.value,
+      circe.genericExtras.value,
+      macwire.macros,
+    ),
+    idePackagePrefix := Some("net.sc8s.elastic.testkit")
+  )
+  .dependsOn(`elastic-core`, `schevo-circe`.jvm)
 
 lazy val `elastic-lagom-api` =
   crossProject(JSPlatform, JVMPlatform)
@@ -354,6 +377,9 @@ lazy val `elastic-lagom-api` =
     .in(file("elastic/lagom/api"))
     .jvmSettings(libraryDependencies += lagom.scaladslApi)
     .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
+    .settings(
+      idePackagePrefix := Some("net.sc8s.elastic.lagom.api")
+    )
 
 lazy val `elastic-lagom-service` = (project in file("elastic/lagom/service"))
   .settings(
@@ -361,7 +387,8 @@ lazy val `elastic-lagom-service` = (project in file("elastic/lagom/service"))
       elastic4s.core,
       elastic4s.clientAkka,
       macwire.macros
-    )
+    ),
+    idePackagePrefix := Some("net.sc8s.elastic.lagom")
   )
   .dependsOn(`elastic-core`, `elastic-lagom-api`.jvm)
 

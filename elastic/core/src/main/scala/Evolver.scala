@@ -1,4 +1,4 @@
-package mu.moin.elastic.evolution
+package net.sc8s.elastic
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
@@ -12,11 +12,12 @@ import com.sksamuel.elastic4s.streams.ReactiveElastic._
 import com.sksamuel.elastic4s.{ElasticClient, RequestFailure, RequestSuccess}
 import io.circe.Codec
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
-import mu.moin.elastic.evolution.Evolver.Command.{AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus}
+import Evolver.Command.{AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus}
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.stream.RateLogger
 import net.sc8s.circe.CodecConfiguration._
+import net.sc8s.elastic.Evolver.Command.{AliasUpdated, BatchUpdatesFinished, OldIndexDeleted, TaskStatus}
 
 import java.time.LocalDateTime
 import scala.concurrent.Future

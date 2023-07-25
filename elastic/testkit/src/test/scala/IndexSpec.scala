@@ -1,4 +1,4 @@
-package mu.moin.elastic.evolution
+package net.sc8s.elastic
 
 import akka.actor.Status.Success
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -7,6 +7,7 @@ import com.softwaremill.macwire.wireSet
 import io.circe.Codec
 import io.circe.generic.extras.semiauto._
 import io.circe.syntax._
+import net.sc8s.elastic.testkit.ElasticIndexTesting
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 

@@ -1,4 +1,4 @@
-package mu.moin.elastic.evolution
+package net.sc8s.elastic
 
 import akka.actor.typed.ActorSystem
 import com.sksamuel.elastic4s.ElasticClient

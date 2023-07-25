@@ -1,11 +1,11 @@
-package mu.moin.elastic
+package net.sc8s.elastic.lagom
 
 import akka.actor.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.akka.{AkkaHttpClient, AkkaHttpClientSettings}
 import com.softwaremill.macwire.wire
-import mu.moin.elastic.evolution.{Evolver, Index, IndexSetup}
+import net.sc8s.elastic.{Evolver, Index, IndexSetup}
 
 trait ElasticComponents {
   val actorSystem: ActorSystem

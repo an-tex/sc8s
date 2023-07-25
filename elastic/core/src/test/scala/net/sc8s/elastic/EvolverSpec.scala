@@ -1,4 +1,4 @@
-//package mu.moin.elastic.evolution
+//package net.sc8s.elastic
 
 // TODO disabled for now as it sometimes fails in gitlab without any error, issue with mixing scalatest and specs? prolly should be moved into separate repo anyway...
 /*

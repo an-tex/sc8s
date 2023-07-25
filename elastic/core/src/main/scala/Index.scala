@@ -1,4 +1,4 @@
-package mu.moin.elastic.evolution
+package net.sc8s.elastic
 
 import com.github.dwickern.macros.NameOf.qualifiedNameOf
 import com.github.dwickern.macros.NameOfImpl
@@ -12,7 +12,7 @@ import com.sksamuel.elastic4s.requests.update.UpdateRequest
 import io.circe.generic.extras.Configuration
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Json}
-import mu.moin.elastic.evolution.Index.BatchUpdate
+import net.sc8s.elastic.Index.BatchUpdate
 import net.sc8s.schevo.circe.SchevoCirce
 
 import java.time.format.DateTimeFormatter

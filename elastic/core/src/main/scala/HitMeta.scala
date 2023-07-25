@@ -1,4 +1,4 @@
-package mu.moin.elastic.evolution
+package net.sc8s.elastic
 
 trait HitMeta {
   val elasticId: ElasticId

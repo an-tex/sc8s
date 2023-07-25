@@ -2,7 +2,7 @@ package net.sc8s.elastic.lagom
 
 import akka.NotUsed
 import com.lightbend.lagom.scaladsl.api.ServiceCall
-import mu.moin.elastic.evolution.Evolver
+import net.sc8s.elastic.Evolver
 import net.sc8s.elastic.lagom.api.ElasticService
 
 import scala.concurrent.Future

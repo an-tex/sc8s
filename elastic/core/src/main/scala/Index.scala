@@ -114,7 +114,7 @@ abstract class Index(
 
   def fieldName(expr: Latest => Any): String = macro NameOfImpl.qualifiedNameOf
 
-  def search(searchRequest: SearchRequest => SearchRequest = identity) = execute(searchRequest(ElasticDsl.search(name))).map(_.to[Latest])
+  def search(searchRequest: SearchRequest => SearchRequest = identity) = execute(searchRequest(ElasticDsl.search(name))).map(_.hits.hits.toSeq.map(_.to[Latest]))
 
   def searchHits(searchRequest: SearchRequest => SearchRequest = identity) = execute(searchRequest(ElasticDsl.search(name))).map(_.hits.hits.toSeq.map(hit => hit -> hit.to[Latest]))
 

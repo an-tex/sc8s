@@ -47,6 +47,8 @@ abstract class Index(
 
   val analysis = Analysis(Nil)
 
+  val settings = Map.empty[String, Any]
+
   val batchUpdates = Seq.empty[BatchUpdate[Latest]]
 
   final lazy val mappingsHash = mappings.toString.hashCode.toString

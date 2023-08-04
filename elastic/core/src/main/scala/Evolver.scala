@@ -143,6 +143,7 @@ object Evolver extends ClusterComponent.Singleton {
               ), properties = index.mappings :+ KeywordField(Index.discriminator))
             )
             .analysis(index.analysis)
+            .settings(index.settings)
         }
 
         def default: Behaviors.Receive[Command] = Behaviors.receiveMessagePartial {

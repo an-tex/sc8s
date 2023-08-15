@@ -12,12 +12,12 @@ import com.sksamuel.elastic4s.streams.ReactiveElastic._
 import com.sksamuel.elastic4s.{ElasticClient, RequestFailure, RequestSuccess}
 import io.circe.Codec
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
-import Evolver.Command.{AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus}
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.stream.RateLogger
 import net.sc8s.circe.CodecConfiguration._
-import net.sc8s.elastic.Evolver.Command.{AliasUpdated, BatchUpdatesFinished, OldIndexDeleted, TaskStatus}
+import net.sc8s.elastic.Evolver.Command.{AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, IndexSettingsUpdated, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus, UpdateIndexSettings}
+import net.sc8s.logstage.elastic.Logging.IzLoggerTags
 
 import java.time.LocalDateTime
 import scala.concurrent.Future
@@ -34,6 +34,9 @@ object Evolver extends ClusterComponent.Singleton {
 
     private[Evolver] case class MigrateNextIndex(pendingIndices: Seq[Index]) extends Command
     private[Evolver] case class MigrateIndex(index: Index, oldIndexName: String, newIndexName: String, pendingIndices: Seq[Index]) extends Command
+
+    private[Evolver] case class UpdateIndexSettings(index: Index, pendingIndices: Seq[Index]) extends Command
+    private[Evolver] case class IndexSettingsUpdated(result: Try[Done]) extends Command
 
     private[Evolver] case class AddMappings(index: Index, mappings: Seq[ElasticField], pendingIndices: Seq[Index]) extends Command
     private[Evolver] case class MappingsAdded(result: Try[Done]) extends Command
@@ -184,8 +187,10 @@ object Evolver extends ClusterComponent.Singleton {
 
                       case Some((existingAnalysisHash, existingMappingsHash, existingSettingsHash)) =>
                         // it's possible but hard to check whether mappings have only been added (in which case a reindex would not be necessary), or existing have changed. we just take the easy route...
-                        if (existingAnalysisHash != index.analysisHash || existingMappingsHash != index.mappingsHash || existingSettingsHash != index.settingsHash)
+                        if (existingAnalysisHash != index.analysisHash || existingMappingsHash != index.mappingsHash)
                           migrateIndex
+                        else if (existingSettingsHash != index.settingsHash)
+                          Future.successful(UpdateIndexSettings(index, updatedPendingIndices))
                         else {
                           log.info(s"${"skippingMigration" -> "tag"} of ${index.name -> "index"}")
                           Future.successful(MigrateNextIndex(updatedPendingIndices))
@@ -197,7 +202,7 @@ object Evolver extends ClusterComponent.Singleton {
                     }
                 }
 
-                context.pipeToSelf(eventualCommand)(_.fold(e => IndexMigrationFailed(index, e), identity))
+                context.pipeToSelf(eventualCommand)(_.fold(IndexMigrationFailed(index, _), identity))
                 Behaviors.same
             }
 
@@ -208,6 +213,13 @@ object Evolver extends ClusterComponent.Singleton {
               elasticClient.execute(putMapping(index.name) properties mappings meta Map(mappingsHashField -> index.mappingsHash)).map(_.result).map(_ => Done)
             )(triedDone => MappingsAdded(triedDone))
             addingMappings(index, pendingIndices)
+
+          case UpdateIndexSettings(index, pendingIndices) =>
+            log.infoT("updatingSettings", s"${index.name -> "index"} ${index.settings}")
+            context.pipeToSelf(
+              elasticClient.execute(updateSettings(index.name, index.settings.view.mapValues(_.toString).toMap)).map(_.result).map(_ => Done)
+            )(triedDone => IndexSettingsUpdated(triedDone))
+            updatingIndexSettings(index, pendingIndices)
 
           case MigrateIndex(index, oldIndexName, newIndexName, pendingIndices) =>
             log.info(s"${"migratingIndex" -> "tag"} ${index.name -> "index"} from $oldIndexName to $newIndexName")
@@ -241,6 +253,17 @@ object Evolver extends ClusterComponent.Singleton {
 
           case MappingsAdded(Failure(exception)) =>
             log.info(s"${"addingMappingsFailed" -> "tag"} to ${index.name -> "index"} with $exception, aborting")
+            idle
+        }
+
+        def updatingIndexSettings(index: Index, pendingIndices: Seq[Index]) = Behaviors.receiveMessagePartial[Command] {
+          case IndexSettingsUpdated(Success(_)) =>
+            log.infoT("indexSettingsUpdated", s"${index.name -> "index"}")
+            context.self ! MigrateNextIndex(pendingIndices)
+            migratingIndices(forceReindex)
+
+          case IndexSettingsUpdated(Failure(exception)) =>
+            log.errorT("updatingIndexSettingsFailed", s"${index.name -> "index"} with $exception, aborting")
             idle
         }
 

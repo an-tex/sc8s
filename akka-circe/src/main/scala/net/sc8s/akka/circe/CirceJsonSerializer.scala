@@ -79,7 +79,7 @@ private[circe] final class CirceJsonSerializer(
       .collectFirst {
         case Success(clazz) => clazz
       }
-      .head
+      .getOrElse(throw new RuntimeException(s"Missing class $manifest in classloaders [${circeSerializerClassloaders.map(_.getName).mkString(", ")}]"))
 
     val clazz = manifestRenames.getOrElse(manifest, clazzFromClassLoaders)
 

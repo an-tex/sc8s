@@ -83,10 +83,14 @@ abstract class Index(
 
   def index(latest: Latest) = execute(indexRequest(latest))
 
+  def bulkIndex(lastests: Latest*) = execute(bulkIndexRequest(lastests))
+
   def indexRequest(latest: Latest) = {
-    import scala.language.reflectiveCalls
     indexInto(name) id encodeId(latest.id) doc latest refresh indexSetup.refreshPolicy
   }
+
+  def bulkIndexRequest(latests: Seq[Index.this.Latest]) =
+    bulk(latests.map(indexRequest))
 
   def get(id: Id): Future[Option[Latest]] =
     execute(getRequest(id)).map(_.toOpt[Latest])

@@ -55,6 +55,8 @@ abstract class Index(
 
   final lazy val analysisHash = analysis.toString.hashCode.toString
 
+  final lazy val settingsHash = settings.toString.hashCode.toString
+
   def hitIdFromId(id: Id): Json
 
   lazy implicit val latestTraitIndexable: Indexable[Latest] = indexableWithCirce(implicitly)

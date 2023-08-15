@@ -140,6 +140,7 @@ object Evolver extends ClusterComponent.Singleton {
               MappingDefinition(meta = Map(
                 mappingsHashField -> index.mappingsHash,
                 analysisHashField -> index.analysisHash,
+                settingsHashField -> index.settingsHash,
               ), properties = index.mappings :+ KeywordField(Index.discriminator))
             )
             .analysis(index.analysis)
@@ -173,16 +174,17 @@ object Evolver extends ClusterComponent.Singleton {
                     val maybeHashes = for {
                       analysisHash <- existingIndex.mappings.meta.get(analysisHashField)
                       mappingsHash <- existingIndex.mappings.meta.get(mappingsHashField)
-                    } yield analysisHash -> mappingsHash
+                      settingsHash <- existingIndex.mappings.meta.get(settingsHashField)
+                    } yield (analysisHash, mappingsHash, settingsHash)
 
                     maybeHashes match {
                       case _ if forceReindex =>
                         log.warn(s"${"forcingReindex" -> "tag"} of ${index.name -> "index"}")
                         migrateIndex
 
-                      case Some((existingAnalysisHash, existingMappingsHash)) =>
+                      case Some((existingAnalysisHash, existingMappingsHash, existingSettingsHash)) =>
                         // it's possible but hard to check whether mappings have only been added (in which case a reindex would not be necessary), or existing have changed. we just take the easy route...
-                        if (existingAnalysisHash != index.analysisHash || existingMappingsHash != index.mappingsHash)
+                        if (existingAnalysisHash != index.analysisHash || existingMappingsHash != index.mappingsHash || existingSettingsHash != index.settingsHash)
                           migrateIndex
                         else {
                           log.info(s"${"skippingMigration" -> "tag"} of ${index.name -> "index"}")
@@ -376,6 +378,8 @@ object Evolver extends ClusterComponent.Singleton {
   private val mappingsHashField = "mappingHash"
 
   private val analysisHashField = "analysisHash"
+
+  private val settingsHashField = "settingsHash"
 
   override val name = "elastic-evolver"
 

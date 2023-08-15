@@ -269,12 +269,13 @@ object Evolver extends ClusterComponent.Singleton {
 
         def migratingIndex(index: Index, oldIndexName: String, newIndexName: String, pendingIndices: Seq[Index]) = Behaviors.withTimers[Command](timerScheduler => Behaviors.receiveMessagePartial {
           case IndexMigrationStarted(nodeId, taskId) =>
-            log.info(s"${"indexMigrationQueued" -> "tag"} of ${index.name -> "index"} at $nodeId with $taskId")
-            timerScheduler.startTimerAtFixedRate(CheckTaskCompletion(nodeId, taskId), 1.second)
+            log.infoT("indexMigrationQueued", s"of ${index.name -> "index"} at $nodeId with $taskId")
+            timerScheduler.startTimerWithFixedDelay("taskCheck", CheckTaskCompletion(nodeId, taskId), 1.second)
             Behaviors.same
 
           case IndexMigrationFailed(index, exception) =>
-            log.error(s"${"indexMigrationFailed" -> "tag"} of ${index.name -> "index"} with $exception")
+            timerScheduler.cancelAll()
+            log.errorT("indexMigrationFailed", s"of ${index.name -> "index"} with $exception")
             idle
 
           case CheckTaskCompletion(nodeId, taskId) =>
@@ -290,15 +291,24 @@ object Evolver extends ClusterComponent.Singleton {
             val rate = status.created / Math.max(1, getTaskResponse.task.runningTime.toSeconds)
             val secondsRemaining = left / Math.max(1, rate)
 
-            log.debug(s"${"indexMigrationStatus" -> "tag"} of ${index.name -> "index"} $total $left $rate/s $secondsRemaining ${percent -> "done"}%")
-            if (getTaskResponse.completed) context.self ! IndexMigrated
-            Behaviors.same
+            log.infoT("indexMigrationStatus", s"of ${index.name -> "index"} $total $left $rate/s $secondsRemaining ${percent -> "done"}%")
+            getTaskResponse.error match {
+              case Some(error) =>
+                log.errorT("taskFailed", s"of ${index.name -> "index"} with $error, aborting")
+                idle
+              case None =>
+                if (getTaskResponse.completed) context.self ! IndexMigrated
+                Behaviors.same
+            }
 
           case TaskStatus(Failure(exception)) =>
+            timerScheduler.cancelAll()
             log.error(s"${"getTaskStatusFailed" -> "tag"} of ${index.name -> "index"} with $exception, aborting")
             idle
 
           case IndexMigrated =>
+            timerScheduler.cancelAll()
+
             log.info(s"${"indexMigrated" -> "tag"} ${index.name -> "index"} from $oldIndexName to $newIndexName")
 
             val aliasUpdated = for {

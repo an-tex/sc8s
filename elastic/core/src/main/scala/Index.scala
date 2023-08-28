@@ -92,7 +92,7 @@ abstract class Index(
   }
 
   def bulkIndexRequest(latests: Seq[Index.this.Latest]) =
-    bulk(latests.map(indexRequest))
+    bulk(latests.map(indexRequest)) refresh indexSetup.refreshPolicy
 
   def get(id: Id): Future[Option[Latest]] =
     execute(getRequest(id)).map(_.toOpt[Latest])

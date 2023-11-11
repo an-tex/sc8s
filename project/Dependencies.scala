@@ -30,7 +30,7 @@ object Dependencies {
 
   object play {
     // same as lagom uses
-    val core = "com.typesafe.play" %% "play" % "2.8.20"
+    val core = "com.typesafe.play" %% "play" % "2.8.21"
   }
 
   object lagom {
@@ -151,8 +151,8 @@ object Dependencies {
   }
 
   object elastic4s {
-    private val elastic4s = "8.9.4"
-    private val elasticsearch = "8.10.4"
+    private val elastic4s = "8.10.0"
+    private val elasticsearch = "8.11.0"
 
     val clientAkka = "com.sksamuel.elastic4s" %% "elastic4s-client-akka" % elastic4s
     val clientJava = "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" % elastic4s

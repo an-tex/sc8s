@@ -150,6 +150,9 @@ object Evolver extends ClusterComponent.Singleton {
             .settings(index.settings)
         }
 
+        def setReadOnly(indexName: String, readOnly: Boolean) =
+          elasticClient.execute(updateSettings(indexName) set "index.blocks.read_only_allow_delete" -> s"$readOnly" preserveExisting true)
+
         def default: Behaviors.Receive[Command] = Behaviors.receiveMessagePartial {
           case MigrateNextIndex(pendingIndices) =>
             pendingIndices.toList match {
@@ -224,6 +227,7 @@ object Evolver extends ClusterComponent.Singleton {
           case MigrateIndex(index, oldIndexName, newIndexName, pendingIndices) =>
             log.info(s"${"migratingIndex" -> "tag"} ${index.name -> "index"} from $oldIndexName to $newIndexName")
             val eventualCommand = for {
+              _ <- setReadOnly(oldIndexName, readOnly = true)
               _ <- elasticClient.execute(createIndexWithMappings(index, newIndexName)).map(_.result)
               result <- elasticClient.execute(reindex(oldIndexName, newIndexName) waitForCompletion false shouldStoreResult true).map(_.result)
             } yield result match {
@@ -236,7 +240,13 @@ object Evolver extends ClusterComponent.Singleton {
                 IndexMigrated
             }
 
-            context.pipeToSelf(eventualCommand)(_.fold(e => IndexMigrationFailed(index, e), identity))
+            context.pipeToSelf(eventualCommand)(_.fold(e => {
+              setReadOnly(oldIndexName, readOnly = false).onComplete {
+                case Failure(exception) => log.errorT("reEnablingWriteAfterIndexMigrationFailureFailed", s"on $index due to $exception")
+              }
+
+              IndexMigrationFailed(index, e)
+            }, identity))
 
             migratingIndex(index, oldIndexName, newIndexName, pendingIndices)
 

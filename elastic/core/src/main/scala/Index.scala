@@ -1,5 +1,9 @@
 package net.sc8s.elastic
 
+import akka.NotUsed
+import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import akka.stream.scaladsl.Source
 import com.github.dwickern.macros.NameOf.qualifiedNameOf
 import com.github.dwickern.macros.NameOfImpl
 import com.sksamuel.elastic4s.ElasticDsl._
@@ -8,8 +12,9 @@ import com.sksamuel.elastic4s.analysis.Analysis
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.ElasticField
 import com.sksamuel.elastic4s.requests.count.CountRequest
-import com.sksamuel.elastic4s.requests.searches.SearchRequest
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest}
 import com.sksamuel.elastic4s.requests.update.UpdateRequest
+import com.sksamuel.elastic4s.streams.ReactiveElastic.ReactiveElastic
 import io.circe.generic.extras.Configuration
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Json}
@@ -18,6 +23,7 @@ import net.sc8s.schevo.circe.SchevoCirce
 
 import java.time.format.DateTimeFormatter
 import scala.concurrent.Future
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.language.experimental.macros
 import scala.reflect.runtime.universe.{TypeTag, typeOf}
 
@@ -136,6 +142,15 @@ abstract class Index(
   def multiSearchResponse(searchRequests: (SearchRequest => SearchRequest)*) = execute(ElasticDsl.multi(searchRequests.map(_(ElasticDsl.search(name)))))
 
   def count(countRequest: CountRequest => CountRequest = identity) = execute(countRequest(ElasticDsl.count(name))).map(_.count)
+
+  def streamHits(
+                  searchRequest: SearchRequest => SearchRequest = identity, keepAlive: FiniteDuration = 1.minute
+                )(implicit actorSystem: ActorSystem[_]): Source[SearchHit, NotUsed] =
+    Source.fromPublisher(elasticClient.publisher(searchRequest(ElasticDsl.search(name)) keepAlive keepAlive)(actorSystem.toClassic))
+
+  def stream(
+              searchRequest: SearchRequest => SearchRequest = identity, keepAlive: FiniteDuration = 1.minute
+            )(implicit actorSystem: ActorSystem[_]): Source[Latest, NotUsed] = streamHits(searchRequest, keepAlive).map(_.to[Latest])
 }
 
 object Index {

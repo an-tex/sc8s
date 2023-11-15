@@ -7,6 +7,7 @@ import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.analysis.Analysis
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.ElasticField
+import com.sksamuel.elastic4s.requests.count.CountRequest
 import com.sksamuel.elastic4s.requests.searches.SearchRequest
 import com.sksamuel.elastic4s.requests.update.UpdateRequest
 import io.circe.generic.extras.Configuration
@@ -133,6 +134,8 @@ abstract class Index(
   def multiSearchHits(searchRequests: (SearchRequest => SearchRequest)*) = execute(ElasticDsl.multi(searchRequests.map(_(ElasticDsl.search(name))))).map(_.successes.flatMap(_.hits.hits.toSeq.map(hit => hit -> hit.to[Latest])))
 
   def multiSearchResponse(searchRequests: (SearchRequest => SearchRequest)*) = execute(ElasticDsl.multi(searchRequests.map(_(ElasticDsl.search(name)))))
+
+  def count(countRequest: CountRequest => CountRequest = identity) = execute(countRequest(ElasticDsl.count(name))).map(_.count)
 }
 
 object Index {

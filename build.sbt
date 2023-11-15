@@ -366,10 +366,12 @@ lazy val `elastic-testkit` = (project in file("elastic/testkit"))
       circe.generic.value,
       circe.genericExtras.value,
       macwire.macros,
+      logback.classic % Test,
+      logback.core % Test,
     ),
     idePackagePrefix := Some("net.sc8s.elastic.testkit")
   )
-  .dependsOn(`elastic-core`, `schevo-circe`.jvm)
+  .dependsOn(`elastic-core`, `schevo-circe`.jvm, `akka-components-testkit` % Test)
 
 lazy val `elastic-lagom-api` =
   crossProject(JSPlatform, JVMPlatform)

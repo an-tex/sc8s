@@ -408,7 +408,7 @@ object Evolver extends ClusterComponent.Singleton {
     }
   }
 
-  private val mappingsHashField = "mappingHash"
+  private[elastic] val mappingsHashField = "mappingHash"
 
   private val analysisHashField = "analysisHash"
 

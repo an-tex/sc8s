@@ -8,6 +8,7 @@ import com.sksamuel.elastic4s.analysis.Analysis
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.ElasticField
 import com.sksamuel.elastic4s.requests.searches.SearchRequest
+import com.sksamuel.elastic4s.requests.searches.queries.Query
 import com.sksamuel.elastic4s.requests.update.UpdateRequest
 import io.circe.generic.extras.Configuration
 import io.circe.syntax.EncoderOps
@@ -92,7 +93,17 @@ abstract class Index(
   }
 
   def bulkIndexRequest(latests: Seq[Index.this.Latest]) =
-    bulk(latests.map(indexRequest)) refresh indexSetup.refreshPolicy
+    ElasticDsl.bulk(latests.map(indexRequest)) refresh indexSetup.refreshPolicy
+
+  def bulkDelete(id: Id*) = execute(bulkDeleteRequest(id))
+
+  def bulkDeleteRequest(id: Seq[Id]) =
+    ElasticDsl.bulk(id.map(deleteRequest)) refresh indexSetup.refreshPolicy
+
+  def bulk(bulkDelete: Seq[Id], bulkIndex: Seq[Latest]) = execute(bulkRequest(bulkDelete, bulkIndex))
+
+  def bulkRequest(bulkDelete: Seq[Id], bulkIndex: Seq[Latest]) =
+    ElasticDsl.bulk(bulkDelete.map(deleteRequest) ++ bulkIndex.map(indexRequest)) refresh indexSetup.refreshPolicy
 
   def get(id: Id): Future[Option[Latest]] =
     execute(getRequest(id)).map(_.toOpt[Latest])
@@ -108,6 +119,10 @@ abstract class Index(
   def deleteRequest(id: Id) = deleteById(name, encodeId(id)) refresh indexSetup.refreshPolicy
 
   def deleteAllRequest() = deleteByQuery(name, matchAllQuery()) refresh indexSetup.refreshPolicy
+
+  def deleteQuery(query: Query) = execute(deleteQueryRequest(query))
+
+  def deleteQueryRequest(query: Query) = deleteByQuery(name, query) refresh indexSetup.refreshPolicy
 
   def update(id: Id, transformUpdateRequest: UpdateRequest => UpdateRequest) = execute(
     updateRequest(id, transformUpdateRequest)

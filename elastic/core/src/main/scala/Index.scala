@@ -8,6 +8,7 @@ import com.sksamuel.elastic4s.analysis.Analysis
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.ElasticField
 import com.sksamuel.elastic4s.requests.searches.SearchRequest
+import com.sksamuel.elastic4s.requests.searches.queries.Query
 import com.sksamuel.elastic4s.requests.update.UpdateRequest
 import io.circe.generic.extras.Configuration
 import io.circe.syntax.EncoderOps
@@ -118,6 +119,10 @@ abstract class Index(
   def deleteRequest(id: Id) = deleteById(name, encodeId(id)) refresh indexSetup.refreshPolicy
 
   def deleteAllRequest() = deleteByQuery(name, matchAllQuery()) refresh indexSetup.refreshPolicy
+
+  def deleteQuery(query: Query) = execute(deleteQueryRequest(query))
+
+  def deleteQueryRequest(query: Query) = deleteByQuery(name, query) refresh indexSetup.refreshPolicy
 
   def update(id: Id, transformUpdateRequest: UpdateRequest => UpdateRequest) = execute(
     updateRequest(id, transformUpdateRequest)

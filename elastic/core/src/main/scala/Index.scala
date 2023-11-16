@@ -92,7 +92,17 @@ abstract class Index(
   }
 
   def bulkIndexRequest(latests: Seq[Index.this.Latest]) =
-    bulk(latests.map(indexRequest)) refresh indexSetup.refreshPolicy
+    ElasticDsl.bulk(latests.map(indexRequest)) refresh indexSetup.refreshPolicy
+
+  def bulkDelete(id: Id*) = execute(bulkDeleteRequest(id))
+
+  def bulkDeleteRequest(id: Seq[Id]) =
+    ElasticDsl.bulk(id.map(deleteRequest)) refresh indexSetup.refreshPolicy
+
+  def bulk(bulkDelete: Seq[Id], bulkIndex: Seq[Latest]) = execute(bulkRequest(bulkDelete, bulkIndex))
+
+  def bulkRequest(bulkDelete: Seq[Id], bulkIndex: Seq[Latest]) =
+    ElasticDsl.bulk(bulkDelete.map(deleteRequest) ++ bulkIndex.map(indexRequest)) refresh indexSetup.refreshPolicy
 
   def get(id: Id): Future[Option[Latest]] =
     execute(getRequest(id)).map(_.toOpt[Latest])

@@ -240,13 +240,7 @@ object Evolver extends ClusterComponent.Singleton {
                 IndexMigrated
             }
 
-            context.pipeToSelf(eventualCommand)(_.fold(e => {
-              setReadOnly(oldIndexName, readOnly = false).onComplete {
-                case Failure(exception) => log.errorT("reEnablingWriteAfterIndexMigrationFailureFailed", s"on $index due to $exception")
-              }
-
-              IndexMigrationFailed(index, e)
-            }, identity))
+            context.pipeToSelf(eventualCommand)(_.fold(IndexMigrationFailed(index, _), identity))
 
             migratingIndex(index, oldIndexName, newIndexName, pendingIndices)
 
@@ -286,6 +280,9 @@ object Evolver extends ClusterComponent.Singleton {
           case IndexMigrationFailed(index, exception) =>
             timerScheduler.cancelAll()
             log.errorT("indexMigrationFailed", s"of ${index.name -> "index"} with $exception")
+            setReadOnly(oldIndexName, readOnly = false).onComplete {
+              case Failure(exception) => log.errorT("reEnablingWriteAfterIndexMigrationFailureFailed", s"on $index due to $exception")
+            }
             idle
 
           case CheckTaskCompletion(nodeId, taskId) =>
@@ -305,7 +302,8 @@ object Evolver extends ClusterComponent.Singleton {
             getTaskResponse.error match {
               case Some(error) =>
                 log.errorT("taskFailed", s"of ${index.name -> "index"} with $error, aborting")
-                idle
+                context.self ! IndexMigrationFailed(index, new Exception(error.toString))
+                Behaviors.same
               case None =>
                 if (getTaskResponse.completed) context.self ! IndexMigrated
                 Behaviors.same

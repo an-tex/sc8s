@@ -18,6 +18,11 @@ trait ElasticServiceImpl extends ElasticService {
     Future.successful(NotUsed)
   }
 
+  override def cancelIndicesMigration = ServiceCall { _ =>
+    evolver.actorRef ! Evolver.Command.CancelIndicesMigration
+    Future.successful(NotUsed)
+  }
+
   override def evolveDocuments(indices: Seq[String]) = ServiceCall { _ =>
     evolver.actorRef ! Evolver.Command.EvolveDocuments(indices)
     Future.successful(NotUsed)

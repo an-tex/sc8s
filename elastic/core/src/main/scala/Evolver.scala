@@ -229,7 +229,7 @@ object Evolver extends ClusterComponent.Singleton {
             val eventualCommand = for {
               _ <- setReadOnly(oldIndexName, readOnly = true)
               _ <- elasticClient.execute(createIndexWithMappings(index, newIndexName)).map(_.result)
-              result <- elasticClient.execute(reindex(oldIndexName, newIndexName) waitForCompletion false shouldStoreResult true).map(_.result)
+              result <- elasticClient.execute(reindex(oldIndexName, newIndexName) waitForCompletion false shouldStoreResult true slices 8).map(_.result) // slices auto is not available in elastic4s
             } yield result match {
               case Right(createTaskResponse) =>
                 IndexMigrationStarted(createTaskResponse.nodeId, createTaskResponse.taskId)

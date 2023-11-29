@@ -16,7 +16,7 @@ import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.stream.RateLogger
 import net.sc8s.circe.CodecConfiguration._
-import net.sc8s.elastic.Evolver.Command.{AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, IndexSettingsUpdated, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus, UpdateIndexSettings}
+import net.sc8s.elastic.Evolver.Command.{CancelIndicesMigration, AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, IndexSettingsUpdated, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus, UpdateIndexSettings}
 import net.sc8s.logstage.elastic.Logging.IzLoggerTags
 
 import java.time.LocalDateTime
@@ -29,6 +29,7 @@ object Evolver extends ClusterComponent.Singleton {
   sealed trait SerializableCommand extends Command
   object Command {
     case class MigrateIndices(indices: Seq[String], forceReindex: Boolean) extends SerializableCommand
+    case object CancelIndicesMigration extends SerializableCommand
     case class EvolveDocuments(indices: Seq[String]) extends SerializableCommand
     case class RunBatchUpdates(index: String, job: String) extends SerializableCommand
 
@@ -124,6 +125,10 @@ object Evolver extends ClusterComponent.Singleton {
               log.error(s"${"indexNotFound" -> "tag"} $index $batchUpdateName")
               Behaviors.same
           }
+
+        case CancelIndicesMigration =>
+          log.errorT("indicesMigrationNotRunning")
+          Behaviors.same
       }
 
       def runningBatchUpdates(index: Index, batchUpdate: String): Behaviors.Receive[Command] = Behaviors.receiveMessagePartial {
@@ -229,7 +234,7 @@ object Evolver extends ClusterComponent.Singleton {
             val eventualCommand = for {
               _ <- setReadOnly(oldIndexName, readOnly = true)
               _ <- elasticClient.execute(createIndexWithMappings(index, newIndexName)).map(_.result)
-              result <- elasticClient.execute(reindex(oldIndexName, newIndexName) waitForCompletion false shouldStoreResult true).map(_.result)
+              result <- elasticClient.execute(reindex(oldIndexName, newIndexName) waitForCompletion false shouldStoreResult true slices 8 maxRetries 1).map(_.result) // slices auto is not available in elastic4s
             } yield result match {
               case Right(createTaskResponse) =>
                 IndexMigrationStarted(createTaskResponse.nodeId, createTaskResponse.taskId)
@@ -240,18 +245,16 @@ object Evolver extends ClusterComponent.Singleton {
                 IndexMigrated
             }
 
-            context.pipeToSelf(eventualCommand)(_.fold(e => {
-              setReadOnly(oldIndexName, readOnly = false).onComplete {
-                case Failure(exception) => log.errorT("reEnablingWriteAfterIndexMigrationFailureFailed", s"on $index due to $exception")
-              }
-
-              IndexMigrationFailed(index, e)
-            }, identity))
+            context.pipeToSelf(eventualCommand)(_.fold(IndexMigrationFailed(index, _), identity))
 
             migratingIndex(index, oldIndexName, newIndexName, pendingIndices)
 
           case IndexMigrationFailed(index, exception) =>
             log.error(s"${"indexMigrationFailed" -> "tag"} of ${index.name -> "index"} with $exception")
+            idle
+
+          case CancelIndicesMigration =>
+            log.infoT("cancellingIndicesMigration")
             idle
         }
 
@@ -286,6 +289,9 @@ object Evolver extends ClusterComponent.Singleton {
           case IndexMigrationFailed(index, exception) =>
             timerScheduler.cancelAll()
             log.errorT("indexMigrationFailed", s"of ${index.name -> "index"} with $exception")
+            setReadOnly(oldIndexName, readOnly = false).onComplete {
+              case Failure(exception) => log.errorT("reEnablingWriteAfterIndexMigrationFailureFailed", s"on $index due to $exception")
+            }
             idle
 
           case CheckTaskCompletion(nodeId, taskId) =>
@@ -305,8 +311,10 @@ object Evolver extends ClusterComponent.Singleton {
             getTaskResponse.error match {
               case Some(error) =>
                 log.errorT("taskFailed", s"of ${index.name -> "index"} with $error, aborting")
-                idle
+                context.self ! IndexMigrationFailed(index, new Exception(error.toString))
+                Behaviors.same
               case None =>
+                // TODO can't match for cancelled task here (e.g. through task management api) as elastic4s doesn't expose the cancelled field, hence a cancellation will lead to a deletion of a non migrated index :(
                 if (getTaskResponse.completed) context.self ! IndexMigrated
                 Behaviors.same
             }
@@ -314,6 +322,14 @@ object Evolver extends ClusterComponent.Singleton {
           case TaskStatus(Failure(exception)) =>
             timerScheduler.cancelAll()
             log.error(s"${"getTaskStatusFailed" -> "tag"} of ${index.name -> "index"} with $exception, aborting")
+            idle
+
+          case CancelIndicesMigration =>
+            timerScheduler.cancelAll()
+            log.infoT("cancellingIndicesMigration", "make sure to delete left over index manually")
+            setReadOnly(oldIndexName, readOnly = false).onComplete {
+              case Failure(exception) => log.errorT("reEnablingWriteAfterIndexMigrationCancellationFailed", s"on $index due to $exception")
+            }
             idle
 
           case IndexMigrated =>

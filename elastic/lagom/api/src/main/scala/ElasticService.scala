@@ -7,6 +7,8 @@ import com.lightbend.lagom.scaladsl.api.{Descriptor, Service, ServiceCall}
 trait ElasticService extends Service {
   def migrateIndices(indices: Seq[String] = Nil, forceReindex: Option[Boolean]): ServiceCall[NotUsed, NotUsed]
 
+  def cancelIndicesMigration: ServiceCall[NotUsed, NotUsed]
+
   def evolveDocuments(indices: Seq[String] = Nil): ServiceCall[NotUsed, NotUsed]
 
   def batchUpdate(index: String, job: String): ServiceCall[NotUsed, NotUsed]
@@ -17,6 +19,7 @@ trait ElasticService extends Service {
     import Service._
     Seq(
       restCall(Method.POST, s"$apiPrefix/elastic/index/migrate?indices&forceReindex", migrateIndices _),
+      restCall(Method.POST, s"$apiPrefix/elastic/index/migrate/cancel", cancelIndicesMigration _),
       restCall(Method.POST, s"$apiPrefix/elastic/documents/evolve?indices", evolveDocuments _),
       restCall(Method.POST, s"$apiPrefix/elastic/documents/batch-update?index&job", batchUpdate _),
     )

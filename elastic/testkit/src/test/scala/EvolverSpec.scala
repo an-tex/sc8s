@@ -77,7 +77,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
 
     def addDocumentV2() = {
       elasticClient.execute(indexInto(testIndex1.name) source testIndex1.DocumentV2("id1", "name1").asJson {
-        import Index.configuration
+        import testIndex1.configuration
         deriveConfiguredEncoder[testIndex1.DocumentV2]
       }).futureValue
       eventually(elasticClient.execute(count(testIndex1.name)).futureValue.result.count shouldBe 1)

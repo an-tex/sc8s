@@ -37,7 +37,6 @@ class IndexSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with Matc
         override def version = ???
 
         override def sourceAsString = documentV1.asInstanceOf[Version].asJson {
-          import Index.configuration
           import io.circe.generic.extras.auto._
           deriveConfiguredEncoder[Version]
         }.noSpaces

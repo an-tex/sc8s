@@ -149,7 +149,7 @@ object Evolver extends ClusterComponent.Singleton {
                 mappingsHashField -> index.mappingsHash,
                 analysisHashField -> index.analysisHash,
                 settingsHashField -> index.settingsHash,
-              ), properties = index.mappings :+ KeywordField(Index.discriminator))
+              ), properties = index.mappings :+ KeywordField(index.discriminator))
             )
             .analysis(index.analysis)
             .settings(index.settings)
@@ -376,8 +376,8 @@ object Evolver extends ClusterComponent.Singleton {
 
             case index :: updatedPendingIndices =>
               val counts = for {
-                needEvolution <- elasticClient.execute(count(index.name) query not(termQuery(Index.discriminator, index.latestVersion)))
-                alreadyEvolved <- elasticClient.execute(count(index.name) query termQuery(Index.discriminator, index.latestVersion))
+                needEvolution <- elasticClient.execute(count(index.name) query not(termQuery(index.discriminator, index.latestVersion)))
+                alreadyEvolved <- elasticClient.execute(count(index.name) query termQuery(index.discriminator, index.latestVersion))
               } yield needEvolution -> alreadyEvolved
 
               val indexEvolved = counts.flatMap {
@@ -390,7 +390,7 @@ object Evolver extends ClusterComponent.Singleton {
                     import index.{latestTraitIndexable, versionedHitReader}
 
                     Source
-                      .fromPublisher(elasticClient.publisher(search(index.name) query not(termQuery(Index.discriminator, index.latestVersion)) keepAlive "1m"))
+                      .fromPublisher(elasticClient.publisher(search(index.name) query not(termQuery(index.discriminator, index.latestVersion)) keepAlive "1m"))
                       .via(RateLogger(s"evolvingDocuments|${index.name}", total = Some(documentsToEvolve -> (documentsToEvolve + alreadyEvolvedDocuments))))
                       .groupedWithin(1000, 3.seconds)
                       .mapAsyncUnordered(8) { hits =>

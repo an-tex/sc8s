@@ -15,6 +15,7 @@ import com.sksamuel.elastic4s.requests.update.UpdateRequest
 import io.circe.generic.extras.Configuration
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Json}
+import net.sc8s.circe.CodecConfiguration
 import net.sc8s.elastic.Index.BatchUpdate
 import net.sc8s.schevo.circe.SchevoCirce
 
@@ -26,7 +27,7 @@ import scala.reflect.runtime.universe.{TypeTag, typeOf}
 abstract class Index(
                       // baseName without prefixes, should not be accessible from outside to avoid accidental access of non-prefixed indices
                       baseName: String
-                    ) extends SchevoCirce {
+                    ) extends SchevoCirce with CodecConfiguration {
 
   val indexSetup: IndexSetup
 
@@ -70,8 +71,6 @@ abstract class Index(
   val latestVersion: String
 
   def latestVersionHelper[T <: LatestCaseClass : TypeTag] = typeOf[T].typeSymbol.name.decodedName.toString
-
-  implicit val configuration = Index.configuration
 
   implicit val codec: Codec[Latest]
 
@@ -151,9 +150,6 @@ abstract class Index(
 
 object Index {
   val indexNameSuffixFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss_SSS")
-
-  val discriminator = "class"
-  implicit val configuration = Configuration.default.withDiscriminator(discriminator)
 
   case class BatchUpdate[T](job: String, update: T => T)
 

@@ -50,6 +50,8 @@ class IndexSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with Matc
         override def seqNo = ???
 
         override def primaryTerm = ???
+
+        override def sort = ???
       }).toString === Success(documentV1.evolve).toString
     }
     "latest version" in {

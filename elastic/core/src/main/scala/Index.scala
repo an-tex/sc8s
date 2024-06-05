@@ -7,12 +7,13 @@ import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.analysis.Analysis
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.ElasticField
+import com.sksamuel.elastic4s.requests.bulk.BulkRequest
 import com.sksamuel.elastic4s.requests.delete.{DeleteByIdRequest, DeleteByQueryRequest}
 import com.sksamuel.elastic4s.requests.indexes.IndexRequest
 import com.sksamuel.elastic4s.requests.searches.SearchRequest
 import com.sksamuel.elastic4s.requests.searches.queries.Query
 import com.sksamuel.elastic4s.requests.update.UpdateRequest
-import io.circe.generic.extras.Configuration
+
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Json}
 import net.sc8s.circe.CodecConfiguration
@@ -89,11 +90,13 @@ abstract class Index(
 
   def bulkIndex(lastests: Latest*) = execute(bulkIndexRequest(lastests))
 
+  def bulkIndex(lastests: Seq[Latest], transformRequest: BulkRequest => BulkRequest = identity) = execute(bulkIndexRequest(lastests, transformRequest))
+
   def indexRequest(latest: Latest, transformRequest: IndexRequest => IndexRequest = identity) =
     transformRequest(indexInto(name) id encodeId(latest.id) doc latest refresh indexSetup.refreshPolicy)
 
-  def bulkIndexRequest(latests: Seq[Index.this.Latest]) =
-    ElasticDsl.bulk(latests.map(indexRequest(_))) refresh indexSetup.refreshPolicy
+  def bulkIndexRequest(latests: Seq[Index.this.Latest], transformRequest: BulkRequest => BulkRequest = identity) =
+    transformRequest(ElasticDsl.bulk(latests.map(indexRequest(_))) refresh indexSetup.refreshPolicy)
 
   def bulkDelete(id: Id*) = execute(bulkDeleteRequest(id))
 

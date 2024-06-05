@@ -140,7 +140,7 @@ object Dependencies {
   }
 
   object cats {
-    val core = Def.setting("org.typelevel" %%% "cats-core" % "2.10.0")
+    val core = Def.setting("org.typelevel" %%% "cats-core" % "2.12.0")
   }
 
   object logback {
@@ -151,18 +151,18 @@ object Dependencies {
   }
 
   object elastic4s {
-    private val elastic4s = "8.11.5"
+    private val elastic4s = "8.13.0"
     private val elasticsearch = "8.13.4"
 
-    val clientAkka = "com.sksamuel.elastic4s" %% "elastic4s-client-akka" % elastic4s
+    val clientAkka = "nl.gn0s1s" %% "elastic4s-client-akka" % elastic4s
     val clientJava = "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" % elastic4s
-    val core = "com.sksamuel.elastic4s" %% "elastic4s-core" % elastic4s
+    val core = "nl.gn0s1s" %% "elastic4s-core" % elastic4s
     val elasticTestFramework = "org.elasticsearch.test" % "framework" % elasticsearch
-    val httpStreams = "com.sksamuel.elastic4s" %% "elastic4s-http-streams" % elastic4s
-    val jsonCirce = "com.sksamuel.elastic4s" %% "elastic4s-json-circe" % elastic4s
+    val httpStreams = "nl.gn0s1s" %% "elastic4s-http-streams" % elastic4s
+    val jsonCirce = "nl.gn0s1s" %% "elastic4s-json-circe" % elastic4s
     val jsonPlay = "com.sksamuel.elastic4s" %% "elastic4s-json-play" % elastic4s
     // does not work, use httpStreams instead
     val streamsAkka = "com.sksamuel.elastic4s" %% "elastic4s-streams-akka" % elastic4s
-    val testkit = "com.sksamuel.elastic4s" %% "elastic4s-testkit" % elastic4s
+    val testkit = "nl.gn0s1s" %% "elastic4s-testkit" % elastic4s
   }
 }

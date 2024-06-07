@@ -19,6 +19,12 @@ lazy val sc8s = (project in file("."))
     `akka-components-persistence-projection-r2dbc`,
     `akka-components-persistence-projection-api`.js,
     `akka-components-persistence-projection-api`.jvm,
+    `akka-components-persistence-cassandra-lagom-api`.js,
+    `akka-components-persistence-cassandra-lagom-api`.jvm,
+    `akka-components-persistence-cassandra-lagom`,
+    `akka-components-persistence-r2dbc-lagom-api`.js,
+    `akka-components-persistence-r2dbc-lagom-api`.jvm,
+    `akka-components-persistence-r2dbc-lagom`,
     `akka-components-persistence-projection-lagom-api`.js,
     `akka-components-persistence-projection-lagom-api`.jvm,
     `akka-components-persistence-projection-lagom`,
@@ -163,6 +169,26 @@ lazy val `akka-components-persistence-cassandra-lagom` = (project in file("akka-
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.cassandra.lagom")
   )
   .dependsOn(`akka-components`, `akka-components-persistence-cassandra-lagom-api`.jvm)
+
+lazy val `akka-components-persistence-r2dbc-lagom-api` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("akka-components-persistence-r2dbc-lagom-api"))
+  .jvmSettings(libraryDependencies += lagom.scaladslApi)
+  .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
+  .settings(
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.lagom.api")
+  )
+  .dependsOn(`common-circe`, `lagom-api-circe`)
+
+lazy val `akka-components-persistence-r2dbc-lagom` = (project in file("akka-components-persistence-r2dbc-lagom"))
+  .settings(
+    libraryDependencies ++= Seq(
+      lagom.scaladslServer,
+      akka.persistenceR2dbcLicensed,
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.lagom")
+  )
+  .dependsOn(`akka-components`, `akka-components-persistence-r2dbc-lagom-api`.jvm)
 
 lazy val `akka-components-persistence-projection` = (project in file("akka-components-persistence-projection"))
   .settings(
@@ -421,7 +447,8 @@ inThisBuild(Seq(
     "org.scala-lang.modules" %% "scala-java8-compat" % "always",
   ),
   resolvers ++= Seq(
-    "antex public" at "https://mymavenrepo.com/repo/zeKhQjbzBED1vIds46Kj/"
+    "antex public" at "https://mymavenrepo.com/repo/zeKhQjbzBED1vIds46Kj/",
+    "Akka library repository" at "https://repo.akka.io/maven"
   ),
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),

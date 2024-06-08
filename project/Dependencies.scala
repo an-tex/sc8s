@@ -8,7 +8,7 @@ object Dependencies {
   val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.18")
   val scalamock = "org.scalamock" %% "scalamock" % "6.0.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "2.0.13"
-  val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.5.0")
+  val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.6.0")
   val scalaXml = "org.scala-lang.modules" %% "scala-xml" % "2.1.0"
   val nameOf = "com.github.dwickern" %% "scala-nameof" % "3.0.0-antex"
 

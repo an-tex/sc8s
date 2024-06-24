@@ -4,8 +4,8 @@ import sbt._
 object Dependencies {
   val scala213 = "2.13.14"
 
-  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.18")
-  val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.18")
+  val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
+  val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
   val scalamock = "org.scalamock" %% "scalamock" % "6.0.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "2.0.13"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.6.0")

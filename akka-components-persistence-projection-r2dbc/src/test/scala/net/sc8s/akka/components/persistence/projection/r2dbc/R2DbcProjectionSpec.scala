@@ -114,7 +114,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
         case class State()
         implicit val stateCodec: Codec[State] = deriveCodec
 
-        class Component(dependency: Dependency) extends BaseComponent with R2dbcShardedProjection with R2dbcShardedProjection.FromSnapshots {
+        class Component(dependency: Dependency) extends BaseComponent with R2dbcShardedProjection with R2dbcShardedProjection.FromSnapshot {
           override val behavior = componentContext => EventSourcedBehavior(
             componentContext.persistenceId,
             State(),

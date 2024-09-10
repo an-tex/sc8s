@@ -22,7 +22,8 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
   """
     |akka.actor.provider = cluster
     |akka.remote.artery.canonical.port = 0
-    |""".stripMargin)) with AnyFreeSpecLike with Matchers {
+    |akka.persistence.r2dbc.connection-factory = ${akka.persistence.r2dbc.postgres}
+    |""".stripMargin).resolveWith(ConfigFactory.load)) with AnyFreeSpecLike with Matchers {
 
   "ClusterComponents" - {
     "Singleton with projections" in {
@@ -65,7 +66,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
       ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
     }
     "Sharded with projections" in {
-      object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+      object ComponentObject extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
         case class Command()
         implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
 
@@ -93,8 +94,48 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
                 case (event, projectionContext) => Future.successful(Done)
               }
             ))
+        }
+
+        override val name = randomName
+
+        override val commandSerializer = CirceSerializer()
+        override val eventSerializer = CirceSerializer()
+      }
+      ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
+    }
+    "Sharded with projections from snapshot" in {
+      object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+        case class Command()
+        implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
+
+        case class Event()
+        implicit val eventCodec: Codec[Event] = deriveCodec
+
+        case class State()
+        implicit val stateCodec: Codec[State] = deriveCodec
+
+        class Component(dependency: Dependency) extends BaseComponent with R2dbcShardedProjection with R2dbcShardedProjection.FromSnapshots {
+          override val behavior = componentContext => EventSourcedBehavior(
+            componentContext.persistenceId,
+            State(),
+            {
+              case (state, command) => Effect.none
+            },
+            {
+              case (state, event) => state
+            })
+
+          override val projections = Set(
+            ClusterComponent.Projection(
+              "projectionSharded",
+              {
+                case (event, projectionContext) => Future.successful(Done)
+              }
+            ))
 
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
+
+          override def transformSnapshot(state: State): EventT = Event()
         }
 
         override val name = randomName

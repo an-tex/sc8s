@@ -184,8 +184,9 @@ lazy val `akka-components-persistence-r2dbc-lagom` = (project in file("akka-comp
   .settings(
     libraryDependencies ++= Seq(
       lagom.scaladslServer,
-      akka.persistenceR2dbcLicensed,
+      akka.persistenceR2dbc,
     ),
+    dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.lagom")
   )
   .dependsOn(`akka-components`, `akka-components-persistence-r2dbc-lagom-api`.jvm)
@@ -238,6 +239,7 @@ lazy val `akka-components-persistence-projection-r2dbc` = (project in file("akka
       circe.generic.value,
       circe.genericExtras.value,
     ),
+    dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
   ).dependsOn(`akka-components`, `akka-circe`, `akka-components-persistence-projection`, `logstage-elastic`)
 
 lazy val `akka-components-persistence-projection-lagom-api` = crossProject(JSPlatform, JVMPlatform)
@@ -470,7 +472,7 @@ inThisBuild(Seq(
     // needs to be added here instead of Dependencies.overrides due to .value call
     circe.core.value
   ),
-  githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+  githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17")),
 ))
 
 Global / excludeLintKeys += idePackagePrefix

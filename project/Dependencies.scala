@@ -48,17 +48,21 @@ object Dependencies {
 
   object akka {
     private val akkaVersion = "2.6.20"
+    private val akkaLicensedVersion = "2.9.5"
+
     private val akkaHttpVersion = "10.2.10"
-    private val akkaJs = "2.2.6.14"
+    private val akkaHttpLicensedVersion = "10.6.3"
+
     private val r2dbcVersion = "0.7.7"
     private val r2dbcLicensedVersion = "1.2.4"
+
+    private val akkaJs = "2.2.6.14"
 
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion
     val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % akkaVersion
     val http = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
     val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.0.6"
     val persistenceR2dbc = "com.lightbend.akka" %% "akka-persistence-r2dbc" % r2dbcVersion
-    val persistenceR2dbcLicensed = "com.lightbend.akka" %% "akka-persistence-r2dbc" % r2dbcLicensedVersion
     val persistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion
     val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akkaVersion
     val stream = "com.typesafe.akka" %% "akka-stream" % akkaVersion
@@ -70,39 +74,50 @@ object Dependencies {
 
     val httpCirce = "de.heikoseeberger" %% "akka-http-circe" % "1.35.3"
 
-    val overrides = Seq(
+    def createOverrides(licensed: Boolean) = Seq(
       "akka-http",
       "akka-http-core",
       "akka-http-spray-json",
       "akka-parsing",
       "akka-http-xml"
-    ).map("com.typesafe.akka" %% _ % akkaHttpVersion) ++
-      Seq(
-        "akka-actor",
-        "akka-actor-testkit-typed",
-        "akka-actor-typed",
-        "akka-cluster",
-        "akka-cluster-sharding",
-        "akka-cluster-sharding-typed",
-        "akka-cluster-tools",
-        "akka-cluster-typed",
-        "akka-coordination",
-        "akka-discovery",
-        "akka-distributed-data",
-        "akka-persistence",
-        "akka-persistence-query",
-        "akka-persistence-typed",
-        "akka-protobuf-v3",
-        "akka-remote",
-        "akka-serialization-jackson",
-        "akka-slf4j",
-        "akka-stream",
-        "akka-stream-typed",
-        "akka-stream-testkit"
-      ).map("com.typesafe.akka" %% _ % akkaVersion)
+    ).map("com.typesafe.akka" %% _ % (if (licensed) akkaHttpLicensedVersion else akkaHttpVersion)) ++ Seq(
+      "akka-actor",
+      "akka-actor-testkit-typed",
+      "akka-actor-typed",
+      "akka-cluster",
+      "akka-cluster-sharding",
+      "akka-cluster-sharding-typed",
+      "akka-cluster-tools",
+      "akka-cluster-typed",
+      "akka-coordination",
+      "akka-discovery",
+      "akka-distributed-data",
+      "akka-persistence",
+      "akka-persistence-query",
+      "akka-persistence-testkit",
+      "akka-persistence-typed",
+      "akka-protobuf-v3",
+      "akka-remote",
+      "akka-serialization-jackson",
+      "akka-slf4j",
+      "akka-stream",
+      "akka-stream-typed",
+      "akka-stream-testkit"
+    ).map("com.typesafe.akka" %% _ % (if (licensed) akkaLicensedVersion else akkaVersion)) ++ Seq(
+      "akka-persistence-r2dbc"
+    ).map("com.lightbend.akka" %% _ % (if (licensed) r2dbcLicensedVersion else r2dbcVersion)) ++ Seq(
+      "akka-projection-core",
+      "akka-projection-eventsourced",
+      "akka-projection-r2dbc",
+      "akka-projection-testkit"
+    ).map("com.lightbend.akka" %% _ % (if (licensed) projection.projectionLicensedVersion else projection.projectionVersion)
+    )
+
+    val overrides = createOverrides(licensed = false)
 
     object projection {
-      private val projectionVersion = "1.2.5"
+      val projectionVersion = "1.2.5"
+      val projectionLicensedVersion = "1.5.4"
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion

@@ -95,7 +95,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
-          override def transformSnapshot(state: State): EventT = Event()
+          override def transformSnapshot(state: State) = Event()
         }
 
         override val name = "singleton"
@@ -176,7 +176,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
-          override def transformSnapshot(state: State): EventT = Event()
+          override def transformSnapshot(state: State) = Event()
         }
 
         override val name = randomName

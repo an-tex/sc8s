@@ -1,9 +1,8 @@
 package net.sc8s.akka.components.persistence.projection.r2dbc
 
-import akka.{Done, NotUsed}
 import akka.actor.typed.ActorSystem
-import akka.persistence.query.{PersistenceQuery, Sequence}
 import akka.persistence.query.typed.EventEnvelope
+import akka.persistence.query.{Offset, PersistenceQuery, Sequence}
 import akka.persistence.r2dbc.query.scaladsl.R2dbcReadJournal
 import akka.persistence.typed.PersistenceId
 import akka.projection.ProjectionId
@@ -11,6 +10,7 @@ import akka.projection.eventsourced.scaladsl.EventSourcedProvider
 import akka.projection.r2dbc.scaladsl.{R2dbcProjection, R2dbcSession}
 import akka.projection.scaladsl.SourceProvider
 import akka.stream.scaladsl.Source
+import akka.{Done, NotUsed}
 import net.sc8s.akka.components.ClusterComponent.ComponentT.EventSourcedT
 import net.sc8s.akka.components.ClusterComponent.{ComponentContext, Projection}
 import net.sc8s.akka.components.persistence.projection.{ManagedProjection, ProjectionStatusObserver}
@@ -54,17 +54,13 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 
       override def projectionFactory(i: Int) = {
         val projectionId = projectionIds(i)
+        val minSlice = sliceRanges(i).min
+        val maxSlice = sliceRanges(i).max
         R2dbcProjection
           .atLeastOnce(
             projectionId,
             None,
-            EventSourcedProvider.eventsBySlices[EventT](
-              actorSystem,
-              R2dbcReadJournal.Identifier,
-              typeKey.name,
-              sliceRanges(i).min,
-              sliceRanges(i).max,
-            ),
+            createSourceProvider(minSlice, maxSlice, actorSystem),
             () => (_: R2dbcSession, envelope: EventEnvelope[EventT]) =>
               projection.handler.applyOrElse(
                 envelope.event -> projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem),
@@ -73,6 +69,35 @@ trait R2dbcShardedProjection extends R2dbcProjection {
           )
       }
     }
+  }
+
+  def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
+    EventSourcedProvider.eventsBySlices[EventT](
+      actorSystem,
+      R2dbcReadJournal.Identifier,
+      typeKey.name,
+      minSlice,
+      maxSlice,
+    )
+}
+
+object R2dbcShardedProjection {
+  trait FromSnapshots {
+    _: R2dbcShardedProjection
+      with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
+      with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
+
+    def transformSnapshot(state: StateT): EventT
+
+    override def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
+      EventSourcedProvider.eventsBySlicesStartingFromSnapshots(
+        actorSystem,
+        R2dbcReadJournal.Identifier,
+        typeKey.name,
+        minSlice,
+        maxSlice,
+        transformSnapshot,
+      )
   }
 }
 

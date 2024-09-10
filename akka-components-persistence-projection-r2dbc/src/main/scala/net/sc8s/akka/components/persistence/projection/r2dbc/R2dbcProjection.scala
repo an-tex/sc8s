@@ -82,7 +82,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 }
 
 object R2dbcShardedProjection {
-  trait FromSnapshots {
+  trait FromSnapshot {
     _: R2dbcShardedProjection
       with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>

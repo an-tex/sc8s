@@ -71,7 +71,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
     }
   }
 
-  def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
+  private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
     EventSourcedProvider.eventsBySlices[EventT](
       actorSystem,
       R2dbcReadJournal.Identifier,
@@ -89,7 +89,7 @@ object R2dbcShardedProjection {
 
     def transformSnapshot(state: StateT): EventT
 
-    override def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
+    override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
       EventSourcedProvider.eventsBySlicesStartingFromSnapshots(
         actorSystem,
         R2dbcReadJournal.Identifier,
@@ -106,45 +106,46 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
   _: EventSourcedT#EventSourcedBaseComponentT
     with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent =>
 
-  import akka.persistence.query.EventEnvelope
-
   private class EventsByPersistenceIdSourceProvider(
                                                      persistenceId: PersistenceId,
                                                      system: ActorSystem[_])
-    extends SourceProvider[Sequence, EventEnvelope] {
+    extends SourceProvider[Sequence, EventEnvelope[EventT]] {
     implicit val executionContext: ExecutionContext = system.executionContext
 
     override def source(offset: () => Future[Option[Sequence]])
-    : Future[Source[EventEnvelope, NotUsed]] =
+    : Future[Source[EventEnvelope[EventT], NotUsed]] =
       offset().map { offsetOpt =>
         val sequence = offsetOpt.getOrElse(Sequence(0L))
         val eventQueries = PersistenceQuery(system)
           .readJournalFor[R2dbcReadJournal](R2dbcReadJournal.Identifier)
-        eventQueries.currentEventsByPersistenceId(persistenceId.id, sequence.value, Long.MaxValue)
+        createEventSource(persistenceId, sequence, eventQueries)
       }
 
-    override def extractOffset(envelope: EventEnvelope): Sequence = Sequence(envelope.sequenceNr)
+    override def extractOffset(envelope: EventEnvelope[EventT]): Sequence = Sequence(envelope.sequenceNr)
 
-    override def extractCreationTime(envelope: EventEnvelope): Long =
+    override def extractCreationTime(envelope: EventEnvelope[EventT]): Long =
       envelope.timestamp
   }
+
+  private[r2dbc] def createEventSource(persistenceId: PersistenceId, sequence: Sequence, eventQueries: R2dbcReadJournal) =
+    eventQueries.currentEventsByPersistenceIdTyped[EventT](persistenceId.id, sequence.value, Long.MaxValue)
 
   override private[components] def managedProjectionFactory(
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
                                                              actorSystem: ActorSystem[_]
-                                                           ): ManagedProjection[EventEnvelope] = {
+                                                           ): ManagedProjection[EventEnvelope[EventT]] = {
     val projectionIds = Seq(
       ProjectionId(projection.name, s"${projection.name}-singleton")
     )
 
-    new ManagedProjection[EventEnvelope](
+    new ManagedProjection[EventEnvelope[EventT]](
       projection.name,
       projectionIds,
       numberOfProjectionInstances,
-      new ProjectionStatusObserver[EventEnvelope]()(actorSystem) {
-        override def extractSequenceNr(envelope: EventEnvelope) = envelope.sequenceNr
+      new ProjectionStatusObserver[EventEnvelope[EventT]]()(actorSystem) {
+        override def extractSequenceNr(envelope: EventEnvelope[EventT]) = envelope.sequenceNr
 
-        override def extractOffset(envelope: EventEnvelope) = envelope.offset
+        override def extractOffset(envelope: EventEnvelope[EventT]) = envelope.offset
       },
       actorSystem
     ) {
@@ -159,13 +160,24 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
               persistenceId,
               actorSystem,
             ),
-            () => (_: R2dbcSession, envelope: EventEnvelope) =>
+            () => (_: R2dbcSession, envelope: EventEnvelope[EventT]) =>
               projection.handler(
-                envelope.event.asInstanceOf[EventT],
+                envelope.event,
                 projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem)
               )
           )
       }
     }
+  }
+}
+
+object R2dbcSingletonProjection {
+  trait FromSnapshot {
+    _: R2dbcSingletonProjection with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
+
+    def transformSnapshot(state: StateT): EventT
+
+    override private[r2dbc] def createEventSource(persistenceId: PersistenceId, sequence: Sequence, eventQueries: R2dbcReadJournal) =
+      eventQueries.currentEventsByPersistenceIdStartingFromSnapshot(persistenceId.id, sequence.value, Long.MaxValue, transformSnapshot)
   }
 }

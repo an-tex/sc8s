@@ -7,7 +7,7 @@ import akka.persistence.r2dbc.query.scaladsl.R2dbcReadJournal
 import akka.persistence.typed.PersistenceId
 import akka.projection.ProjectionId
 import akka.projection.eventsourced.scaladsl.EventSourcedProvider
-import akka.projection.r2dbc.scaladsl.{R2dbcProjection, R2dbcSession}
+import akka.projection.r2dbc.scaladsl.{R2dbcProjection => AkkaR2dbcProjection, R2dbcSession}
 import akka.projection.scaladsl.SourceProvider
 import akka.stream.scaladsl.Source
 import akka.{Done, NotUsed}
@@ -19,9 +19,19 @@ import scala.concurrent.{ExecutionContext, Future}
 
 private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
   _: EventSourcedT#EventSourcedBaseComponentT
-    with net.sc8s.akka.components.ClusterComponent.ComponentT.EventSourcedT#BaseComponent =>
+    with EventSourcedT#BaseComponent =>
 
   val numberOfProjectionInstances = 1
+}
+
+object R2dbcProjection {
+  private[r2dbc] trait FromSnapshot {
+    _: EventSourcedT#EventSourcedBaseComponentT
+      with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
+
+    // without the type parameter you "sometimes" get an AbstractMethodError exception :( https://github.com/scala/bug/issues/11833
+    def transformSnapshot[State <: StateT](state: State): EventT
+  }
 }
 
 trait R2dbcShardedProjection extends R2dbcProjection {
@@ -56,7 +66,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
         val projectionId = projectionIds(i)
         val minSlice = sliceRanges(i).min
         val maxSlice = sliceRanges(i).max
-        R2dbcProjection
+        AkkaR2dbcProjection
           .atLeastOnce(
             projectionId,
             None,
@@ -82,12 +92,9 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 }
 
 object R2dbcShardedProjection {
-  trait FromSnapshot {
-    _: R2dbcShardedProjection
-      with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
+  trait FromSnapshot extends R2dbcShardedProjection with R2dbcProjection.FromSnapshot {
+    _: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
-
-    def transformSnapshot(state: StateT): EventT
 
     override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
       EventSourcedProvider.eventsBySlicesStartingFromSnapshots(
@@ -152,7 +159,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 
       override def projectionFactory(i: Int) = {
         val projectionId = projectionIds(i)
-        R2dbcProjection
+        AkkaR2dbcProjection
           .atLeastOnce(
             projectionId,
             None,
@@ -172,10 +179,10 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 }
 
 object R2dbcSingletonProjection {
-  trait FromSnapshot {
-    _: R2dbcSingletonProjection with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
-
-    def transformSnapshot(state: StateT): EventT
+  trait FromSnapshot extends R2dbcSingletonProjection with R2dbcProjection.FromSnapshot {
+    _: EventSourcedT#EventSourcedBaseComponentT
+      with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent
+      with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createEventSource(persistenceId: PersistenceId, sequence: Sequence, eventQueries: R2dbcReadJournal) =
       eventQueries.currentEventsByPersistenceIdStartingFromSnapshot(persistenceId.id, sequence.value, Long.MaxValue, transformSnapshot)

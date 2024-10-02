@@ -22,6 +22,9 @@ private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
     with EventSourcedT#BaseComponent =>
 
   val numberOfProjectionInstances = 1
+
+  // override this if you e.g. want to use a readonly endpoint for the projections https://discuss.lightbend.com/t/r2dbc-projections-use-read-only-hot-standby-replicas-for-projections-query/10860
+  val readJournalPluginId = R2dbcReadJournal.Identifier
 }
 
 object R2dbcProjection {
@@ -44,7 +47,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
                                                              actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
-    val sliceRanges = EventSourcedProvider.sliceRanges(actorSystem, R2dbcReadJournal.Identifier, numberOfProjectionInstances)
+    val sliceRanges = EventSourcedProvider.sliceRanges(actorSystem, readJournalPluginId, numberOfProjectionInstances)
 
     val projectionIds = sliceRanges.map(sliceRange =>
       ProjectionId(projection.name, s"${projection.name}-${sliceRange.min}-${sliceRange.max}")
@@ -84,7 +87,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
   private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
     EventSourcedProvider.eventsBySlices[EventT](
       actorSystem,
-      R2dbcReadJournal.Identifier,
+      readJournalPluginId,
       typeKey.name,
       minSlice,
       maxSlice,
@@ -99,7 +102,7 @@ object R2dbcShardedProjection {
     override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
       EventSourcedProvider.eventsBySlicesStartingFromSnapshots(
         actorSystem,
-        R2dbcReadJournal.Identifier,
+        readJournalPluginId,
         typeKey.name,
         minSlice,
         maxSlice,
@@ -124,7 +127,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
       offset().map { offsetOpt =>
         val sequence = offsetOpt.getOrElse(Sequence(0L))
         val eventQueries = PersistenceQuery(system)
-          .readJournalFor[R2dbcReadJournal](R2dbcReadJournal.Identifier)
+          .readJournalFor[R2dbcReadJournal](readJournalPluginId)
         createEventSource(persistenceId, sequence, eventQueries)
       }
 

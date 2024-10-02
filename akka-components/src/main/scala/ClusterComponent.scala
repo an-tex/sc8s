@@ -96,7 +96,7 @@ object ClusterComponent {
 
       private[components] trait EventSourcedBaseComponentT extends super.BaseComponentT {
 
-        // for mixin traits accessibility, why don't they see the already defined types/objects?
+        // for mixin traits accessibility
         private[components] type EventT = Event
         private[components] val componentName = name
 
@@ -127,6 +127,9 @@ object ClusterComponent {
       sealed trait SnapshotsT extends EventSourcedT {
 
         private[components] sealed trait SnapshotsBaseComponentT extends super.EventSourcedBaseComponentT {
+          // for mixin traits accessibility
+          private[components] type StateT = State
+
           override private[components] def behaviorTransformer = (context, behavior) => super.behaviorTransformer(context, behavior).withRetention(retentionCriteria)
 
           val retentionCriteria: RetentionCriteria

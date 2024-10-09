@@ -23,8 +23,8 @@ private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
 
   val numberOfProjectionInstances = 1
 
-  // override this if you e.g. want to use a readonly endpoint for the projections https://discuss.lightbend.com/t/r2dbc-projections-use-read-only-hot-standby-replicas-for-projections-query/10860
-  val readJournalPluginId = R2dbcReadJournal.Identifier
+  // override this if you e.g. want to use a readonly endpoint for the projections https://discuss.lightbend.com/t/r2dbc-projections-use-read-only-hot-standby-replicas-for-projections-query/10860 . or override it in the config to customize all projections
+  val readJournalPluginId = "net.sc8s.akka.components.persistence.projection.r2dbc.default"
 }
 
 object R2dbcProjection {

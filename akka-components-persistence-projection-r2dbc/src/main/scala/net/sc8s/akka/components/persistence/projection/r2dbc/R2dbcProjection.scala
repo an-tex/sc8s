@@ -21,8 +21,6 @@ private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
   _: EventSourcedT#EventSourcedBaseComponentT
     with EventSourcedT#BaseComponent =>
 
-  val numberOfProjectionInstances = 1
-
   // override this if you e.g. want to use a readonly endpoint for the projections https://discuss.lightbend.com/t/r2dbc-projections-use-read-only-hot-standby-replicas-for-projections-query/10860 . or override it in the config to customize all projections
   val readJournalPluginId = "net.sc8s.akka.components.persistence.projection.r2dbc.default.query"
 }
@@ -47,6 +45,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
                                                              actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
+    val numberOfProjectionInstances = actorSystem.settings.config.getInt(s"${readJournalPluginId.stripSuffix(".query")}.numberOfProjectionInstances")
     val sliceRanges = EventSourcedProvider.sliceRanges(actorSystem, readJournalPluginId, numberOfProjectionInstances)
 
     val projectionIds = sliceRanges.map(sliceRange =>
@@ -151,7 +150,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
     new ManagedProjection[EventEnvelope[EventT]](
       projection.name,
       projectionIds,
-      numberOfProjectionInstances,
+      1, // singleton projection parallelism is currently limited to 1 due to the EventsByPersistenceIdSourceProvider
       new ProjectionStatusObserver[EventEnvelope[EventT]]()(actorSystem) {
         override def extractSequenceNr(envelope: EventEnvelope[EventT]) = envelope.sequenceNr
 

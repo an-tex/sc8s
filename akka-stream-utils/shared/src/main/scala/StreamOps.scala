@@ -262,9 +262,15 @@ object StreamOps {
         case _ => Left(zero)
       })
 
-      def flattenF: s.Repr[OutR] = s.collect {
+      def collectRightF: s.Repr[OutR] = s.collect {
         case Right(value) => value
       }
+
+      def flattenF[OutR2](implicit ev: OutR <:< Either[OutL, OutR2]): s.Repr[Either[OutL, OutR2]] =
+        s.map {
+          case Left(outL) => Left(outL)
+          case Right(outR) => ev.apply(outR)
+        }
 
       def groupByF[K](maxSubstreams: Int, f: OutR => K): SubFlow[Either[OutL, OutR], Mat, s.Repr, s.Closed] = {
         s.groupBy(maxSubstreams, {

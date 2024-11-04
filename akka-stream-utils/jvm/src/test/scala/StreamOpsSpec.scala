@@ -242,11 +242,17 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
 
       checkTable2[Boolean, Int, Either](input, operations)
     }
-    "Either flattenF" in {
+    "Either collectRightF" in {
       Source(Seq(Right(1), Left(true), Right(2)))
-        .flattenF
+        .collectRightF
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(1, 2)
+    }
+    "Either flattenF" in {
+      Source(Seq(Right(Right(1)), Left(true), Right(Left(false)), Right(Right(2))))
+        .flattenF
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(Right(1), Left(true), Left(false), Right(2))
     }
     "Either flatMapMergeF" in {
       Source(Seq(Right(1), Left(true), Right(2)))

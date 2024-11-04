@@ -161,14 +161,14 @@ object Dependencies {
   }
 
   object logback {
-    private val logback = "1.5.8"
+    private val logback = "1.5.12"
 
     val core = "ch.qos.logback" % "logback-core" % logback
     val classic = "ch.qos.logback" % "logback-classic" % logback
   }
 
   object elastic4s {
-    private val elastic4s = "8.15.2"
+    private val elastic4s = "8.15.3"
     private val elasticsearch = "8.15.3"
 
     val clientAkka = "nl.gn0s1s" %% "elastic4s-client-akka" % elastic4s

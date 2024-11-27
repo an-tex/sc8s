@@ -415,11 +415,17 @@ object ClusterComponent {
     trait JsonEntityId {
       _: ShardedT =>
 
+      /**
+       * The placeholder that will replace any | in the produced String as this character is illegal due to Akka's entityId encoding.
+       * When overriding keep the new placeholder permanently or existing entities won't be resolved.
+       * */
+      val barPlaceholder = "❘❘bar❘❘"
+
       implicit val entityIdCirceCodec: Codec[EntityId]
 
       implicit val entityIdCodec: EntityIdCodec[EntityId] = EntityIdCodec[EntityId](
-        _.asJson.noSpacesSortKeys,
-        _.pipe(parser.parse).flatMap(_.as[EntityId]).toTry
+        _.asJson.noSpacesSortKeys.replace("|", barPlaceholder),
+        _.replace(barPlaceholder, "|").pipe(parser.parse).flatMap(_.as[EntityId]).toTry
       )
     }
 

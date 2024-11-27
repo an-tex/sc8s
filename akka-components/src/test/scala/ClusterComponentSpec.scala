@@ -255,7 +255,42 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
         val component = new ComponentObject.Component
         ComponentObject.init(component).delayedInit()
-        component.entityRefFor(ComponentObject.EntityId("a", "b"))
+        val entityRef = component.entityRefFor(ComponentObject.EntityId("a", "b"))
+        entityRef.entityId shouldBe """{"id1":"a","id2":"b"}"""
+
+        val entityRefWithPlaceholder = component.entityRefFor(ComponentObject.EntityId("a|b", "c|d"))
+        entityRefWithPlaceholder.entityId shouldBe """{"id1":"a❘❘bar❘❘b","id2":"c❘❘bar❘❘d"}"""
+      }
+      "custom json EntityId with custom placeholder" in {
+        object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
+          override val barPlaceholder = "/"
+
+          case class EntityId(id1: String, id2: String)
+
+          override implicit val entityIdCirceCodec = deriveCodec
+
+          case class Command()
+
+          object Command {
+            implicit val codec: Codec[Command] = deriveCodec
+          }
+
+          class Component extends BaseComponent {
+            override val behavior = _ =>
+              Behaviors.receiveMessage {
+                case Command() => Behaviors.same
+              }
+          }
+
+          override val name = randomName
+
+          override val commandSerializer = CirceSerializer()
+        }
+
+        val component = new ComponentObject.Component
+        ComponentObject.init(component).delayedInit()
+        val entityRefWithPlaceholder = component.entityRefFor(ComponentObject.EntityId("a|b", "c|d"))
+        entityRefWithPlaceholder.entityId shouldBe """{"id1":"a/b","id2":"c/d"}"""
       }
       "long EntityId" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.LongEntityId {

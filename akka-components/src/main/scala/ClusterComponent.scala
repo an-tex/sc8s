@@ -418,6 +418,7 @@ object ClusterComponent {
       /**
        * The placeholder that will replace any | in the produced String as this character is illegal due to Akka's entityId encoding.
        * When overriding keep the new placeholder permanently or existing entities won't be resolved.
+       * The default value uses UTF-8 bars (from the Symbols palette in macOS).
        * */
       val barPlaceholder = "❘❘bar❘❘"
 

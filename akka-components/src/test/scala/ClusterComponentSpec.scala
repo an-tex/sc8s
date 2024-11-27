@@ -255,11 +255,20 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
         val component = new ComponentObject.Component
         ComponentObject.init(component).delayedInit()
-        val entityRef = component.entityRefFor(ComponentObject.EntityId("a", "b"))
-        entityRef.entityId shouldBe """{"id1":"a","id2":"b"}"""
 
-        val entityRefWithPlaceholder = component.entityRefFor(ComponentObject.EntityId("a|b", "c|d"))
-        entityRefWithPlaceholder.entityId shouldBe """{"id1":"a❘❘bar❘❘b","id2":"c❘❘bar❘❘d"}"""
+        val expectedJson = """{"id1":"a","id2":"b"}"""
+        val abEntityId = ComponentObject.EntityId("a", "b")
+        val entityRef = component.entityRefFor(abEntityId)
+        entityRef.entityId shouldBe expectedJson
+        ComponentObject.entityIdCodec.encode(abEntityId) shouldBe expectedJson
+        ComponentObject.entityIdCodec.decode(expectedJson) shouldBe Success(abEntityId)
+
+        val expectedJsonWithPlaceholders = """{"id1":"a❘❘bar❘❘b","id2":"c❘❘bar❘❘d"}"""
+        val placeholdersEntityId = ComponentObject.EntityId("a|b", "c|d")
+        val entityRefWithPlaceholders = component.entityRefFor(placeholdersEntityId)
+        entityRefWithPlaceholders.entityId shouldBe expectedJsonWithPlaceholders
+        ComponentObject.entityIdCodec.encode(placeholdersEntityId) shouldBe expectedJsonWithPlaceholders
+        ComponentObject.entityIdCodec.decode(expectedJsonWithPlaceholders) shouldBe Success(placeholdersEntityId)
       }
       "custom json EntityId with custom placeholder" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
@@ -289,8 +298,12 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
 
         val component = new ComponentObject.Component
         ComponentObject.init(component).delayedInit()
-        val entityRefWithPlaceholder = component.entityRefFor(ComponentObject.EntityId("a|b", "c|d"))
-        entityRefWithPlaceholder.entityId shouldBe """{"id1":"a/b","id2":"c/d"}"""
+        val expectedJsonWithPlaceholders = """{"id1":"a/b","id2":"c/d"}"""
+        val placeholdersEntityId = ComponentObject.EntityId("a|b", "c|d")
+        val entityRefWithPlaceholder = component.entityRefFor(placeholdersEntityId)
+        entityRefWithPlaceholder.entityId shouldBe expectedJsonWithPlaceholders
+        ComponentObject.entityIdCodec.encode(placeholdersEntityId) shouldBe expectedJsonWithPlaceholders
+        ComponentObject.entityIdCodec.decode(expectedJsonWithPlaceholders) shouldBe Success(placeholdersEntityId)
       }
       "long EntityId" in {
         object ComponentObject extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.LongEntityId {

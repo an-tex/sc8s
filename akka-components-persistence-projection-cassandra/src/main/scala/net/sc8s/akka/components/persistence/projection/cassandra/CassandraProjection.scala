@@ -15,7 +15,7 @@ import net.sc8s.akka.components.persistence.projection.{ManagedProjection, Proje
 import scala.concurrent.Future
 
 trait CassandraProjection extends EventSourcedT.ProjectionT {
-  _: EventSourcedT#EventSourcedBaseComponentT =>
+  outerSelf: EventSourcedT#EventSourcedBaseComponentT =>
 
   val numberOfProjectionInstances = 1
 
@@ -26,7 +26,7 @@ trait CassandraProjection extends EventSourcedT.ProjectionT {
                                                              actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
     val projectionIds = (0 until numberOfProjectionInstances).map(tagIndex =>
-      ProjectionId(projection.name, generateTag(componentName, tagIndex))
+      ProjectionId(projection.name, generateTag(outerSelf.name, tagIndex))
     )
 
     new ManagedProjection[EventEnvelope[EventT]](

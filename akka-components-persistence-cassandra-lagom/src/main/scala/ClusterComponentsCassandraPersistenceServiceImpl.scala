@@ -29,13 +29,15 @@ trait ClusterComponentsCassandraPersistenceServiceImpl extends ClusterComponents
   override def deleteSingletonEntity(name: String) = ServiceCall { _ =>
     val maybeSingletonPersistenceId = clusterComponents
       .map(wiredComponent => wiredComponent.component -> wiredComponent.innerComponent)
-      .collectFirst { case (outerComponent: ClusterComponent.Singleton.EventSourced, innerComponent) if outerComponent.name == name =>
+      .collectFirst { case (outerComponent: ClusterComponent.Singleton.EventSourced, innerComponent) if innerComponent.name == name =>
         innerComponent.asInstanceOf[outerComponent.BaseComponent].persistenceId
       }
 
-    lazy val singletonEntities = clusterComponents.map(_.component).collect {
-      case outerComponent: ClusterComponent.Singleton.EventSourced => outerComponent.name
-    }
+    lazy val singletonEntities = clusterComponents
+      .map(wiredComponent => wiredComponent.component -> wiredComponent.innerComponent)
+      .collect { case (_: ClusterComponent.Singleton.EventSourced, innerComponent) =>
+        innerComponent.name
+      }
 
     maybeSingletonPersistenceId.fold(
       throw new Exception(s"singleton with name=$name not found, existing singletonEntities=$singletonEntities")
@@ -55,13 +57,16 @@ trait ClusterComponentsCassandraPersistenceServiceImpl extends ClusterComponents
   override def deleteShardedEntities(name: String) = ServiceCall { _ =>
     val maybeTypeKey = clusterComponents
       .map(wiredComponent => wiredComponent.component -> wiredComponent.innerComponent)
-      .collectFirst { case (outerComponent: ClusterComponent.Sharded.EventSourced, innerComponent) if outerComponent.name == name =>
+      .collectFirst { case (outerComponent: ClusterComponent.Sharded.EventSourced, innerComponent) if innerComponent.name == name =>
         innerComponent.asInstanceOf[outerComponent.BaseComponent].typeKey
       }
 
-    lazy val shardedEntities = clusterComponents.map(_.component).collect {
-      case outerComponent: ClusterComponent.Sharded.EventSourced => outerComponent.name
-    }
+    lazy val shardedEntities =
+      clusterComponents
+        .map(wiredComponent => wiredComponent.component -> wiredComponent.innerComponent)
+        .collect { case (_: ClusterComponent.Sharded.EventSourced, innerComponent) =>
+          innerComponent.name
+        }
 
     maybeTypeKey.fold(
       throw new Exception(s"shardedEntity with name=$name not found, existing shardedEntities=$shardedEntities")

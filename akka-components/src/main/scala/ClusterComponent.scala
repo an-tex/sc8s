@@ -47,6 +47,8 @@ object ClusterComponent {
       // allows the user to wrap the behavior, especially useful to wrap EventSourcedBehavior in e.g. Behaviors.withTimers
       def wrapBehavior: BehaviorComponentContextS => BehaviorS => Behavior[Command] = _ => identity
 
+      val name = outerSelf.name
+
       private[components] def behaviorTransformer: (BehaviorComponentContextS, BehaviorS) => BehaviorS = (_, behavior) => behavior
 
       final val transformedBehavior: BehaviorComponentContextS => Behavior[outerSelf.Command] =
@@ -65,6 +67,7 @@ object ClusterComponent {
     // this can't be moved into the BaseComponent itself as otherwise circular dependencies between components lead to initialization loops
     def init(component: => BaseComponent)(implicit actorSystem: => ActorSystem[_]): Wiring
 
+    @deprecated("define in BaseComponent instead", "0.95.0")
     val name: String
 
     val additionalSerializers: Seq[CirceSerializer[_]] = Nil
@@ -98,7 +101,6 @@ object ClusterComponent {
 
         // for mixin traits accessibility
         private[components] type EventT = Event
-        private[components] val componentName = name
 
         override private[components] type BehaviorS = EventSourcedBehavior[Command, Event, State]
 
@@ -223,7 +225,7 @@ object ClusterComponent {
 
     private[components] def delayedInit(): Unit = managedProjections.foreach(_.init())
 
-    override def toString = s"ClusterComponent(name = ${component.name}, serializers = ${serializers.map(_.entityClass)})"
+    override def toString = s"ClusterComponent(name = ${innerComponent.name}, serializers = ${serializers.map(_.entityClass)})"
   }
 
   trait SingletonComponent[OuterComponentT <: Singleton.SingletonT] extends Component[OuterComponentT] {
@@ -298,7 +300,7 @@ object ClusterComponent {
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
 
-        private[components] val persistenceId = PersistenceId.ofUniqueId(name)
+        private[components] lazy val persistenceId = PersistenceId.ofUniqueId(name)
 
         override private[components] type BehaviorComponentContextS = ComponentContext with ComponentContext.Actor[Command] with ComponentContext.EventSourced
 
@@ -432,9 +434,6 @@ object ClusterComponent {
 
       implicit val entityIdCodec: EntityIdCodec[EntityId]
 
-      // an initialized typeKey is available in the InnerComponent, in general you should not need this
-      def generateTypeKey(implicit classTag: ClassTag[SerializableCommand]) = EntityTypeKey[SerializableCommand](name)
-
       override type BaseComponent <: ShardedBaseComponentT
 
       override def init(_innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) =
@@ -460,7 +459,7 @@ object ClusterComponent {
 
         override private[components] type BehaviorComponentContextS = ComponentContextS with ComponentContext.Actor[Command] with ComponentContext.ShardedEntity[SerializableCommand]
 
-        val typeKey: EntityTypeKey[SerializableCommand] = generateTypeKey
+        lazy val typeKey: EntityTypeKey[SerializableCommand] = EntityTypeKey[SerializableCommand](name)
 
         def entityRefFor(entityId: EntityId)(implicit actorSystem: ActorSystem[_]) = {
           val clusterSharding: ClusterSharding = ClusterSharding(actorSystem)

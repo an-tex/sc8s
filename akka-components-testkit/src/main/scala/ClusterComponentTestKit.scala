@@ -3,7 +3,7 @@ package net.sc8s.akka.components.testkit
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
-import akka.cluster.sharding.typed.scaladsl.{EntityContext, EntityRef}
+import akka.cluster.sharding.typed.scaladsl.{EntityContext, EntityRef, EntityTypeKey}
 import akka.cluster.sharding.typed.testkit.scaladsl.TestEntityRef
 import akka.persistence.query.Offset
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
@@ -174,7 +174,8 @@ trait ClusterComponentTestKit {
      implicit classTag: ClassTag[outerComponent.SerializableCommand]
    ): ShardedComponent[OuterComponentT] = {
     new ClusterComponent.ShardedComponent[OuterComponentT] {
-      override def entityRefFor(entityId: outerComponent.EntityId): EntityRef[outerComponent.SerializableCommand] = TestEntityRef(outerComponent.generateTypeKey, outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
+      override def entityRefFor(entityId: outerComponent.EntityId): EntityRef[outerComponent.SerializableCommand] = TestEntityRef(
+        EntityTypeKey[outerComponent.SerializableCommand]("any"), outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
 
       override private[components] lazy val innerComponent = ???
       override private[components] lazy val component: outerComponent.type = outerComponent

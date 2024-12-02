@@ -2,6 +2,7 @@ package net.sc8s.akka.components.testkit
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
+import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import akka.stream.scaladsl.Source
@@ -19,7 +20,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.Future
 
-class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourced.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
+class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourced.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
   "ComponentTestKit" should {
     "support Singleton" in {
       val value1 = spawnComponent(Singleton)(new Singleton.Component)
@@ -58,6 +59,11 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       spawnComponent(ShardedEventSourced)(new ShardedEventSourced.Component(mock[ProjectionTarget]), "entityId")
         .runCommand(Command())
         .event shouldBe Event()
+    }
+    "support EventSourced Sharded with custom EntityId" in {
+      spawnComponent(ShardedEventSourcedWithCustomEntityId)(new ShardedEventSourcedWithCustomEntityId.Component, ShardedEventSourcedWithCustomEntityId.EntityId("id1", "id|2"))
+        .runCommand(ShardedEventSourcedWithCustomEntityId.Command(_))
+        .reply shouldBe Done
     }
     "support EventSourced Sharded with Snapshots" in {
       spawnComponent(ShardedEventSourcedWithSnapshots)(new ShardedEventSourcedWithSnapshots.Component, "entityId")
@@ -260,6 +266,51 @@ object ClusterComponentTestKitSpec {
 
       override val projections = wireSet
     }
+  }
+
+  object ShardedEventSourcedWithCustomEntityId extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
+
+    import net.sc8s.akka.circe.implicits._
+
+    case class EntityId(id1: String, id2: String)
+
+    override implicit val entityIdCirceCodec: Codec[EntityId] = deriveCodec
+
+    case class Command(replyTo: ActorRef[Done])
+
+    object Command {
+      implicit val codec: Codec[Command] = deriveCodec
+    }
+
+    case class Event()
+
+    object Event {
+      implicit val codec: Codec[Event] = deriveCodec
+    }
+
+    case class State()
+
+    class Component extends BaseComponent {
+      override val behavior = { context =>
+        EventSourcedBehavior[Command, Event, State](
+          context.persistenceId,
+          State(),
+          {
+            case (_, command) =>
+              Effect.reply(command.replyTo)(Done)
+          },
+          {
+            case (_, _) =>
+              State()
+          }
+        )
+      }
+    }
+
+    override val name = "name"
+
+    override val eventSerializer = CirceSerializer[Event]()
+    override val commandSerializer = CirceSerializer()
   }
 
   object ShardedEventSourcedWithSnapshots extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {

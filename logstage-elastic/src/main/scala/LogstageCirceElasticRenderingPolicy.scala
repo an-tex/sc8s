@@ -1,7 +1,6 @@
 package net.sc8s.logstage.elastic
 
-import LogstageCirceElasticRenderingPolicy.eventTagName
-
+import LogstageCirceElasticRenderingPolicy.{MaxLength, eventTagName}
 import io.circe._
 import io.circe.syntax._
 import izumi.logstage.api.Log
@@ -20,7 +19,8 @@ import scala.collection.mutable
  */
 class LogstageCirceElasticRenderingPolicy(
                                            loggerClass: String,
-                                           legacyNameNormalisation: Boolean = false
+                                           legacyNameNormalisation: Boolean,
+                                           truncateStringValues: Option[MaxLength],
                                          ) extends LogstageCirceRenderingPolicy(false) {
 
   override def render(entry: Log.Entry): String = {
@@ -80,8 +80,17 @@ class LogstageCirceElasticRenderingPolicy(
     result ++= makeEventEnvelope(entry, formatted)
 
     val json = Json.fromFields(result)
+    val maybeTruncatedJson = truncateStringValues.fold(json)(truncateStringValues(json, _))
 
-    dump(json)
+    dump(maybeTruncatedJson)
+  }
+
+  private def truncateStringValues(json: Json, maxLength: Int): Json = {
+    // this is more efficient than json.fold as it avoids unnecessary un- and re-wrapping
+    json
+      .mapObject(_.mapValues(truncateStringValues(_, maxLength)))
+      .mapArray(_.map(truncateStringValues(_, maxLength)))
+      .mapString(string => if (string.length > maxLength) string.take(maxLength) else string)
   }
 
   // allows indexing of fields with a common name but different types (which elastic rejects)
@@ -100,7 +109,10 @@ class LogstageCirceElasticRenderingPolicy(
 }
 
 object LogstageCirceElasticRenderingPolicy {
-  @inline def apply(loggerClass: String, legacyNameNormalisation: Boolean = false): LogstageCirceElasticRenderingPolicy = new LogstageCirceElasticRenderingPolicy(loggerClass, legacyNameNormalisation)
+  @inline def apply(loggerClass: String, legacyNameNormalisation: Boolean = false, truncateStringValues: Option[MaxLength] = None): LogstageCirceElasticRenderingPolicy =
+    new LogstageCirceElasticRenderingPolicy(loggerClass, legacyNameNormalisation, truncateStringValues)
 
   val eventTagName = "tag"
+
+  type MaxLength = Int
 }

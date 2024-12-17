@@ -17,8 +17,15 @@ trait Logging extends LoggerTags {
 
   implicit lazy val log: IzLogger = {
     val legacyNameNormalisation = sys.props.get("logger.izumi.legacyNameNormalisation").contains("true")
+    // set this to 0 to turn it off
+    val truncateStringValues = sys.props.get("logger.izumi.truncateStringValuesTo").map(_.toInt)
+    val defaultTruncateStringValuesTo = 16_384 // 16KB
 
-    lazy val jsonPolicy = LogstageCirceElasticRenderingPolicy(loggerClass, legacyNameNormalisation)
+    lazy val jsonPolicy = LogstageCirceElasticRenderingPolicy(
+      loggerClass,
+      legacyNameNormalisation,
+      truncateStringValues.orElse(Some(defaultTruncateStringValuesTo)).filterNot(_ == 0),
+    )
     lazy val stringPolicy = new StringRenderingPolicy(RenderingOptions.default, Some(Logging.template))
 
     val renderPolicies = sys.props.get("logger.izumi.sink") match {

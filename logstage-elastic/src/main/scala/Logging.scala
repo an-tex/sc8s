@@ -17,9 +17,9 @@ trait Logging extends LoggerTags {
 
   implicit lazy val log: IzLogger = {
     val legacyNameNormalisation = sys.props.get("logger.izumi.legacyNameNormalisation").contains("true")
-    // set this to 0 to turn it off
+    // set this to 0 to turn it off. the actual value will be shorter by the length of truncation suffix `[...]`
     val truncateStringValues = sys.props.get("logger.izumi.truncateStringValuesTo").map(_.toInt)
-    val defaultTruncateStringValuesTo = 16_384 // 16KB
+    val defaultTruncateStringValuesTo = 16 * 1024
 
     lazy val jsonPolicy = LogstageCirceElasticRenderingPolicy(
       loggerClass,

@@ -72,9 +72,9 @@ class LoggingSpec extends AnyWordSpecLike {
       elasticLogger.info(s"${true -> "testWithCamelCase"}")
     }
     "truncate string values" in {
-      val truncateTo = 128
+      val truncateTo = 26
       val elasticLogger = IzLogger(Level.Debug, ConsoleSink(LogstageCirceElasticRenderingPolicy("prefix", truncateStringValues = Some(truncateTo))))()
-      val longString = "a" * truncateTo + "DROPME"
+      val longString = "abcdefghijklmnopqrstuvwxyz" * truncateTo + "DROPME"
       elasticLogger.info(s"this will be a $longString")
     }
   }

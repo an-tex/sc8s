@@ -85,12 +85,15 @@ class LogstageCirceElasticRenderingPolicy(
     dump(maybeTruncatedJson)
   }
 
+  private val truncateIndicationSuffix = "[...]"
+
   private def truncateStringValues(json: Json, maxLength: Int): Json = {
+    val truncateMaxLengthWithoutSuffix = maxLength - truncateIndicationSuffix.length
     // this is more efficient than json.fold as it avoids unnecessary un- and re-wrapping
     json
       .mapObject(_.mapValues(truncateStringValues(_, maxLength)))
       .mapArray(_.map(truncateStringValues(_, maxLength)))
-      .mapString(string => if (string.length > maxLength) string.take(maxLength) else string)
+      .mapString(string => if (string.length > maxLength) string.take(Math.max(truncateMaxLengthWithoutSuffix, 0)) + truncateIndicationSuffix else string)
   }
 
   // allows indexing of fields with a common name but different types (which elastic rejects)

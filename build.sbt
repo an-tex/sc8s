@@ -324,6 +324,8 @@ lazy val `logstage-elastic` = (project in file("logstage-elastic"))
   .settings(
     libraryDependencies ++= Seq(
       slf4j,
+      circe.core.value,
+      circe.generic.value,
       logstage.core.value,
       logstage.circe.value,
       logstage.toSlf4j,

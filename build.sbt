@@ -141,9 +141,10 @@ lazy val `akka-components-testkit` = (project in file("akka-components-testkit")
       logback.classic % Test,
       logback.core % Test,
     ),
+    dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
     idePackagePrefix := Some("net.sc8s.akka.components.testkit")
   )
-  .dependsOn(`akka-components`, `lagom-server-circe-testkit`, `akka-components-persistence-projection-cassandra`)
+  .dependsOn(`akka-components`, `lagom-server-circe-testkit`, `akka-components-persistence-projection-cassandra` % Test, `akka-components-persistence-projection-r2dbc` % Test)
 
 lazy val `akka-components-persistence-cassandra-lagom-api` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)

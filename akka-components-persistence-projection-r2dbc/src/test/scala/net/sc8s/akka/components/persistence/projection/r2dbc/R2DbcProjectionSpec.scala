@@ -16,7 +16,7 @@ import scala.concurrent.Future
 import scala.util.Random
 
 /*
-This spec is only meant to illustrate the usage of CassandraProjections
+This spec is only meant to illustrate the usage of R2dbcProjections
  */
 class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseString(
   """

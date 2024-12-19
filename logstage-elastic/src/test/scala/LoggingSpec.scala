@@ -1,6 +1,7 @@
 package net.sc8s.logstage.elastic
 
-import io.circe.{Codec, derivation}
+import io.circe.Codec
+import io.circe.generic.semiauto.deriveCodec
 import izumi.logstage.api.IzLogger
 import izumi.logstage.api.Log.Level
 import izumi.logstage.sink.ConsoleSink
@@ -83,7 +84,7 @@ class LoggingSpec extends AnyWordSpecLike {
 object LoggingSpec {
   case class CaseClass(x: Int)
   object CaseClass {
-    implicit val circeCodec: Codec[CaseClass] = derivation.deriveCodec[CaseClass]
+    implicit val circeCodec: Codec[CaseClass] = deriveCodec[CaseClass]
     implicit val logstageCodec: LogstageCodec[CaseClass] = LogstageCirceCodec.derived[CaseClass]
   }
 }

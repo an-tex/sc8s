@@ -1,4 +1,4 @@
-package net.sc8s.akka.components.persistence.cassandra.lagom
+package net.sc8s.akka.components.persistence.r2dbc.lagom
 
 import akka.Done
 import akka.actor.typed.ActorSystem

@@ -245,7 +245,9 @@ object ClusterComponent {
 
       override type BaseComponent <: SingletonBaseComponentT
 
-      override def init(_innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) = new SingletonComponent[outerSelf.type] {
+      override def init(__innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) = new SingletonComponent[outerSelf.type] {
+        lazy val _innerComponent = __innerComponent // otherwise __innerComponent would be evaluated twice
+
         override private[components] val component = outerSelf
 
         override private[components] lazy val innerComponent = _innerComponent
@@ -440,8 +442,10 @@ object ClusterComponent {
 
       override type BaseComponent <: ShardedBaseComponentT
 
-      override def init(_innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) =
+      override def init(__innerComponent: => BaseComponent)(implicit actorSystem: => ActorSystem[_]) =
         new ShardedComponent[outerSelf.type] {
+          lazy val _innerComponent = __innerComponent // otherwise __innerComponent would be evaluated multiple times
+
           override private[components] def delayedInit() = {
             _innerComponent.initSharding()(actorSystem)
             super.delayedInit()

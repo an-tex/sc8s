@@ -432,6 +432,8 @@ object Evolver extends ClusterComponent.Singleton {
 
       idle
     }
+
+    override val name = "elastic-evolver"
   }
 
   private[elastic] val mappingsHashField = "mappingHash"
@@ -439,8 +441,6 @@ object Evolver extends ClusterComponent.Singleton {
   private val analysisHashField = "analysisHash"
 
   private val settingsHashField = "settingsHash"
-
-  override val name = "elastic-evolver"
 
   override val commandSerializer = CirceSerializer()
 }

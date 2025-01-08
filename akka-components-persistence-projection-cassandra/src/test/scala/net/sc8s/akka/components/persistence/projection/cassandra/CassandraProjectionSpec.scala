@@ -54,9 +54,9 @@ class CassandraProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.pa
                 case (event, projectionContext) => Future.successful(Done)
               }
             ))
-        }
 
-        override val name = "singleton"
+          override val name = "singleton"
+        }
 
         override val commandSerializer = CirceSerializer()
 
@@ -96,9 +96,9 @@ class CassandraProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.pa
             ))
 
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
-        }
 
-        override val name = randomName
+          override val name = randomName
+        }
 
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()

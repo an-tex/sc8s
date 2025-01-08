@@ -54,9 +54,9 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
                 case (event, projectionContext) => Future.successful(Done)
               }
             ))
-        }
 
-        override val name = "singleton"
+          override val name = "singleton"
+        }
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()
       }
@@ -96,9 +96,9 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
           override def transformSnapshot[State](state: State) = Event()
-        }
 
-        override val name = "singleton"
+          override val name = "singleton"
+        }
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()
         override val stateSerializer = CirceSerializer()
@@ -135,9 +135,9 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
                 case (event, projectionContext) => Future.successful(Done)
               }
             ))
-        }
 
-        override val name = randomName
+          override val name = randomName
+        }
 
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()
@@ -177,9 +177,9 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
           override def transformSnapshot[State](state: State) = Event()
-        }
 
-        override val name = randomName
+          override val name = randomName
+        }
 
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()

@@ -66,9 +66,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
             override val behavior = componentContext => Behaviors.receiveMessage {
               case Command1() => Behaviors.same
             }
-          }
 
-          override val name = "singleton"
+            override val name = "singleton"
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -98,9 +98,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                     case (state, event) => state
                   })
               }
-            }
 
-            override val name = "singleton"
+              override val name = "singleton"
+            }
 
             override val commandSerializer = CirceSerializer()
 
@@ -132,9 +132,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 })
 
               override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
-            }
 
-            override val name = "singleton"
+              override val name = "singleton"
+            }
 
             override val commandSerializer = CirceSerializer()
 
@@ -218,9 +218,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
-          }
 
-          override val name = randomName
+            override val name = randomName
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -246,9 +246,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
-          }
 
-          override val name = randomName
+            override val name = randomName
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -289,9 +289,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
-          }
 
-          override val name = randomName
+            override val name = randomName
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -318,9 +318,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
-          }
 
-          override val name = randomName
+            override val name = randomName
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -343,9 +343,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               Behaviors.receiveMessage {
                 case Command() => Behaviors.same
               }
-          }
 
-          override val name = randomName
+            override val name = randomName
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -369,9 +369,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
               }
             override val clusterShardingSettings = _.withPassivationStrategy(PassivationStrategySettings.defaults.withIdleEntityPassivation(10.seconds))
             override val entityTransformation = _.withStopMessage(Command())
-          }
 
-          override val name = randomName
+            override val name = randomName
+          }
 
           override val commandSerializer = CirceSerializer()
         }
@@ -399,9 +399,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 {
                   case (state, event) => state
                 })
-            }
 
-            override val name = randomName
+              override val name = randomName
+            }
 
             override val commandSerializer = CirceSerializer()
 
@@ -432,9 +432,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 })
 
               override def wrapBehavior = _ => behavior => Behaviors.withTimers[Command](_ => behavior)
-            }
 
-            override val name = randomName
+              override val name = randomName
+            }
 
             override val commandSerializer = CirceSerializer()
 
@@ -466,9 +466,9 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 })
 
               override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
-            }
 
-            override val name = randomName
+              override val name = randomName
+            }
 
             override val commandSerializer = CirceSerializer()
             override val eventSerializer = CirceSerializer()
@@ -494,9 +494,9 @@ object ClusterComponentSpec {
       override val behavior = componentContext => Behaviors.receiveMessage {
         case Command() => Behaviors.same
       }
-    }
 
-    override val name = "singleton"
+      override val name = "singleton"
+    }
 
     override val commandSerializer = CirceSerializer()
   }
@@ -513,9 +513,9 @@ object ClusterComponentSpec {
         Behaviors.receiveMessage {
           case Command() => Behaviors.same
         }
-    }
 
-    override val name = randomName
+      override val name = randomName
+    }
 
     override val commandSerializer = CirceSerializer()
   }
@@ -534,9 +534,9 @@ object ClusterComponentSpec {
           Behaviors.receiveMessage {
             case Command() => Behaviors.same
           }
-      }
 
-      override val name = randomName
+        override val name = randomName
+      }
 
       override val commandSerializer = CirceSerializer()
     }
@@ -553,9 +553,9 @@ object ClusterComponentSpec {
           Behaviors.receiveMessage {
             case Command() => Behaviors.same
           }
-      }
 
-      override val name = randomName
+        override val name = randomName
+      }
 
       override val commandSerializer = CirceSerializer()
     }

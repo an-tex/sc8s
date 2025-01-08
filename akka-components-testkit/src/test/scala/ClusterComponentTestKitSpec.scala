@@ -180,7 +180,6 @@ object ClusterComponentTestKitSpec {
   }
 
   object Singleton extends ClusterComponent.Singleton with ClusterComponent.SameSerializableCommand {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -189,11 +188,12 @@ object ClusterComponentTestKitSpec {
         case Command() =>
           Behaviors.same
       }
+
+      override val name = "name"
     }
   }
 
   object SingletonEventSourcedR2dbc extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -222,11 +222,12 @@ object ClusterComponentTestKitSpec {
       }
 
       override val projections = wireSet
+
+      override val name = "name"
     }
   }
 
   object SingletonEventSourcedCassandra extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -255,11 +256,12 @@ object ClusterComponentTestKitSpec {
       }
 
       override val projections = wireSet
+
+      override val name = "name"
     }
   }
 
   object SingletonEventSourcedWithSnapshots extends ClusterComponent.Singleton.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -282,12 +284,13 @@ object ClusterComponentTestKitSpec {
       )
 
       override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
+
+      override val name = "name"
     }
     override val stateSerializer = CirceSerializer()
   }
 
   object Sharded extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -296,6 +299,8 @@ object ClusterComponentTestKitSpec {
         case Command() =>
           Behaviors.same
       }
+
+      override val name = "name"
     }
   }
 
@@ -304,7 +309,6 @@ object ClusterComponentTestKitSpec {
   }
 
   object ShardedEventSourcedCassandra extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -333,11 +337,12 @@ object ClusterComponentTestKitSpec {
       }
 
       override val projections = wireSet
+
+      override val name = "name"
     }
   }
 
   object ShardedEventSourcedR2dbc extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -366,6 +371,8 @@ object ClusterComponentTestKitSpec {
       }
 
       override val projections = wireSet
+
+      override val name = "name"
     }
   }
 
@@ -406,16 +413,15 @@ object ClusterComponentTestKitSpec {
           }
         )
       }
-    }
 
-    override val name = "name"
+      override val name = "name"
+    }
 
     override val eventSerializer = CirceSerializer[Event]()
     override val commandSerializer = CirceSerializer()
   }
 
   object ShardedEventSourcedWithSnapshots extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -438,12 +444,13 @@ object ClusterComponentTestKitSpec {
       )
 
       override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
+
+      override val name = "name"
     }
     override val stateSerializer = CirceSerializer()
   }
 
   object ShardedEntityRefMock extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
-    override val name = "name"
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
 
@@ -453,6 +460,8 @@ object ClusterComponentTestKitSpec {
           context.entityRefFor("entityIdX") ! Command()
           Behaviors.same
       }
+
+      override val name = "name"
     }
   }
 }

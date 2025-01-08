@@ -47,7 +47,7 @@ object ClusterComponent {
       // allows the user to wrap the behavior, especially useful to wrap EventSourcedBehavior in e.g. Behaviors.withTimers
       def wrapBehavior: BehaviorComponentContextS => BehaviorS => Behavior[Command] = _ => identity
 
-      val name = outerSelf.name
+      val name: String
 
       private[components] def behaviorTransformer: (BehaviorComponentContextS, BehaviorS) => BehaviorS = (_, behavior) => behavior
 
@@ -66,9 +66,6 @@ object ClusterComponent {
 
     // this can't be moved into the BaseComponent itself as otherwise circular dependencies between components lead to initialization loops
     def init(component: => BaseComponent)(implicit actorSystem: => ActorSystem[_]): Wiring
-
-    @deprecated("define in BaseComponent instead", "0.95.0")
-    val name: String
 
     val additionalSerializers: Seq[CirceSerializer[_]] = Nil
 

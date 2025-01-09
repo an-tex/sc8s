@@ -39,8 +39,9 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
     refreshImmediately = true
   )
 
-  val testIndex1 = new EvolverSpec.TestIndex1()
+  val testIndex1: EvolverSpec.TestIndex1 = new EvolverSpec.TestIndex1()
   val testIndex2 = new EvolverSpec.TestIndex2()
+  val testIndex3 = new EvolverSpec.TestIndex3()
 
   val indexV1 = new EvolverSpec.IndexV1()
 
@@ -50,7 +51,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
     elasticClient.execute(catAliases()).futureValue.result.filter(_.alias.pipe(elasticIndices.map(_.name).contains))
 
   "Evolver" should {
-    "create indices, mappings and aliases" in new EvolverContext {
+    "create indices and aliases" in new EvolverContext {
       eventually {
         aliases().map(_.alias) should contain theSameElementsAs elasticIndices.map(_.name)
         forAll(aliases().map(_.index)) { index =>
@@ -60,10 +61,24 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
           LocalDateTime.parse(dateTime, Index.indexNameSuffixFormatter).until(LocalDateTime.now, ChronoUnit.SECONDS) should be <= 10L
         }
       }
-
-      elasticClient.execute(getIndex(testIndex1.name)).futureValue.result.head._2.mappings.properties shouldBe Map(
-        "name" -> Field(Some("keyword")),
-        "class" -> Field(Some("keyword"))
+    }
+    "set index mappings" in new EvolverContext(testIndex1) {
+      eventually(
+        elasticClient.execute(getIndex(testIndex1.name)).futureValue.result.head._2.mappings.properties shouldBe Map(
+          "name" -> Field(Some("keyword")),
+          "class" -> Field(Some("keyword"))
+        )
+      )
+    }
+    "set index settings" in new EvolverContext(testIndex3) {
+      eventually(
+        elasticClient.execute(getIndex(testIndex3.name)).futureValue.result.head._2.settings should contain allElementsOf Map(
+          "index.number_of_replicas" -> "3",
+          "index.max_result_window" -> "5000",
+          "index.max_inner_result_window" -> "200",
+          "index.routing.allocation.enable" -> "all",
+          "index.routing.rebalance.enable" -> "none",
+        )
       )
     }
     "keep existing aliases and indices" in new EvolverContext {
@@ -171,6 +186,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
       ))
     }
     "run batch updates" in new EvolverContext(indexV1) {
+
       import indexV1.codec
 
       val document = indexV1.DocumentV1("id1", "first1", "last1", Some(1))
@@ -198,9 +214,22 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
 
   class EvolverContext(indices: Index*) {
     private def allOrCustomIndices(indices: Seq[Index]) = if (indices.isEmpty) elasticIndices else indices.toSet
+
     deleteAllIndicesAndAliases()
 
-    def spawnEvolver(indices: Index*) = spawnComponent(Evolver)(new Evolver.Component(elasticClient, allOrCustomIndices(indices), ConfigFactory.load()))
+    def spawnEvolver(indices: Index*) = spawnComponent(Evolver)(new Evolver.Component(elasticClient, allOrCustomIndices(indices), ConfigFactory.parseString(
+      // this is only for testing of nested config handling and it's types
+      """
+        |net.sc8s.elastic.index.settings {
+        |  max_result_window = 5000
+        |  max_inner_result_window = 500
+        |  routing {
+        |    allocation.enable = all
+        |  }
+        |  routing.rebalance.enable = none
+        |}
+        |""".stripMargin
+    )))
 
     val evolver = spawnEvolver(indices: _ *)
 
@@ -278,6 +307,13 @@ object EvolverSpec {
       import io.circe.generic.extras.auto._
       deriveConfiguredCodec[Version]
     }
+  }
+
+  class TestIndex3(implicit val indexSetup: IndexSetup) extends TestIndex1Base {
+    override val settings = Map(
+      "number_of_replicas" -> 3,
+      "max_inner_result_window" -> 200,
+    )
   }
 
   class IndexV1(implicit val indexSetup: IndexSetup) extends Index.StringId("index") {

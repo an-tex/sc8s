@@ -23,7 +23,7 @@ import net.sc8s.logstage.elastic.Logging.IzLoggerTags
 import java.time.LocalDateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.jdk.CollectionConverters.MapHasAsScala
+import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.util.{Failure, Success, Try}
 
 object Evolver extends ClusterComponent.Singleton {
@@ -65,10 +65,16 @@ object Evolver extends ClusterComponent.Singleton {
                    config: Config,
                  ) extends BaseComponent {
 
-    private val defaultSettings = config.getObject("net.sc8s.elastic.index.settings").unwrapped().asScala.toMap
+    private val defaultSettings: Map[String, Any] = config
+      .getConfig("net.sc8s.elastic.index.settings")
+      .entrySet()
+      .asScala
+      .map(entry =>
+        entry.getKey -> entry.getValue.unwrapped()
+      ).toMap
 
     private def withDefaultSettings(index: Index) =
-      index.settings ++ defaultSettings
+      defaultSettings ++ index.settings
 
     private def settingsHash(index: Index) =
       withDefaultSettings(index).toString.hashCode.toString

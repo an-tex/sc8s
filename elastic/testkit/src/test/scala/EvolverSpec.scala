@@ -8,6 +8,7 @@ import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.{ElasticField, KeywordField, TextField}
 import com.sksamuel.elastic4s.handlers.index.Field
 import com.softwaremill.macwire.wireSet
+import com.typesafe.config.ConfigFactory
 import io.circe.generic.extras.semiauto._
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
@@ -199,7 +200,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
     private def allOrCustomIndices(indices: Seq[Index]) = if (indices.isEmpty) elasticIndices else indices.toSet
     deleteAllIndicesAndAliases()
 
-    def spawnEvolver(indices: Index*) = spawnComponent(Evolver)(new Evolver.Component(elasticClient, allOrCustomIndices(indices)))
+    def spawnEvolver(indices: Index*) = spawnComponent(Evolver)(new Evolver.Component(elasticClient, allOrCustomIndices(indices), ConfigFactory.load()))
 
     val evolver = spawnEvolver(indices: _ *)
 

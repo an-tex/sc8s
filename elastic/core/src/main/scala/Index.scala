@@ -52,6 +52,7 @@ abstract class Index(
 
   val analysis = Analysis(Nil)
 
+  // you can define default settings in your typesafe config under `net.sc8s.elastic.index.settings`
   val settings = Map.empty[String, Any]
 
   val batchUpdates = Seq.empty[BatchUpdate[Latest]]
@@ -59,8 +60,6 @@ abstract class Index(
   final lazy val mappingsHash = mappings.toString.hashCode.toString
 
   final lazy val analysisHash = analysis.toString.hashCode.toString
-
-  final lazy val settingsHash = settings.toString.hashCode.toString
 
   def hitIdFromId(id: Id): Json
 

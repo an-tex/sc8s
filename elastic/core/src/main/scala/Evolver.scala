@@ -10,18 +10,20 @@ import com.sksamuel.elastic4s.requests.mappings.MappingDefinition
 import com.sksamuel.elastic4s.requests.task.GetTaskResponse
 import com.sksamuel.elastic4s.streams.ReactiveElastic._
 import com.sksamuel.elastic4s.{ElasticClient, RequestFailure, RequestSuccess}
+import com.typesafe.config.Config
 import io.circe.Codec
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.stream.RateLogger
 import net.sc8s.circe.CodecConfiguration._
-import net.sc8s.elastic.Evolver.Command.{CancelIndicesMigration, AddMappings, AliasUpdated, BatchUpdatesFinished, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, IndexSettingsUpdated, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus, UpdateIndexSettings}
+import net.sc8s.elastic.Evolver.Command.{AddMappings, AliasUpdated, BatchUpdatesFinished, CancelIndicesMigration, CheckTaskCompletion, DocumentsEvolved, EvolveDocuments, EvolveNextIndex, IndexMigrated, IndexMigrationFailed, IndexMigrationStarted, IndexSettingsUpdated, MappingsAdded, MigrateIndex, MigrateIndices, MigrateNextIndex, OldIndexDeleted, RunBatchUpdates, TaskStatus, UpdateIndexSettings}
 import net.sc8s.logstage.elastic.Logging.IzLoggerTags
 
 import java.time.LocalDateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters.MapHasAsScala
 import scala.util.{Failure, Success, Try}
 
 object Evolver extends ClusterComponent.Singleton {
@@ -59,8 +61,17 @@ object Evolver extends ClusterComponent.Singleton {
 
   class Component(
                    elasticClient: ElasticClient,
-                   elasticIndices: Set[Index]
+                   elasticIndices: Set[Index],
+                   config: Config,
                  ) extends BaseComponent {
+
+    private val defaultSettings = config.getObject("net.sc8s.elastic.index.settings").unwrapped().asScala.toMap
+
+    private def withDefaultSettings(index: Index) =
+      index.settings ++ defaultSettings
+
+    private def settingsHash(index: Index) =
+      withDefaultSettings(index).toString.hashCode.toString
 
     override val behavior = { ctx =>
       import ctx.{log, materializer, actorContext => context}
@@ -148,11 +159,11 @@ object Evolver extends ClusterComponent.Singleton {
               MappingDefinition(meta = Map(
                 mappingsHashField -> index.mappingsHash,
                 analysisHashField -> index.analysisHash,
-                settingsHashField -> index.settingsHash,
+                settingsHashField -> settingsHash(index),
               ), properties = index.mappings :+ KeywordField(index.discriminator))
             )
             .analysis(index.analysis)
-            .settings(index.settings)
+            .settings(withDefaultSettings(index))
         }
 
         def setReadOnly(indexName: String, readOnly: Boolean) =
@@ -197,7 +208,7 @@ object Evolver extends ClusterComponent.Singleton {
                         // it's possible but hard to check whether mappings have only been added (in which case a reindex would not be necessary), or existing have changed. we just take the easy route...
                         if (existingAnalysisHash != index.analysisHash || existingMappingsHash != index.mappingsHash)
                           migrateIndex
-                        else if (existingSettingsHash != index.settingsHash)
+                        else if (existingSettingsHash != settingsHash(index))
                           Future.successful(UpdateIndexSettings(index, updatedPendingIndices))
                         else {
                           log.info(s"${"skippingMigration" -> "tag"} of ${index.name -> "index"}")
@@ -223,9 +234,10 @@ object Evolver extends ClusterComponent.Singleton {
             addingMappings(index, pendingIndices)
 
           case UpdateIndexSettings(index, pendingIndices) =>
-            log.infoT("updatingSettings", s"${index.name -> "index"} ${index.settings}")
+            val settings = withDefaultSettings(index)
+            log.infoT("updatingSettings", s"${index.name -> "index"} $settings")
             context.pipeToSelf(
-              elasticClient.execute(updateSettings(index.name, index.settings.view.mapValues(_.toString).toMap)).map(_.result).map(_ => Done)
+              elasticClient.execute(updateSettings(index.name, settings.view.mapValues(_.toString).toMap)).map(_.result).map(_ => Done)
             )(triedDone => IndexSettingsUpdated(triedDone))
             updatingIndexSettings(index, pendingIndices)
 

@@ -9,6 +9,9 @@ services:
       network.host: 0.0.0.0
       xpack.security.http.ssl.enabled: false
       xpack.security.enabled: false
+      # https://github.com/elastic/elasticsearch/issues/118583#issuecomment-2578368306
+      ES_JAVA_OPTS: -XX:UseSVE=0
+      CLI_JAVA_OPTS: -XX:UseSVE=0
     ports:
       - 9220:9200
       - 9320:9300

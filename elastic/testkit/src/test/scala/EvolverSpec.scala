@@ -39,7 +39,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
     refreshImmediately = true
   )
 
-  val testIndex1: EvolverSpec.TestIndex1 = new EvolverSpec.TestIndex1()
+  val testIndex1 = new EvolverSpec.TestIndex1()
   val testIndex2 = new EvolverSpec.TestIndex2()
   val testIndex3 = new EvolverSpec.TestIndex3()
 

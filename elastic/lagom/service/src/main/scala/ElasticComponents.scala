@@ -13,7 +13,7 @@ trait ElasticComponents {
 
   val elasticIndices: Set[Index]
 
-  val config: Config
+  def config: Config
 
   implicit val indexSetup: IndexSetup = IndexSetup(elasticClient, actorSystem.toTyped)
 

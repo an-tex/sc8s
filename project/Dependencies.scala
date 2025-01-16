@@ -2,7 +2,7 @@ import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 import sbt._
 
 object Dependencies {
-  val scala213 = "2.13.15"
+  val scala213 = "2.13.16"
 
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
   val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")

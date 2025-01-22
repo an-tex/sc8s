@@ -157,7 +157,7 @@ object Dependencies {
   }
 
   object cats {
-    val core = Def.setting("org.typelevel" %%% "cats-core" % "2.12.0")
+    val core = Def.setting("org.typelevel" %%% "cats-core" % "2.13.0")
   }
 
   object logback {

@@ -5,12 +5,17 @@ import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import net.sc8s.circe.CodecConfiguration._
 
 object ProjectionService {
-  sealed trait ProjectionStatus
+  sealed trait ProjectionStatus {
+    val last10Errors: Seq[(Long, String)]
+  }
+
   object ProjectionStatus {
-    case object Initializing extends ProjectionStatus
+    case object Initializing extends ProjectionStatus {
+      override val last10Errors: Seq[(Long, ProjectionId)] = Nil
+    }
     case class Running(sequenceNr: Option[Long], last10Errors: Seq[(Long, String)]) extends ProjectionStatus
-    case class Stopped(previousProjectionStatus: ProjectionStatus) extends ProjectionStatus
-    case class Failed(cause: String) extends ProjectionStatus
+    case class Stopped(previousProjectionStatus: ProjectionStatus, last10Errors: Seq[(Long, String)]) extends ProjectionStatus
+    case class Failed(cause: String, last10Errors: Seq[(Long, String)]) extends ProjectionStatus
 
     implicit val codec: Codec[ProjectionStatus] = {
       import io.circe.generic.extras.auto._

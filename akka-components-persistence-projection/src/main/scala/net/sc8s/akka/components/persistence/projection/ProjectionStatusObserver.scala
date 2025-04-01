@@ -45,17 +45,17 @@ abstract class ProjectionStatusObserver[Envelope](implicit actorSystem: ActorSys
 
     override def started(projectionId: ProjectionId) = withLoggingContext(projectionId) { log =>
       log.info(s"${"started" -> "tag"}")
-      updateProjectionStatus(projectionId, _ => ProjectionStatus.Running(None, Nil))
+      updateProjectionStatus(projectionId, projectionStatus => ProjectionStatus.Running(None, projectionStatus.last10Errors))
     }
 
     override def failed(projectionId: ProjectionId, cause: Throwable) = withLoggingContext(projectionId) { log =>
       log.error(s"${"failed" -> "tag"} due to $cause")
-      updateProjectionStatus(projectionId, _ => ProjectionStatus.Failed(cause.toString))
+      updateProjectionStatus(projectionId, projectionStatus => ProjectionStatus.Failed(cause.toString, projectionStatus.last10Errors))
     }
 
     override def stopped(projectionId: ProjectionId) = withLoggingContext(projectionId) { log =>
       log.info(s"${"stopped" -> "tag"}")
-      updateProjectionStatus(projectionId, ProjectionStatus.Stopped)
+      updateProjectionStatus(projectionId, projectionStatus => ProjectionStatus.Stopped(projectionStatus, projectionStatus.last10Errors))
     }
 
     override def beforeProcess(projectionId: ProjectionId, envelope: Envelope) = ()
@@ -68,7 +68,7 @@ abstract class ProjectionStatusObserver[Envelope](implicit actorSystem: ActorSys
           log.debug(s"${"progress" -> "tag"} up to ${extractSequenceNr(env) -> "sequenceNr"} at ${extractOffset(env) -> "offset"}")
           ProjectionStatus.Running(Some(extractSequenceNr(env)), errors)
         case invalidProjectionStatus =>
-          log.error(s"${"gotOffsetWhileNotRunning" -> "tag"} $invalidProjectionStatus")
+          // progress could still arrive when already in stopped or failed state
           invalidProjectionStatus
       })
     }
@@ -83,6 +83,9 @@ abstract class ProjectionStatusObserver[Envelope](implicit actorSystem: ActorSys
         case ProjectionStatus.Running(_sequenceNr, errors) =>
           log.error(s"${"error" -> "tag"} at ${extractSequenceNr(env) -> "sequenceNr"} due to $cause with $recoveryStrategy")
           ProjectionStatus.Running(_sequenceNr, (errors :+ (extractSequenceNr(env) -> cause.toString)).takeRight(10))
+        case ProjectionStatus.Failed(_, last10Errors) =>
+          log.error(s"${"error" -> "tag"} at ${extractSequenceNr(env) -> "sequenceNr"} due to $cause with $recoveryStrategy")
+          ProjectionStatus.Failed(cause.toString, (last10Errors :+ (extractSequenceNr(env) -> cause.toString)).takeRight(10))
         case invalidProjectionStatus =>
           log.error(s"${"gotErrorWhileNotRunning" -> "tag"} $invalidProjectionStatus")
           invalidProjectionStatus

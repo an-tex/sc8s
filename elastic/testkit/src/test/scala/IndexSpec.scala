@@ -18,7 +18,7 @@ class IndexSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with Matc
 
   "Index" should {
     val documentV1 = DocumentV1("id", "first", "last")
-    val documentV2 = DocumentV2("id", "first last")
+    val documentV2 = DocumentV2("id", "first last", NestedMember1(NestedMember2("nestedField3")))
 
     "migrate" in {
       documentV1.evolve shouldBe documentV2
@@ -26,7 +26,7 @@ class IndexSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with Matc
     "index as latest" in {
       def source[T](t: T)(implicit indexable: Indexable[T]) = indexable.json(t)
 
-      source(documentV2.asLatest) === documentV2.asLatest.asJson.noSpaces
+      source(documentV2.asLatest) shouldBe documentV2.asLatest.asJson.noSpaces
     }
     "hit read versioned with migration to latest" in {
       versionedHitReader.read(new Hit {
@@ -52,10 +52,13 @@ class IndexSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with Matc
         override def primaryTerm = ???
 
         override def sort = ???
-      }).toString === Success(documentV1.evolve).toString
+      }).toString shouldBe Success(documentV1.evolve).toString
     }
     "latest version" in {
-      index.asInstanceOf[Index].latestVersion === "DocumentV2"
+      index.asInstanceOf[Index].latestVersion shouldBe "DocumentV2"
+    }
+    "support nested fieldNames" in {
+      index.fieldName(_.nested.nested2.nestedField) shouldBe "nested.nested2.nestedField"
     }
   }
 
@@ -72,16 +75,21 @@ object IndexSpec {
     sealed trait Latest extends LatestT with Version {
       val id: String
       val name: String
+      val nested: NestedMember1
     }
 
-    case class DocumentV2(id: String, name: String) extends Latest {
+    case class NestedMember1(nested2: NestedMember2)
+
+    case class NestedMember2(nestedField: String)
+
+    case class DocumentV2(id: String, name: String, nested: NestedMember1) extends Latest {
       override def caseClass = this
 
       override def evolve = this
     }
 
     case class DocumentV1(id: String, firstName: String, lastName: String) extends Version {
-      override def evolve = DocumentV2(id, s"$firstName $lastName").evolve
+      override def evolve = DocumentV2(id, s"$firstName $lastName", NestedMember1(NestedMember2("nestedField3"))).evolve
     }
 
     override val latestVersion = latestVersionHelper[LatestCaseClass]

@@ -6,7 +6,7 @@ object Dependencies {
 
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
   val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
-  val scalamock = "org.scalamock" %% "scalamock" % "6.2.0" % Test
+  val scalamock = "org.scalamock" %% "scalamock" % "7.3.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "2.0.17"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.6.0")
   val scalaXml = "org.scala-lang.modules" %% "scala-xml" % "2.3.0"
@@ -161,15 +161,15 @@ object Dependencies {
   }
 
   object logback {
-    private val logback = "1.5.17"
+    private val logback = "1.5.18"
 
     val core = "ch.qos.logback" % "logback-core" % logback
     val classic = "ch.qos.logback" % "logback-classic" % logback
   }
 
   object elastic4s {
-    private val elastic4s = "8.16.0"
-    private val elasticsearch = "8.17.2"
+    private val elastic4s = "8.17.1"
+    private val elasticsearch = "8.17.4"
 
     val clientAkka = "nl.gn0s1s" %% "elastic4s-client-akka" % elastic4s
     val clientJava = "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" % elastic4s

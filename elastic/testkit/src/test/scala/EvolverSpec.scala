@@ -151,7 +151,11 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
 
       Thread.sleep(3000)
 
-      elasticClient.execute(getIndex(testIndex1.name)).futureValue.result.head._2.mappings.properties === Map("name" -> Field(Some("keyword")), "deleted" -> Field(Some("keyword")))
+      elasticClient.execute(getIndex(testIndex1.name)).futureValue.result.head._2.mappings.properties shouldBe Map(
+        "class" -> Field(Some("keyword")),
+        "name" -> Field(Some("keyword")),
+        "deleted" -> Field(Some("keyword"))
+      )
     }
     "evolve documents with older version" in new EvolverContext(indexV1) {
       val indexV2 = new EvolverSpec.IndexV2()

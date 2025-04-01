@@ -36,7 +36,7 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         val bytes = serializer.toBinary(simpleCaseClass)
 
         parse(new String(bytes, StandardCharsets.UTF_8)) shouldBe Right(simpleCaseClass.asJson)
-        serializer.fromBinary(bytes, manifest(simpleCaseClass.getClass)) === simpleCaseClass
+        serializer.fromBinary(bytes, manifest(simpleCaseClass.getClass)) shouldBe simpleCaseClass
       }
       "ADTs" in {
         val adt1 = ADT1("moin")
@@ -53,8 +53,8 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         parse(new String(bytes1, StandardCharsets.UTF_8)) shouldBe Right(adt1.asInstanceOf[ADT].asJson)
         parse(new String(bytes2, StandardCharsets.UTF_8)) shouldBe Right(adt2.asInstanceOf[ADT].asJson)
 
-        serializer.fromBinary(bytes1, manifest(adt1.getClass)) === adt1
-        serializer.fromBinary(bytes2, manifest(adt2.getClass)) === adt2
+        serializer.fromBinary(bytes1, manifest(adt1.getClass)) shouldBe adt1
+        serializer.fromBinary(bytes2, manifest(adt2.getClass)) shouldBe adt2
       }
       "ADT children" in {
         val adt1 = ADTChild1(3)
@@ -71,8 +71,8 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         parse(new String(bytes1, StandardCharsets.UTF_8)) shouldBe Right(adt1.asInstanceOf[ADT].asJson)
         parse(new String(bytes2, StandardCharsets.UTF_8)) shouldBe Right(adt2.asInstanceOf[ADT].asJson)
 
-        serializer.fromBinary(bytes1, manifest(adt1.getClass)) === adt1
-        serializer.fromBinary(bytes2, manifest(adt2.getClass)) === adt2
+        serializer.fromBinary(bytes1, manifest(adt1.getClass)) shouldBe adt1
+        serializer.fromBinary(bytes2, manifest(adt2.getClass)) shouldBe adt2
       }
       "ActorRefs" in {
         val probe = TestProbe[String]()
@@ -87,7 +87,7 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         val bytes = serializer.toBinary(withTypedActorRef)
 
         parse(new String(bytes, StandardCharsets.UTF_8)) shouldBe Right(withTypedActorRef.asJson)
-        serializer.fromBinary(bytes, manifest(withTypedActorRef.getClass)) === withTypedActorRef
+        serializer.fromBinary(bytes, manifest(withTypedActorRef.getClass)) shouldBe withTypedActorRef
       }
       "SinkRefs & SourceRefs" in {
         val sinkRef = StreamRefs.sinkRef[String]().preMaterialize()._1
@@ -103,7 +103,7 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         val bytes = serializer.toBinary(withSinkAndSourceRef)
 
         parse(new String(bytes, StandardCharsets.UTF_8)) shouldBe Right(withSinkAndSourceRef.asJson)
-        serializer.fromBinary(bytes, manifest(withSinkAndSourceRef.getClass)) === withSinkAndSourceRef
+        serializer.fromBinary(bytes, manifest(withSinkAndSourceRef.getClass)) shouldBe withSinkAndSourceRef
       }
       // TODO move to separate module once schema evolution is open sourced?
       /*
@@ -125,8 +125,8 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         parse(new String(bytes1, StandardCharsets.UTF_8)) must beRight(v1.asInstanceOf[Vx.Versioned].asJson)
         parse(new String(bytes2, StandardCharsets.UTF_8)) must beRight(v2.asInstanceOf[Vx.Versioned].asJson)
 
-        serializer.fromBinary(bytes1, manifest(v1.getClass)) === v1.migrate
-        serializer.fromBinary(bytes2, manifest(v2.getClass)) === v2
+        serializer.fromBinary(bytes1, manifest(v1.getClass)) shouldBe v1.migrate
+        serializer.fromBinary(bytes2, manifest(v2.getClass)) shouldBe v2
       }
       "supporting manifestRenames" in {
         val registry: CirceSerializerRegistry = new CirceSerializerRegistry {
@@ -143,9 +143,9 @@ class CirceJsonSerializerSpec extends ScalaTestWithActorTestKit with AnyFreeSpec
         val serializer = new CirceJsonSerializer(extendedActorSystem, registry)
 
         val bytes = """{"boolean":true,"class":"Vz"}""".getBytes
-        serializer.fromBinary(bytes, "net.sc8s.circe.akka.CirceJsonSerializerSpec.Vz") === Vx.V0.migrate
-        serializer.fromBinary(bytes, "net.sc8s.circe.akka.CirceJsonSerializerSpec$Vz") === Vx.V0.migrate
-        serializer.fromBinary(bytes, "net.sc8s.circe.akka.CirceJsonSerializerSpec$Vz$") === Vx.V0.migrate
+        serializer.fromBinary(bytes, "net.sc8s.circe.akka.CirceJsonSerializerSpec.Vz") shouldBe Vx.V0.migrate
+        serializer.fromBinary(bytes, "net.sc8s.circe.akka.CirceJsonSerializerSpec$Vz") shouldBe Vx.V0.migrate
+        serializer.fromBinary(bytes, "net.sc8s.circe.akka.CirceJsonSerializerSpec$Vz$") shouldBe Vx.V0.migrate
       }
       */
     }

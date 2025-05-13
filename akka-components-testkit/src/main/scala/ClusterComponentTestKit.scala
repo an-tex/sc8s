@@ -1,13 +1,16 @@
 package net.sc8s.akka.components.testkit
 
+import akka.actor.ExtendedActorSystem
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.cluster.sharding.typed.scaladsl.{EntityContext, EntityRef, EntityTypeKey}
 import akka.cluster.sharding.typed.testkit.scaladsl.TestEntityRef
 import akka.persistence.query.Offset
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit.SerializationSettings
+import akka.persistence.testkit.state.scaladsl.PersistenceTestKitDurableStateStore
 import akka.persistence.typed.PersistenceId
 import akka.projection.ProjectionId
 import akka.projection.eventsourced.EventEnvelope
@@ -61,6 +64,40 @@ trait ClusterComponentTestKit {
       ),
       SerializationSettings.enabled.withVerifyState(outerComponent.isInstanceOf[ComponentT.EventSourcedT.SnapshotsT])
     )
+
+  type PersistenceIdId = String
+
+  def spawnComponent[
+    OuterComponentT <: Singleton.DurableState
+  ](
+     outerComponent: OuterComponentT
+   )(
+     innerComponent: outerComponent.BaseComponent
+   ): (
+    ActorRef[outerComponent.SerializableCommand],
+      PersistenceIdId,
+      PersistenceTestKitDurableStateStore[outerComponent.State]
+    ) = {
+
+    val _persistenceId = PersistenceId.ofUniqueId(loggerClass)
+
+    val actorRef = spawn(Behaviors.setup[outerComponent.Command](_actorContext =>
+      innerComponent.transformedBehavior(
+        new ComponentContext with ComponentContext.Actor[outerComponent.Command] with ComponentContext.DurableState {
+          override val actorContext = _actorContext
+          override protected lazy val loggerClass = innerComponent.generateLoggerClass(outerComponent.getClass)
+          override val persistenceId = _persistenceId
+        }
+      )
+    ))
+
+    val testKit = new PersistenceTestKitDurableStateStore[outerComponent.State](system.toClassic.asInstanceOf[ExtendedActorSystem])
+    (
+      actorRef,
+      _persistenceId.id,
+      testKit,
+    )
+  }
 
   def spawnComponentWithEntityRefProbes[
     OuterComponentT <: Sharded

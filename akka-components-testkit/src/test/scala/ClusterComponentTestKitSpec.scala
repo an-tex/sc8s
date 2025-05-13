@@ -4,8 +4,10 @@ import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
+import akka.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
-import akka.stream.scaladsl.Source
+import akka.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect => StateEffect}
+import akka.stream.scaladsl.{Sink, Source}
 import com.softwaremill.macwire.wireSet
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
@@ -21,7 +23,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.Future
 
-class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedR2dbc.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
+class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedR2dbc.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers, PersistenceTestKitDurableStateStorePlugin.config) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
   "ComponentTestKit" should {
     "support Singleton" in {
       val value1 = spawnComponent(Singleton)(new Singleton.Component)
@@ -69,6 +71,34 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
         probe.expectNextUnordered(Done, Done)
       }
     }
+    */
+    "support DurableState Singleton" in {
+      val (actorRef, persistenceId, testKit) = spawnComponent(SingletonDurableStateR2dbc)(new SingletonDurableStateR2dbc.Component(mock[ProjectionTarget]))
+
+      actorRef ! Command()
+
+      testKit.currentPersistenceIds(None, 10).runWith(Sink.seq).futureValue shouldBe Seq(persistenceId)
+
+      eventually(testKit.getObject(persistenceId) shouldBe Some(State()))
+    }
+    // TODO add projection support
+    //"support DurableState Singleton with r2dbc projection testing" in {
+    //  val projectionTarget = mock[ProjectionTarget]
+    //  val component = new SingletonEventSourcedR2dbc.Component(projectionTarget)
+    //  val projection = testProjection(SingletonEventSourcedR2dbc)(component)(component.projection, Source(Seq(
+    //    Event(),
+    //    Event(),
+    //  )))
+    //
+    //  (projectionTarget.serviceCall _).expects(component.persistenceId.id)
+    //  (projectionTarget.serviceCall _).expects(component.persistenceId.id)
+    //
+    //  projectionTestKit.runWithTestSink(projection) { probe =>
+    //    probe.request(2)
+    //    probe.expectNextUnordered(Done, Done)
+    //  }
+    //}
+
     "support Sharded" in {
       spawnComponent(Sharded)(new Sharded.Component, "entityId") ! Command()
     }
@@ -87,6 +117,11 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
         .runCommand(Command())
         .event shouldBe Event()
     }
+    //"support DurableState Sharded" in {
+    //  spawnComponent(ShardedDurableStateR2dbc)(new ShardedDurableStateR2dbc.Component(mock[ProjectionTarget]), "entityId")
+    //    .runCommand(Command())
+    //    .state shouldBe State()
+    //}
     "support EventSourced Sharded with cassandra projection testing" in {
       val projectionTarget = mock[ProjectionTarget]
       val entityId1 = "entityId1"
@@ -227,6 +262,28 @@ object ClusterComponentTestKitSpec {
     }
   }
 
+  object SingletonDurableStateR2dbc extends ClusterComponent.Singleton.DurableState with ClusterComponent.SameSerializableCommand {
+    override type Command = ClusterComponentTestKitSpec.Command
+    override val commandSerializer = CirceSerializer()
+
+    override type State = ClusterComponentTestKitSpec.State
+    override val stateSerializer = CirceSerializer()
+
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent {
+      override val behavior = context => DurableStateBehavior(
+        context.persistenceId,
+        State(),
+        {
+          case (state, command) =>
+            println("persisting")
+            StateEffect.persist(State())
+        },
+      )
+
+      override val name = "name"
+    }
+  }
+
   object SingletonEventSourcedCassandra extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
     override type Command = ClusterComponentTestKitSpec.Command
     override val commandSerializer = CirceSerializer()
@@ -269,6 +326,7 @@ object ClusterComponentTestKitSpec {
     override val eventSerializer = CirceSerializer()
 
     override type State = ClusterComponentTestKitSpec.State
+    override val stateSerializer = CirceSerializer()
 
     class Component extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
@@ -287,7 +345,6 @@ object ClusterComponentTestKitSpec {
 
       override val name = "name"
     }
-    override val stateSerializer = CirceSerializer()
   }
 
   object Sharded extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
@@ -376,6 +433,27 @@ object ClusterComponentTestKitSpec {
     }
   }
 
+  object ShardedDurableStateR2dbc extends ClusterComponent.Sharded.DurableState with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+    override type Command = ClusterComponentTestKitSpec.Command
+    override val commandSerializer = CirceSerializer()
+
+    override type State = ClusterComponentTestKitSpec.State
+    override val stateSerializer = CirceSerializer()
+
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent {
+      override val behavior = context => DurableStateBehavior(
+        context.persistenceId,
+        State(),
+        {
+          case (state, command) =>
+            StateEffect.persist(State())
+        }
+      )
+
+      override val name = "name"
+    }
+  }
+
   object ShardedEventSourcedWithCustomEntityId extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.JsonEntityId {
 
     import net.sc8s.akka.circe.implicits._
@@ -429,6 +507,7 @@ object ClusterComponentTestKitSpec {
     override val eventSerializer = CirceSerializer()
 
     override type State = ClusterComponentTestKitSpec.State
+    override val stateSerializer = CirceSerializer()
 
     class Component extends BaseComponent {
       override val behavior = context => EventSourcedBehavior(
@@ -447,7 +526,6 @@ object ClusterComponentTestKitSpec {
 
       override val name = "name"
     }
-    override val stateSerializer = CirceSerializer()
   }
 
   object ShardedEntityRefMock extends ClusterComponent.Sharded with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {

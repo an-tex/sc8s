@@ -2,11 +2,12 @@ package net.sc8s.akka.components
 
 import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Signal, SupervisorStrategy}
+import akka.actor.typed._
 import akka.cluster.sharding.typed.scaladsl._
 import akka.cluster.sharding.typed.{ClusterShardingSettings, ShardingEnvelope}
 import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings, SingletonActor}
 import akka.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.state.scaladsl.DurableStateBehavior
 import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.stream.Materializer
 import io.circe.syntax.EncoderOps
@@ -156,6 +157,56 @@ object ClusterComponent {
                                                         ): ManagedProjection[_]
       }
     }
+
+    sealed trait DurableStateT extends ComponentT with SignalHandlers {
+      type State
+
+      private[components] trait DurableStateBaseComponentT extends super.BaseComponentT {
+        // for mixin traits accessibility
+        private[components] type StateT = State
+
+        override private[components] type BehaviorS = DurableStateBehavior[Command, State]
+
+        override private[components] type ComponentContextS <: ComponentContext with ComponentContext.DurableState
+
+        override private[components] def behaviorTransformer = (context, behavior) => {
+          val transformedBehavior = super.behaviorTransformer(context, behavior)
+          transformedBehavior
+            .onPersistFailure(SupervisorStrategy.restartWithBackoff(1.second, 1.minute, 0.2))
+        }
+
+        // TODO add projection support
+        //private[components] def projectionContext(
+        //                                           projectionName: String,
+        //                                           persistenceId: PersistenceId,
+        //                                           actorSystem: ActorSystem[_]
+        //                                         ): ComponentContextS with ComponentContext.Projection
+      }
+
+      val stateSerializer: CirceSerializer[State]
+
+      override def serializers = super.serializers :+ stateSerializer
+    }
+
+    // TODO add projection support
+    //object DurableStateT {
+    //  trait ProjectionT {
+    //    _: DurableStateT#DurableStateBaseComponentT =>
+    //
+    //    // Set[_] so you can use `com.softwaremill.macwire#wireSet`
+    //    val projections: Set[Projection[DurableStateChange[StateT], ComponentContextS with ComponentContext.Projection]]
+    //
+    //    // helper method so you don't have to care about type parameters in case you create it outside of the member `projections`
+    //    def createProjection(name: String)(handler: PartialFunction[(DurableStateChange[StateT], ComponentContextS with ComponentContext.Projection), Future[Done]]): Projection[DurableStateChange[StateT], ComponentContextS with ComponentContext.Projection] = Projection(name, handler)
+    //
+    //    override private[components] def managedProjections(implicit actorSystem: ActorSystem[_]) = projections.map(managedProjectionFactory(_, actorSystem)).toSeq
+    //
+    //    private[components] def managedProjectionFactory(
+    //                                                      projection: Projection[DurableStateChange[StateT], ComponentContextS with ComponentContext.Projection],
+    //                                                      actorSystem: ActorSystem[_]
+    //                                                    ): ManagedProjection[_]
+    //  }
+    //}
   }
 
   trait ComponentContext extends Logging {
@@ -175,6 +226,14 @@ object ClusterComponent {
     }
 
     trait EventSourced extends ComponentContext {
+      val persistenceId: PersistenceId
+
+      protected override def logContext = super.logContext + CustomContext(
+        "persistenceId" -> persistenceId.id
+      )
+    }
+
+    trait DurableState extends ComponentContext {
       val persistenceId: PersistenceId
 
       protected override def logContext = super.logContext + CustomContext(
@@ -339,6 +398,49 @@ object ClusterComponent {
         trait BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
           // this looks odd (as it's the same as in super) but it helps IntelliJ pull the right ComponentContextS (and not the ohne from ClusterComponent.ComponentT.EventSourcedT.EventSourcedBaseComponentT)
           override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
+        }
+      }
+    }
+
+    abstract class DurableState(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends SingletonT with ComponentT.DurableStateT {
+      outerSelf =>
+
+      trait BaseComponent extends super.SingletonBaseComponentT with super.DurableStateBaseComponentT {
+        self =>
+
+        override private[components] type ComponentContextS = ComponentContext with ComponentContext.DurableState
+
+        private[components] lazy val persistenceId = PersistenceId.ofUniqueId(name)
+
+        override private[components] type BehaviorComponentContextS = ComponentContext with ComponentContext.Actor[Command] with ComponentContext.DurableState
+
+        override def fromActorContext(_actorContext: ActorContext[Command]) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.DurableState {
+          override val persistenceId = self.persistenceId
+          override val actorContext = _actorContext
+          override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
+
+          override protected def logContext = super.logContext + outerSelf.logContext
+        }
+
+        // TODO add projection support
+        //override private[components] def projectionContext(
+        //                                                    projectionName: String,
+        //                                                    _persistenceId: PersistenceId,
+        //                                                    _actorSystem: ActorSystem[_]
+        //                                                  ) = new ComponentContext with ComponentContext.DurableState with ComponentContext.Projection {
+        //  override val persistenceId = _persistenceId
+        //  override val name = projectionName
+        //  override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
+        //  override implicit val actorSystem = _actorSystem
+        //
+        //  protected override def logContext = super.logContext + outerSelf.logContext
+        //}
+
+        override private[components] def behaviorTransformer = (context, behavior) => {
+          val transformedBehavior = super.behaviorTransformer(context, behavior)
+          transformedBehavior.receiveSignal(
+            withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, componentCodePositionMaterializer)
+          )
         }
       }
     }
@@ -577,6 +679,73 @@ object ClusterComponent {
         trait BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
           // this looks odd (as it's the same as in super) but it helps IntelliJ pull the right ComponentContextS (and not the ohne from ClusterComponent.ComponentT.EventSourcedT.EventSourcedBaseComponentT)
           override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
+        }
+      }
+    }
+
+    abstract class DurableState(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends ShardedT with ComponentT.DurableStateT {
+      outerSelf =>
+      trait BaseComponent extends super.ShardedBaseComponentT with super.DurableStateBaseComponentT {
+        self =>
+
+        override private[components] type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.DurableState
+
+        override def fromActorContext(
+                                       _actorContext: ActorContext[Command],
+                                       _entityContext: EntityContext[SerializableCommand],
+                                       _entityId: EntityId
+                                     ) = new ComponentContext with ComponentContext.Actor[Command] with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.DurableState with ComponentContext.ShardedEntity[SerializableCommand] {
+          override val entityId = _entityId
+          override val persistenceId = PersistenceId(self.typeKey.name, outerSelf.entityIdCodec.encode(entityId))
+          override val actorContext = _actorContext
+          override val entityContext = _entityContext
+
+          private lazy val clusterSharding: ClusterSharding = ClusterSharding(actorContext.system)
+
+          override def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
+
+          override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
+
+          protected override def logContext = super.logContext + outerSelf.logContext
+
+          override private[components] val entityIdCodec = outerSelf.entityIdCodec
+
+          override private[components] val typeKey = self.typeKey
+        }
+
+        // TODO add projection support
+        //override private[components] def projectionContext(
+        //                                                    projectionName: String,
+        //                                                    _persistenceId: PersistenceId,
+        //                                                    _actorSystem: ActorSystem[_]
+        //                                                  ) =
+        //  new ComponentContext with ComponentContext.Sharded[SerializableCommand, EntityId] with ComponentContext.Projection {
+        //    private lazy val clusterSharding: ClusterSharding = ClusterSharding(_actorSystem)
+        //
+        //    override def entityRefFor(entityId: EntityId) = clusterSharding.entityRefFor(typeKey, outerSelf.entityIdCodec.encode(entityId))
+        //
+        //    override private[components] val entityIdCodec = outerSelf.entityIdCodec
+        //
+        //    override val entityId = _persistenceId.entityId.pipe(entityIdCodec.decode(_).get)
+        //
+        //    override val name = projectionName
+        //    override val persistenceId = _persistenceId
+        //    override protected lazy val loggerClass = generateLoggerClass(outerSelf.getClass)
+        //    override implicit val actorSystem = _actorSystem
+        //
+        //    protected override def logContext = super.logContext + outerSelf.logContext
+        //
+        //    override private[components] val typeKey = self.typeKey
+        //  }
+
+        override private[components] def behaviorTransformer = (context, behavior) => {
+          val transformedBehavior = super.behaviorTransformer(context, behavior)
+          transformedBehavior.receiveSignal(
+            withDefaultSignalHandler(transformedBehavior.signalHandler.orElse {
+              case (_, RecoveryCompleted) =>
+              // don't log recovery for sharded components as there might be a lot
+            }: PartialFunction[(State, Signal), Unit])(context.log, componentCodePositionMaterializer)
+          )
         }
       }
     }

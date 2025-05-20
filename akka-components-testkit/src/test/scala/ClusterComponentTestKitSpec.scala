@@ -140,6 +140,16 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
 
       testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
     }
+    "support SingletonComponent TestProbe with autopilot" in {
+      val (component, testProbe) = createProbeWithAutoPilot(Singleton)(Behaviors.receiveMessage[ClusterComponentTestKitSpec.Command] {
+        case ClusterComponentTestKitSpec.Command() =>
+          Behaviors.same
+      })
+
+      component.actorRef ! ClusterComponentTestKitSpec.Command()
+
+      testProbe.expectMessage(ClusterComponentTestKitSpec.Command())
+    }
     "support ShardedComponent TestProbe using mockFunction" in {
       val entityRefMock = mockFunction[String, TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]]
       val testProbe = TestProbe[ClusterComponentTestKitSpec.ShardedEntityRefMock.SerializableCommand]()

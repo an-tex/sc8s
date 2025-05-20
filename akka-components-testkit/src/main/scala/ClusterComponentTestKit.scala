@@ -1,8 +1,8 @@
 package net.sc8s.akka.components.testkit
 
 import akka.actor.testkit.typed.scaladsl.TestProbe
-import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{EntityContext, EntityRef, EntityTypeKey}
 import akka.cluster.sharding.typed.testkit.scaladsl.TestEntityRef
 import akka.persistence.query.Offset
@@ -155,6 +155,30 @@ trait ClusterComponentTestKit {
     val testProbe = TestProbe[outerComponent.SerializableCommand]
     new SingletonComponent[OuterComponentT] {
       override val actorRef: ActorRef[outerComponent.SerializableCommand] = testProbe.ref
+
+      override private[components] lazy val innerComponent = ???
+      override private[components] lazy val component: outerComponent.type = outerComponent
+
+      override private[components] val serializers = Nil
+      override private[components] val managedProjections = Nil
+    } -> testProbe
+  }
+
+  def createProbeWithAutoPilot[
+    OuterComponentT <: Singleton.SingletonT
+  ](
+     outerComponent: OuterComponentT,
+   )(
+     autoPilot: Behavior[outerComponent.SerializableCommand],
+   )(
+     implicit classTag: ClassTag[outerComponent.SerializableCommand]
+   ) = {
+    val testProbe = TestProbe[outerComponent.SerializableCommand]
+
+    val autoPilotRef = testKit.spawn(Behaviors.monitor(testProbe.ref, autoPilot))
+
+    new SingletonComponent[OuterComponentT] {
+      override val actorRef: ActorRef[outerComponent.SerializableCommand] = autoPilotRef
 
       override private[components] lazy val innerComponent = ???
       override private[components] lazy val component: outerComponent.type = outerComponent

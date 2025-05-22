@@ -168,7 +168,7 @@ object Dependencies {
   }
 
   object elastic4s {
-    private val elastic4s = "8.18.0"
+    private val elastic4s = "8.18.1"
     private val elasticsearch = "9.0.1"
 
     val clientAkka = "nl.gn0s1s" %% "elastic4s-client-akka" % elastic4s

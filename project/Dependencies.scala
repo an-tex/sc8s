@@ -148,7 +148,7 @@ object Dependencies {
   }
 
   object logstage {
-    private val izumiVersion = "1.2.16"
+    private val izumiVersion = "1.2.19"
 
     val core = Def.setting("io.7mind.izumi" %%% "logstage-core" % izumiVersion)
     val circe = Def.setting("io.7mind.izumi" %%% "logstage-rendering-circe" % izumiVersion)

@@ -24,7 +24,9 @@ lazy val sc8s = (project in file("."))
     `akka-components-persistence-cassandra-lagom`,
     `akka-components-persistence-r2dbc-lagom-api`.js,
     `akka-components-persistence-r2dbc-lagom-api`.jvm,
+    `akka-components-persistence-r2dbc-common`,
     `akka-components-persistence-r2dbc-lagom`,
+    `akka-components-persistence-r2dbc-tapir`,
     `akka-components-persistence-projection-lagom-api`.js,
     `akka-components-persistence-projection-lagom-api`.jvm,
     `akka-components-persistence-projection-lagom`,
@@ -181,16 +183,36 @@ lazy val `akka-components-persistence-r2dbc-lagom-api` = crossProject(JSPlatform
   )
   .dependsOn(`common-circe`, `lagom-api-circe`)
 
+lazy val `akka-components-persistence-r2dbc-common` = (project in file("akka-components-persistence-r2dbc-common"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.persistenceR2dbc,
+    ),
+    dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.common")
+  )
+  .dependsOn(`akka-components`)
+
 lazy val `akka-components-persistence-r2dbc-lagom` = (project in file("akka-components-persistence-r2dbc-lagom"))
   .settings(
     libraryDependencies ++= Seq(
       lagom.scaladslServer,
-      akka.persistenceR2dbc,
     ),
     dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.lagom")
   )
-  .dependsOn(`akka-components`, `akka-components-persistence-r2dbc-lagom-api`.jvm)
+  .dependsOn(`akka-components`, `akka-components-persistence-r2dbc-lagom-api`.jvm, `akka-components-persistence-r2dbc-common`)
+
+lazy val `akka-components-persistence-r2dbc-tapir` = (project in file("akka-components-persistence-r2dbc-tapir"))
+  .settings(
+    libraryDependencies ++= Seq(
+      tapir.core.value,
+      tapir.circe.value,
+    ),
+    dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.tapir")
+  )
+  .dependsOn(`akka-components`, `akka-components-persistence-r2dbc-common`)
 
 lazy val `akka-components-persistence-projection` = (project in file("akka-components-persistence-projection"))
   .settings(

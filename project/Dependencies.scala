@@ -182,4 +182,11 @@ object Dependencies {
     val streamsAkka = "com.sksamuel.elastic4s" %% "elastic4s-streams-akka" % elastic4s
     val testkit = "nl.gn0s1s" %% "elastic4s-testkit" % elastic4s
   }
+
+  object tapir {
+    private val tapirVersion = "1.11.11"
+
+    val core = Def.setting("com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion)
+    val circe = Def.setting("com.softwaremill.sttp.tapir" %%% "tapir-json-circe" % tapirVersion)
+  }
 }

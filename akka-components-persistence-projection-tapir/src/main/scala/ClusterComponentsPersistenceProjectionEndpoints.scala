@@ -24,26 +24,32 @@ class ClusterComponentsPersistenceProjectionEndpoints(
 
   import actorSystem.executionContext
 
+  private val projectionPath = "projection" / path[String]("projectionName").examples(projectionNameExamples)
+
   private[this] val rebuildProjection =
     endpoint
       .post
-      .in("projection" / path[String]("projectionName").examples(projectionNameExamples) / "rebuild")
+      .in(projectionPath / "rebuild")
+      .errorOut(stringBody)
 
   private[this] val pauseProjection =
     endpoint
       .post
-      .in("projection" / path[String]("projectionName").examples(projectionNameExamples) / "pause")
+      .in(projectionPath / "pause")
+      .errorOut(stringBody)
 
   private[this] val resumeProjection =
     endpoint
       .post
-      .in("projection" / path[String]("projectionName").examples(projectionNameExamples) / "resume")
+      .in(projectionPath / "resume")
+      .errorOut(stringBody)
 
   private[this] val projectionStatus =
     endpoint
       .get
-      .in("projection" / path[String]("projectionName").examples(projectionNameExamples))
+      .in(projectionPath)
       .out(jsonBody[ProjectionsStatus])
+      .errorOut(stringBody)
 
   private[this] val projectionsStatus =
     endpoint
@@ -60,10 +66,10 @@ class ClusterComponentsPersistenceProjectionEndpoints(
   )
 
   val serverEndpoints: Seq[ServerEndpoint[Any, Future]] = Seq(
-    rebuildProjection.serverLogic[Future](projectionManagement.rebuildProjection(_).map(_ => ().asRight)),
-    pauseProjection.serverLogic[Future](projectionManagement.pauseProjection(_).map(_ => ().asRight)),
-    resumeProjection.serverLogic[Future](projectionManagement.resumeProjection(_).map(_ => ().asRight)),
-    projectionStatus.serverLogic[Future](projectionManagement.projectionStatus(_).map(_.asRight)),
+    rebuildProjection.serverLogic[Future](projectionManagement.rebuildProjection(_).map(_.map(_ => ()))),
+    pauseProjection.serverLogic[Future](projectionManagement.pauseProjection(_).map(_.map(_ => ()))),
+    resumeProjection.serverLogic[Future](projectionManagement.resumeProjection(_).map(_.map(_ => ()))),
+    projectionStatus.serverLogic[Future](projectionManagement.projectionStatus),
     projectionsStatus.serverLogic[Future](_ => projectionManagement.projectionsStatus.map(_.asRight)),
   )
 }

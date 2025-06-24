@@ -1,6 +1,5 @@
 package net.sc8s.akka.components.persistence.projection.common
 
-import akka.Done
 import akka.actor.typed.ActorSystem
 import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
 import cats.instances.list._
@@ -17,29 +16,24 @@ class ProjectionManagement(
 
   import actorSystem.executionContext
 
-  def rebuildProjection(projectionName: String): Future[Done] = {
-    findProjection(projectionName).rebuild()
-  }
+  def rebuildProjection(projectionName: String) =
+    projectionOperation(projectionName, _.rebuild())
 
-  def pauseProjection(projectionName: String): Future[Done] = {
-    findProjection(projectionName).pause()
-  }
+  def pauseProjection(projectionName: String) =
+    projectionOperation(projectionName, _.pause())
 
-  def resumeProjection(projectionName: String): Future[Done] = {
-    findProjection(projectionName).resume()
-  }
+  def resumeProjection(projectionName: String) =
+    projectionOperation(projectionName, _.resume())
 
-  def projectionStatus(projectionName: String): Future[ProjectionsStatus] = {
-    findProjection(projectionName).status
-  }
+  def projectionStatus(projectionName: String) =
+    projectionOperation(projectionName, _.status)
 
-  def projectionsStatus: Future[List[ProjectionsStatus]] = {
+  def projectionsStatus: Future[List[ProjectionsStatus]] =
     projections.map(_.status).toList.sequence
-  }
 
-  private def findProjection(projectionName: String): ManagedProjection[_] = {
-    projections.find(_.projectionName == projectionName).getOrElse {
-      throw new IllegalArgumentException(s"projectionName=$projectionName not found, validProjectionNames=${projections.map(_.projectionName).mkString(";")}")
+  private def projectionOperation[T](projectionName: String, operation: ManagedProjection[_] => Future[T]) =
+    projections.find(_.projectionName == projectionName) match {
+      case Some(value) => operation(value).map(Right(_))
+      case None => Future.successful(Left(s"projectionName=$projectionName not found, validProjectionNames=${projections.map(_.projectionName).mkString(";")}"))
     }
-  }
 }

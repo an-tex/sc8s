@@ -29,7 +29,9 @@ lazy val sc8s = (project in file("."))
     `akka-components-persistence-r2dbc-tapir`,
     `akka-components-persistence-projection-lagom-api`.js,
     `akka-components-persistence-projection-lagom-api`.jvm,
+    `akka-components-persistence-projection-common`,
     `akka-components-persistence-projection-lagom`,
+    `akka-components-persistence-projection-tapir`,
     `akka-components-persistence-utils`,
     `akka-stream-utils`.js,
     `akka-stream-utils`.jvm,
@@ -279,6 +281,17 @@ lazy val `akka-components-persistence-projection-lagom-api` = crossProject(JSPla
   )
   .dependsOn(`common-circe`, `lagom-api-circe`, `akka-components-persistence-projection-api`)
 
+lazy val `akka-components-persistence-projection-common` = (project in file("akka-components-persistence-projection-common"))
+  .settings(
+    libraryDependencies ++= Seq(
+      akka.persistenceTyped,
+      akka.projection.eventsourced,
+      akka.clusterShardingTyped,
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.common")
+  )
+  .dependsOn(`akka-components`, `akka-components-persistence-projection`, `akka-components-persistence-projection-api`.jvm, `logstage-elastic`)
+
 lazy val `akka-components-persistence-projection-lagom` = (project in file("akka-components-persistence-projection-lagom"))
   .settings(
     libraryDependencies ++= Seq(
@@ -287,7 +300,17 @@ lazy val `akka-components-persistence-projection-lagom` = (project in file("akka
     ),
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.lagom")
   )
-  .dependsOn(`akka-components`, `akka-components-persistence-projection-lagom-api`.jvm, `akka-components-lagom`)
+  .dependsOn(`akka-components`, `akka-components-persistence-projection-lagom-api`.jvm, `akka-components-persistence-projection-common`, `akka-components-lagom`)
+
+lazy val `akka-components-persistence-projection-tapir` = (project in file("akka-components-persistence-projection-tapir"))
+  .settings(
+    libraryDependencies ++= Seq(
+      tapir.core.value,
+      tapir.circe.value,
+    ),
+    idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.tapir")
+  )
+  .dependsOn(`akka-components`, `akka-components-persistence-projection-common`)
 
 lazy val `akka-components-persistence-utils` = (project in file("akka-components-persistence-utils"))
   .settings(

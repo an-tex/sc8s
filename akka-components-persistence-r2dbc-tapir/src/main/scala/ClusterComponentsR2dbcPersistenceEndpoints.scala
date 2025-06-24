@@ -22,15 +22,15 @@ class ClusterComponentsR2dbcPersistenceEndpoints(
   private[this] val deleteSingletonEntity =
     endpoint
       .delete
-      .in("/entity/singleton" / path[String]("name").examples(
-        clusterComponentsR2dbcPersistenceManagement.singletonEntityPersistenceIdsByName.keys.map(Example.of(_)).toList)
+      .in("entity" / "singleton" / path[String]("name").examples(
+        clusterComponentsR2dbcPersistenceManagement.singletonEntityPersistenceIdsByName.keys.map(name => Example.of(name, Some(name))).toList)
       )
 
   private[this] val deleteShardedEntities =
     endpoint
       .delete
-      .in("/entity/sharded" / path[String]("name").examples(
-        clusterComponentsR2dbcPersistenceManagement.shardedEntityPersistenceIdsByTypeKey.keys.map(Example.of(_)).toList
+      .in("entity" / "sharded" / path[String]("name").examples(
+        clusterComponentsR2dbcPersistenceManagement.shardedEntityPersistenceIdsByTypeKey.keys.map(name => Example.of(name, Some(name))).toList
       ))
 
   val endpoints: Seq[Endpoint[_, _, _, _, _]] = Seq(
@@ -38,7 +38,7 @@ class ClusterComponentsR2dbcPersistenceEndpoints(
     deleteShardedEntities,
   )
 
-  val serverEndpoints: Seq[ServerEndpoint[_, Future]] = Seq(
+  val serverEndpoints: Seq[ServerEndpoint[Any, Future]] = Seq(
     deleteSingletonEntity.serverLogic[Future](clusterComponentsR2dbcPersistenceManagement.deleteSingletonEntity(_).map(_ => ().asRight)),
     deleteShardedEntities.serverLogic[Future](clusterComponentsR2dbcPersistenceManagement.deleteShardedEntities(_).map(_ => ().asRight)),
   )

@@ -184,7 +184,7 @@ object Dependencies {
   }
 
   object tapir {
-    private val tapirVersion = "1.11.11"
+    private val tapirVersion = "1.11.35"
 
     val core = Def.setting("com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion)
     val circe = Def.setting("com.softwaremill.sttp.tapir" %%% "tapir-json-circe" % tapirVersion)

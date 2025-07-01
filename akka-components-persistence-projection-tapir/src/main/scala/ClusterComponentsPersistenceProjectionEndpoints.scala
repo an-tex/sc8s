@@ -18,40 +18,40 @@ class ClusterComponentsPersistenceProjectionEndpoints(
                                                        actorSystem: ActorSystem[_],
                                                      ) {
 
-  private[this] lazy val projectionManagement = new ProjectionManagement(projections, actorSystem)
+  private lazy val projectionManagement = new ProjectionManagement(projections, actorSystem)
 
-  private[this] lazy val projectionNameExamples = projections.map(p => Example.of(p.projectionName, Some(p.projectionName))).toList
+  private lazy val projectionNameExamples = projections.map(p => Example.of(p.projectionName, Some(p.projectionName))).toList
 
   import actorSystem.executionContext
 
   private val projectionPath = "projection" / path[String]("projectionName").examples(projectionNameExamples)
 
-  private[this] val rebuildProjection =
+  private val rebuildProjection =
     endpoint
       .post
       .in(projectionPath / "rebuild")
       .errorOut(stringBody)
 
-  private[this] val pauseProjection =
+  private val pauseProjection =
     endpoint
       .post
       .in(projectionPath / "pause")
       .errorOut(stringBody)
 
-  private[this] val resumeProjection =
+  private val resumeProjection =
     endpoint
       .post
       .in(projectionPath / "resume")
       .errorOut(stringBody)
 
-  private[this] val projectionStatus =
+  private val projectionStatus =
     endpoint
       .get
       .in(projectionPath)
       .out(jsonBody[ProjectionsStatus])
       .errorOut(stringBody)
 
-  private[this] val projectionsStatus =
+  private val projectionsStatus =
     endpoint
       .get
       .in("projection")

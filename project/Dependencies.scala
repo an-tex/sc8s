@@ -6,7 +6,7 @@ object Dependencies {
 
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
   val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
-  val scalamock = "org.scalamock" %% "scalamock" % "7.3.3" % Test
+  val scalamock = "org.scalamock" %% "scalamock" % "7.4.0" % Test
   val slf4j = "org.slf4j" % "slf4j-api" % "2.0.17"
   val scalaJavaTime = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.6.0")
   val scalaXml = "org.scala-lang.modules" %% "scala-xml" % "2.4.0"

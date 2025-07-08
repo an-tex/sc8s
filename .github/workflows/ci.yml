@@ -16,6 +16,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  AKKA_TOKEN: ${{ secrets.AKKA_TOKEN}}
 
 jobs:
   build:

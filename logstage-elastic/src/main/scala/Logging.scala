@@ -60,10 +60,10 @@ trait LoggerTags {
       logT(Log.Level.Crit, tag, message)
 
     def logT(
-                            logLevel: Log.Level, tag: String, message: => Log.Message
-                          )(
-                            implicit codePositionMaterializer: CodePositionMaterializer
-                          ) = {
+              logLevel: Log.Level, tag: String, message: => Log.Message
+            )(
+              implicit codePositionMaterializer: CodePositionMaterializer
+            ) = {
       val maybePrefixedMessage = message match {
         case `empty` => empty
         case nonEmpty => Log.Message(" ") ++ nonEmpty

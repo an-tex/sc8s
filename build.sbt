@@ -506,6 +506,7 @@ inThisBuild(Seq(
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),
   githubWorkflowTargetTags := Seq("*"),
+  githubWorkflowEnv += "AKKA_TOKEN" -> "${{ secrets.AKKA_TOKEN}}",
   githubWorkflowPublish := Seq(WorkflowStep.Sbt(
     List("ci-release"),
     env = Map(
@@ -513,7 +514,6 @@ inThisBuild(Seq(
       "PGP_SECRET" -> "${{ secrets.PGP_SECRET }}",
       "SONATYPE_PASSWORD" -> "${{ secrets.SONATYPE_PASSWORD }}",
       "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}",
-      "AKKA_TOKEN" -> "${{ secrets.AKKA_TOKEN }}",
     )
   )),
   githubWorkflowJobSetup += WorkflowStep.Run(List("docker compose up -d")),

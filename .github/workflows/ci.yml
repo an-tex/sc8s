@@ -16,6 +16,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  AKKA_TOKEN: ${{ secrets.AKKA_TOKEN}}
 
 jobs:
   build:
@@ -101,8 +102,7 @@ jobs:
 
       - env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-          AKKA_TOKEN: ${{ secrets.AKKA_TOKEN }}
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
         run: sbt ci-release

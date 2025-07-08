@@ -500,8 +500,8 @@ inThisBuild(Seq(
   ),
   resolvers ++= Seq(
     "antex public" at "https://mymavenrepo.com/repo/zeKhQjbzBED1vIds46Kj/",
-    "akka-secure-mvn" at "https://repo.akka.io/DFzdJKufbDYkslF7Z-JX-hn9jr2h-FhQCFobJCXsYZ1IxKlA/secure",
-    Resolver.url("akka-secure-ivy", url("https://repo.akka.io/DFzdJKufbDYkslF7Z-JX-hn9jr2h-FhQCFobJCXsYZ1IxKlA/secure"))(Resolver.ivyStylePatterns),
+    "akka-secure-mvn" at s"https://repo.akka.io/$akkaToken/secure",
+    Resolver.url("akka-secure-ivy", url(s"https://repo.akka.io/$akkaToken/secure"))(Resolver.ivyStylePatterns),
   ),
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),

@@ -480,6 +480,8 @@ lazy val `common-tzdb` = crossProject(JSPlatform)
   )
   .enablePlugins(ScalaJSPlugin, TzdbPlugin)
 
+lazy val akkaToken = sys.env.getOrElse("AKKA_TOKEN", throw new Exception("AKKA_TOKEN environment variable is required"))
+
 inThisBuild(Seq(
   scalaVersion := scala213,
   organization := "net.sc8s",
@@ -498,7 +500,8 @@ inThisBuild(Seq(
   ),
   resolvers ++= Seq(
     "antex public" at "https://mymavenrepo.com/repo/zeKhQjbzBED1vIds46Kj/",
-    "Akka library repository" at "https://repo.akka.io/maven"
+    "akka-secure-mvn" at "https://repo.akka.io/DFzdJKufbDYkslF7Z-JX-hn9jr2h-FhQCFobJCXsYZ1IxKlA/secure",
+    Resolver.url("akka-secure-ivy", url("https://repo.akka.io/DFzdJKufbDYkslF7Z-JX-hn9jr2h-FhQCFobJCXsYZ1IxKlA/secure"))(Resolver.ivyStylePatterns),
   ),
   scmInfo := Some(ScmInfo(url("https://github.com/an-tex/sc8s"), "scm:git:git://github.com/an-tex/sc8s.git")),
   githubWorkflowJavaVersions := Seq(JavaSpec(Adopt, "11.0.13+8")),

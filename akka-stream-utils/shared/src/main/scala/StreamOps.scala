@@ -1,7 +1,8 @@
 package net.sc8s.akka.stream
 
-import akka.stream.scaladsl.{Flow, FlowOps, FlowWithContext, FlowWithContextOps, Source, SourceWithContext, SubFlow}
-import akka.stream.{Materializer, RestartSettings}
+import akka.stream.scaladsl.{Broadcast, Flow, FlowOps, FlowWithContext, FlowWithContextOps, GraphDSL, Merge, Source, SourceWithContext, SubFlow}
+import akka.stream.{FlowShape, Materializer, RestartSettings}
+import cats.implicits.catsSyntaxEitherId
 import cats.instances.either._
 import cats.instances.future._
 import cats.instances.option._
@@ -10,7 +11,7 @@ import cats.syntax.traverse._
 import cats.{Monad, TraverseFilter}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
-import net.sc8s.akka.stream.implicits.SubFlowWrapper2Ops
+import net.sc8s.akka.stream.implicits.FlowEitherOps
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Right, Success, Try}
@@ -262,6 +263,10 @@ object StreamOps {
         case _ => Left(zero)
       })
 
+      def collectLeftF: s.Repr[OutL] = s.collect {
+        case Left(value) => value
+      }
+
       def collectRightF: s.Repr[OutR] = s.collect {
         case Right(value) => value
       }
@@ -301,6 +306,29 @@ object StreamOps {
         case Right(value) => f(value).iterator.map(Right(_))
         case Left(value) => Seq(Left(value))
       }
+
+      def viaF[OutR2](f: Flow[OutR, OutR2, Mat]): s.Repr[Either[OutL, OutR2]] =
+        s.via(Flow
+          .fromGraph(GraphDSL.create() { implicit builder =>
+            import GraphDSL.Implicits._
+
+            val broadcast = builder.add(Broadcast[Either[OutL, OutR]](2))
+
+            val remapLeft = builder.add(Flow[Either[OutL, OutR]].collect {
+              case Left(value) => value.asLeft // remapping necessary due to the changed Right type
+            })
+
+            val collectRight = builder.add(Flow[Either[OutL, OutR]].collectRightF)
+            val viaFlow = builder.add(f)
+            val mapRight = builder.add(Flow[OutR2].map(_.asRight))
+
+            val merger = builder.add(Merge[Either[OutL, OutR2]](2))
+
+            broadcast.out(0) ~> remapLeft ~> merger.in(0)
+            broadcast.out(1) ~> collectRight ~> viaFlow ~> mapRight ~> merger.in(1)
+
+            FlowShape(broadcast.in, merger.out)
+          }))
     }
 
     trait EitherOpsImplicits {

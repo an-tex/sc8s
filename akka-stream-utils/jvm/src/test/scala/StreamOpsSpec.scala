@@ -237,10 +237,19 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         ), (
           _.mapConcatF(element => Seq(s"x-$element", s"y-$element")),
           Seq(Right("x-1"), Right("y-1"), Left(true), Right("x-2"), Right("y-2"))
+        ), (
+          _.viaF(Flow[Int].map(_ * 2)),
+          Seq(Right(2), Left(true), Right(4))
         )
       )
 
       checkTable2[Boolean, Int, Either](input, operations)
+    }
+    "Either collectLeftF" in {
+      Source(Seq(Right(1), Left(true), Right(2)))
+        .collectLeftF
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(true)
     }
     "Either collectRightF" in {
       Source(Seq(Right(1), Left(true), Right(2)))

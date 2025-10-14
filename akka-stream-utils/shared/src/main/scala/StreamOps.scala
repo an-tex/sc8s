@@ -11,7 +11,7 @@ import cats.syntax.traverse._
 import cats.{Monad, TraverseFilter}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
-import net.sc8s.akka.stream.implicits.FlowEitherOps
+import net.sc8s.akka.stream.implicits.{FlowEitherOps, FlowIterableOnceOps}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Right, Success, Try}
@@ -189,6 +189,9 @@ object StreamOps {
       val s: FlowOps[F[Out], Mat]
 
       def flattenF: s.Repr[Out] = s.mapConcat(identity)
+
+      def alsoToF[Mat2](that: akka.stream.Graph[akka.stream.SinkShape[Out], Mat2]): s.Repr[F[Out]] =
+        s.alsoTo(Flow[F[Out]].flattenF.to(that))
     }
 
     trait IterableOnceOpsImplicits {
@@ -394,6 +397,9 @@ object StreamOps {
         case Failure(exception) => Seq(Failure(exception))
         case Success(value) => f(value).iterator.map(Success(_))
       }
+
+      def alsoToF[Mat2](that: akka.stream.Graph[akka.stream.SinkShape[Out], Mat2]): s.Repr[Try[Out]] =
+        s.alsoTo(Flow[Try[Out]].collect { case Success(value) => value }.to(that))
     }
 
     trait TryOpsImplicits {

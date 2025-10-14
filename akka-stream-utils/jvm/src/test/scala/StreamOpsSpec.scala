@@ -11,13 +11,13 @@ import net.sc8s.akka.stream.implicits._
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
 import org.scalatest.wordspec.AnyWordSpecLike
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.util.{Failure, Success, Try}
 
 class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with TableDrivenPropertyChecks {
-  implicit val executionContext = testKit.system.executionContext
+  implicit val executionContext: ExecutionContextExecutor = testKit.system.executionContext
 
-  implicit val consoleLogger = IzLogger(Level.Trace, SimpleConsoleSink)
+  implicit val consoleLogger: IzLogger = IzLogger(Level.Trace, SimpleConsoleSink)
 
   "StreamOps" should {
     val mapAsyncOperation = { element: Int => Future.successful(element * 2) }
@@ -169,6 +169,14 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .foldS(Seq.empty[Int])(_ :+ _)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(None, None)
+    }
+    "Option alsoToF" in {
+      val sideOutput = scala.collection.mutable.ListBuffer.empty[Int]
+      Source(Seq(Some(1), None, Some(2), Some(3), None, Some(4)))
+        .alsoToF(Sink.foreach[Int](sideOutput += _))
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(Some(1), None, Some(2), Some(3), None, Some(4))
+      sideOutput.toSeq shouldBe Seq(1, 2, 3, 4)
     }
     "Either" in {
       val input = Seq(Right(1), Left(true), Right(2))
@@ -440,6 +448,16 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .foldS(Seq.empty[Int])(_ :+ _)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2))
+    }
+    "Try alsoToF" in {
+      val exception1 = new Exception
+      val exception2 = new Exception
+      val sideOutput = scala.collection.mutable.ListBuffer.empty[Int]
+      Source(Seq(Success(1), Failure(exception1), Success(2), Success(3), Failure(exception2), Success(4)))
+        .alsoToF(Sink.foreach[Int](sideOutput += _))
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(Success(1), Failure(exception1), Success(2), Success(3), Failure(exception2), Success(4))
+      sideOutput.toSeq shouldBe Seq(1, 2, 3, 4)
     }
     "Generic Try in Flow" in {
       val flow: Flow[Try[(Int, String)], Try[Either[Int, String]], NotUsed] = Flow[Try[(Int, String)]]

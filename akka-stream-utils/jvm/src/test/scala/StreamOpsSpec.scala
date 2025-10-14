@@ -123,6 +123,9 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         ), (
           _.mapConcatF(element => Seq(s"x-$element", s"y-$element")),
           Seq(Some("x-1"), Some("y-1"), None, Some("x-2"), Some("y-2"))
+        ), (
+          _.viaF(Flow[Int].map(_ * 2)),
+          Seq(Some(2), None, Some(4))
         )
       )
 
@@ -458,6 +461,14 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue shouldBe Seq(Success(1), Failure(exception1), Success(2), Success(3), Failure(exception2), Success(4))
       sideOutput.toSeq shouldBe Seq(1, 2, 3, 4)
+    }
+    "Try viaF" in {
+      val exception1 = new Exception
+      val exception2 = new Exception
+      Source(Seq(Success(1), Failure(exception1), Success(2), Success(3), Failure(exception2), Success(4)))
+        .viaF(Flow[Int].map(_ * 2))
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(Success(2), Failure(exception1), Success(4), Success(6), Failure(exception2), Success(8))
     }
     "Generic Try in Flow" in {
       val flow: Flow[Try[(Int, String)], Try[Either[Int, String]], NotUsed] = Flow[Try[(Int, String)]]

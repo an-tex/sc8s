@@ -2,7 +2,7 @@ package net.sc8s.akka.stream
 
 import akka.stream.scaladsl.{Broadcast, Flow, FlowOps, FlowWithContext, FlowWithContextOps, GraphDSL, Merge, Source, SourceWithContext, SubFlow}
 import akka.stream.{FlowShape, Materializer, RestartSettings}
-import cats.implicits.catsSyntaxEitherId
+import cats.implicits.{catsSyntaxEitherId, catsSyntaxOptionId}
 import cats.instances.either._
 import cats.instances.future._
 import cats.instances.option._
@@ -240,6 +240,29 @@ object StreamOps {
         case Some(value) => f(value).iterator.map(Some(_))
         case None => Seq(None)
       }
+
+      def viaF[Out2](f: Flow[Out, Out2, Mat]): s.Repr[Option[Out2]] =
+        s.via(Flow
+          .fromGraph(GraphDSL.create() { implicit builder =>
+            import GraphDSL.Implicits._
+
+            val broadcast = builder.add(Broadcast[Option[Out]](2))
+
+            val remapNone = builder.add(Flow[Option[Out]].collect {
+              case None => None // remapping necessary due to the changed Option type
+            })
+
+            val collectSome = builder.add(Flow[Option[Out]].flattenF)
+            val viaFlow = builder.add(f)
+            val mapSome = builder.add(Flow[Out2].map(_.some))
+
+            val merger = builder.add(Merge[Option[Out2]](2))
+
+            broadcast.out(0) ~> remapNone ~> merger.in(0)
+            broadcast.out(1) ~> collectSome ~> viaFlow ~> mapSome ~> merger.in(1)
+
+            FlowShape(broadcast.in, merger.out)
+          }))
     }
 
     trait OptionOpsImplicits {
@@ -400,6 +423,31 @@ object StreamOps {
 
       def alsoToF[Mat2](that: akka.stream.Graph[akka.stream.SinkShape[Out], Mat2]): s.Repr[Try[Out]] =
         s.alsoTo(Flow[Try[Out]].collect { case Success(value) => value }.to(that))
+
+      def viaF[Out2](f: Flow[Out, Out2, Mat]): s.Repr[Try[Out2]] =
+        s.via(Flow
+          .fromGraph(GraphDSL.create() { implicit builder =>
+            import GraphDSL.Implicits._
+
+            val broadcast = builder.add(Broadcast[Try[Out]](2))
+
+            val remapFailure = builder.add(Flow[Try[Out]].collect {
+              case Failure(exception) => Failure(exception) // remapping necessary due to the changed Try type
+            })
+
+            val collectSuccess = builder.add(Flow[Try[Out]].collect {
+              case Success(value) => value
+            })
+            val viaFlow = builder.add(f)
+            val mapSuccess = builder.add(Flow[Out2].map(Success(_)))
+
+            val merger = builder.add(Merge[Try[Out2]](2))
+
+            broadcast.out(0) ~> remapFailure ~> merger.in(0)
+            broadcast.out(1) ~> collectSuccess ~> viaFlow ~> mapSuccess ~> merger.in(1)
+
+            FlowShape(broadcast.in, merger.out)
+          }))
     }
 
     trait TryOpsImplicits {

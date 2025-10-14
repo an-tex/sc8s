@@ -329,6 +329,9 @@ object StreamOps {
 
             FlowShape(broadcast.in, merger.out)
           }))
+
+      def alsoToF[Mat2](that: akka.stream.Graph[akka.stream.SinkShape[OutR], Mat2]): s.Repr[Either[OutL, OutR]] =
+        s.alsoTo(Flow[Either[OutL, OutR]].collectRightF.to(that))
     }
 
     trait EitherOpsImplicits {

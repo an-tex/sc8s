@@ -307,6 +307,14 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Seq(1, 2, 3, 4)))
     }
+    "Either alsoToF" in {
+      val sideOutput = scala.collection.mutable.ListBuffer.empty[Int]
+      Source(Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4)))
+        .alsoToF(Sink.foreach[Int](sideOutput += _))
+        .runWith(Sink.seq)
+        .futureValue shouldBe Seq(Right(1), Left(true), Right(2), Right(3), Left(false), Right(4))
+      sideOutput.toSeq shouldBe Seq(1, 2, 3, 4)
+    }
     "Try" in {
       val exception = new Exception
       val exception2 = new Exception

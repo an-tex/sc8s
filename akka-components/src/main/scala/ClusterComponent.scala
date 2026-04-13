@@ -36,6 +36,9 @@ object ClusterComponent {
     type Wiring <: Component[outerSelf.type]
 
     private[components] trait BaseComponentT {
+      // for mixin traits accessibility
+      private[components] type CommandT = outerSelf.Command
+
       private[components] type BehaviorS <: Behavior[outerSelf.Command]
 
       private[components] type ComponentContextS <: ComponentContext

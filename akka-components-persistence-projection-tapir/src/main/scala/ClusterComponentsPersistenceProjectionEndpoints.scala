@@ -2,7 +2,7 @@ package net.sc8s.akka.components.persistence.projection.tapir
 
 import akka.actor.typed.ActorSystem
 import cats.implicits.catsSyntaxEitherId
-import net.sc8s.akka.components.persistence.projection.ManagedProjection
+import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.components.persistence.projection.api.ProjectionService.ProjectionsStatus
 import net.sc8s.akka.components.persistence.projection.common.ProjectionManagement
 import sttp.tapir.EndpointIO.Example
@@ -14,13 +14,14 @@ import sttp.tapir.server.ServerEndpoint
 import scala.concurrent.Future
 
 class ClusterComponentsPersistenceProjectionEndpoints(
-                                                       projections: Set[ManagedProjection[_]],
+                                                       clusterComponents: Set[ClusterComponent.Component[_]],
                                                        actorSystem: ActorSystem[_],
                                                      ) {
 
-  private lazy val projectionManagement = new ProjectionManagement(projections, actorSystem)
+  val managedProjections = clusterComponents.flatMap(_.managedProjections)
+  private lazy val projectionManagement = new ProjectionManagement(managedProjections, actorSystem)
 
-  private lazy val projectionNameExamples = projections.map(p => Example.of(p.projectionName, Some(p.projectionName))).toList
+  private lazy val projectionNameExamples = managedProjections.map(p => Example.of(p.projectionName, Some(p.projectionName))).toList
 
   import actorSystem.executionContext
 

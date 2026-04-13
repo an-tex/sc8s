@@ -17,6 +17,7 @@ import scala.util.Success
 
 class ClusterComponentsR2dbcPersistenceManagement(
                                                    val clusterComponents: Set[ClusterComponent.Component[_]],
+                                                   entityCleanupComponent: EntityCleanupActor.Wiring,
                                                    implicit val actorSystem: ActorSystem[_],
                                                  ) extends Logging {
 
@@ -24,7 +25,6 @@ class ClusterComponentsR2dbcPersistenceManagement(
 
   private[this] val queries = PersistenceQuery(actorSystem).readJournalFor[CurrentPersistenceIdsQuery](R2dbcReadJournal.Identifier)
   private[this] val cleanup = new EventSourcedCleanup(actorSystem)
-  private[this] val entityCleanupActorComponent = EntityCleanupActor.init(new EntityCleanupActor.Component(clusterComponents))
 
   lazy val singletonEntityPersistenceIdsByName = clusterComponents
     .map(wiredComponent => wiredComponent.component -> wiredComponent.innerComponent)
@@ -92,12 +92,12 @@ class ClusterComponentsR2dbcPersistenceManagement(
   }
 
   def startEntityCleanup(onlyEntity: Option[String]) =
-    entityCleanupActorComponent
+    entityCleanupComponent
       .actorRef
       .askWithStatus(EntityCleanupActor.Command.Start(onlyEntity, _))(5.seconds, actorSystem.scheduler)
 
   def stopEntityCleanup =
-    entityCleanupActorComponent
+    entityCleanupComponent
       .actorRef
       .ask(EntityCleanupActor.Command.Stop)(5.seconds, actorSystem.scheduler)
 }

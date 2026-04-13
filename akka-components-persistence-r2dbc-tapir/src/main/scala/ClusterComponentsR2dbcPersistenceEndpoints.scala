@@ -33,13 +33,27 @@ class ClusterComponentsR2dbcPersistenceEndpoints(
         clusterComponentsR2dbcPersistenceManagement.shardedEntityPersistenceIdsByTypeKey.keys.map(name => Example.of(name, Some(name))).toList
       ))
 
+  private[this] val startEntityCleanup =
+    endpoint
+      .post
+      .in("entity" / "cleanup" / "start" / query[Option[String]]("onlyEntity"))
+
+  private[this] val stopEntityCleanup =
+    endpoint
+      .post
+      .in("entity" / "cleanup" / "stop")
+
   val endpoints: Seq[Endpoint[_, _, _, _, _]] = Seq(
     deleteSingletonEntity,
     deleteShardedEntities,
+    startEntityCleanup,
+    stopEntityCleanup
   )
 
   val serverEndpoints: Seq[ServerEndpoint[Any, Future]] = Seq(
     deleteSingletonEntity.serverLogic[Future](clusterComponentsR2dbcPersistenceManagement.deleteSingletonEntity(_).map(_ => ().asRight)),
     deleteShardedEntities.serverLogic[Future](clusterComponentsR2dbcPersistenceManagement.deleteShardedEntities(_).map(_ => ().asRight)),
+    startEntityCleanup.serverLogic[Future](clusterComponentsR2dbcPersistenceManagement.startEntityCleanup(_).map(_ => ().asRight)),
+    stopEntityCleanup.serverLogic[Future](_ => clusterComponentsR2dbcPersistenceManagement.stopEntityCleanup.map(_ => ().asRight)),
   )
 }

@@ -2,6 +2,7 @@ package net.sc8s.akka.components.persistence.r2dbc.common
 
 import akka.Done
 import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.persistence.query.PersistenceQuery
 import akka.persistence.query.scaladsl.CurrentPersistenceIdsQuery
 import akka.persistence.r2dbc.cleanup.scaladsl.EventSourcedCleanup
@@ -11,6 +12,7 @@ import akka.stream.scaladsl.Sink
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.logstage.elastic.Logging
 
+import scala.concurrent.duration.DurationInt
 import scala.util.Success
 
 class ClusterComponentsR2dbcPersistenceManagement(
@@ -20,8 +22,9 @@ class ClusterComponentsR2dbcPersistenceManagement(
 
   import actorSystem.executionContext
 
-  val queries = PersistenceQuery(actorSystem).readJournalFor[CurrentPersistenceIdsQuery](R2dbcReadJournal.Identifier)
-  val cleanup = new EventSourcedCleanup(actorSystem)
+  private[this] val queries = PersistenceQuery(actorSystem).readJournalFor[CurrentPersistenceIdsQuery](R2dbcReadJournal.Identifier)
+  private[this] val cleanup = new EventSourcedCleanup(actorSystem)
+  private[this] val entityCleanupActorComponent = EntityCleanupActor.init(new EntityCleanupActor.Component(clusterComponents))
 
   lazy val singletonEntityPersistenceIdsByName = clusterComponents
     .map(wiredComponent => wiredComponent.component -> wiredComponent.innerComponent)
@@ -87,4 +90,14 @@ class ClusterComponentsR2dbcPersistenceManagement(
         }
     }
   }
+
+  def startEntityCleanup(onlyEntity: Option[String]) =
+    entityCleanupActorComponent
+      .actorRef
+      .askWithStatus(EntityCleanupActor.Command.Start(onlyEntity, _))(5.seconds, actorSystem.scheduler)
+
+  def stopEntityCleanup =
+    entityCleanupActorComponent
+      .actorRef
+      .ask(EntityCleanupActor.Command.Stop)(5.seconds, actorSystem.scheduler)
 }

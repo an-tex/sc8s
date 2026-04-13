@@ -74,6 +74,8 @@ object Dependencies {
 
     val httpCirce = "de.heikoseeberger" %% "akka-http-circe" % "1.35.3"
 
+    val quartz = "com.enragedginger" %% "akka-quartz-scheduler" % "1.9.3-akka-2.6.x"
+
     def createOverrides(licensed: Boolean) = Seq(
       "akka-http",
       "akka-http-core",

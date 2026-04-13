@@ -189,6 +189,7 @@ lazy val `akka-components-persistence-r2dbc-common` = project
   .settings(
     libraryDependencies ++= Seq(
       akka.persistenceR2dbc,
+      akka.quartz,
     ),
     dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.common")

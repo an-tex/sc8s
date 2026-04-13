@@ -27,9 +27,6 @@ trait EventsCleanup {
   val cleanupEventsBeforeAgo: FiniteDuration
 }
 
-/*
-* Either wire in this directly or use ClusterComponentsR2dbcPersistentManagement
- */
 object EntityCleanupActor extends ClusterComponent.Singleton {
 
   private def createKillSwitch = KillSwitches.shared("entity-cleanup")

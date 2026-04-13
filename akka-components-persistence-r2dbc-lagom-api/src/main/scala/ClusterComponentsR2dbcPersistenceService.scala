@@ -11,11 +11,17 @@ trait ClusterComponentsR2dbcPersistenceService extends Service {
 
   def deleteShardedEntities(name: String): ServiceCall[NotUsed, Done]
 
+  def startEntityCleanup(onlyEntity: Option[String]): ServiceCall[NotUsed, Done]
+
+  def stopEntityCleanup: ServiceCall[NotUsed, Done]
+
   abstract override def descriptor = {
     import Service._
     super.descriptor.addCalls(
       restCall(Method.DELETE, s"$apiPrefix/entity/singleton/:name", deleteSingletonEntity _),
       restCall(Method.DELETE, s"$apiPrefix/entity/sharded/:name", deleteShardedEntities _),
+      restCall(Method.POST, s"$apiPrefix/entity/cleanup/start?onlyEntity", startEntityCleanup _),
+      restCall(Method.POST, s"$apiPrefix/entity/cleanup/stop", stopEntityCleanup _),
     )
   }
 }

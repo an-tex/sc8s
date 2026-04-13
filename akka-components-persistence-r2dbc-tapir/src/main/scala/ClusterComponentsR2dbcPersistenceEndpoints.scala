@@ -3,7 +3,7 @@ package net.sc8s.akka.components.persistence.r2dbc.tapir
 import akka.actor.typed.ActorSystem
 import cats.implicits.catsSyntaxEitherId
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.components.persistence.r2dbc.common.ClusterComponentsR2dbcPersistenceManagement
+import net.sc8s.akka.components.persistence.r2dbc.common.{ClusterComponentsR2dbcPersistenceManagement, EntityCleanupActor}
 import sttp.tapir.EndpointIO.Example
 import sttp.tapir._
 import sttp.tapir.server.ServerEndpoint
@@ -12,10 +12,11 @@ import scala.concurrent.Future
 
 class ClusterComponentsR2dbcPersistenceEndpoints(
                                                   clusterComponents: Set[ClusterComponent.Component[_]],
+                                                  entityCleanupComponent: EntityCleanupActor.Wiring,
                                                   actorSystem: ActorSystem[_],
                                                 ) {
 
-  private[this] lazy val clusterComponentsR2dbcPersistenceManagement = new ClusterComponentsR2dbcPersistenceManagement(clusterComponents, actorSystem)
+  private[this] lazy val clusterComponentsR2dbcPersistenceManagement = new ClusterComponentsR2dbcPersistenceManagement(clusterComponents, entityCleanupComponent, actorSystem)
 
   import actorSystem.executionContext
 

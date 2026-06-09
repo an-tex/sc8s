@@ -373,6 +373,8 @@ lazy val `logstage-elastic` = project
       slf4j,
       circe.core.value,
       circe.generic.value,
+      logback.core,
+      logback.classic,
       logstage.core.value,
       logstage.circe.value,
       logstage.toSlf4j,

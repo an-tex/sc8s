@@ -70,12 +70,12 @@ object StreamOps {
 
     override def filterS[L, R](fa: Either[L, R])(p: R => Boolean) = fa.isLeft || fa.exists(p)
 
-    override def collectS[_, R, R2](pf: PartialFunction[R, R2]) = {
+    override def collectS[L, R, R2](pf: PartialFunction[R, R2]) = {
       case Left(l) => Left(l)
       case Right(right) if pf.isDefinedAt(right) => Right(pf(right))
     }
 
-    override def flatMapSource[_, R1, R2](f: R1 => Source[R2, _]) = {
+    override def flatMapSource[L, R1, R2](f: R1 => Source[R2, _]) = {
       case Right(value) => f(value).map(Right(_))
       case Left(value) => Source.single(Left(value))
     }

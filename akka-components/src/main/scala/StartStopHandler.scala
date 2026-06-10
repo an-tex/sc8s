@@ -8,10 +8,12 @@ import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.IzLogger
 import net.sc8s.logstage.elastic.Logging.IzLoggerTags
 
+import scala.language.reflectiveCalls
 import scala.reflect.ClassTag
+import scala.reflect.Selectable.reflectiveSelectable
 
 trait StartStopHandler {
-  _: ClusterComponent.ComponentT#BaseComponentT =>
+  self: ClusterComponent.ComponentT#BaseComponentT =>
 
   /*
   * This handler can be added to the "running" behavior of a component to handle the Start and Stop commands.

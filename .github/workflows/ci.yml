@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.16]
+        scala: [3.6.4]
         java: [temurin@17]
     runs-on: ${{ matrix.os }}
     steps:
@@ -53,7 +53,7 @@ jobs:
         run: sbt '++ ${{ matrix.scala }}' test
 
       - name: Compress target directories
-        run: tar cf targets.tar akka-components-persistence-projection-lagom-api/.js/target akka-components-testkit/target akka-components-persistence-r2dbc-lagom/target akka-components-persistence-projection-api/.jvm/target target elastic/testkit/target schevo/.js/target elastic/core/target akka-components-persistence-projection-api/.js/target akka-components-persistence-r2dbc-common/target lagom-api-circe/.jvm/target common-circe/.js/target akka-stream-utils/jvm/target akka-components-persistence-projection/target akka-components-persistence-projection-r2dbc/target akka-components-persistence-projection-cassandra/target akka-components-persistence-projection-tapir/target akka-components-persistence-r2dbc-lagom-api/.jvm/target akka-stream-utils/js/target schevo-circe/.js/target akka-components-persistence-r2dbc-tapir/target lagom-server-circe/target schevo/.jvm/target akka-components-persistence-utils/target elastic/lagom/service/target akka-components-persistence-projection-lagom-api/.jvm/target akka-components-persistence-cassandra-lagom-api/.jvm/target akka-components-persistence-r2dbc-lagom-api/.js/target common-circe/.jvm/target akka-components-persistence-cassandra-lagom-api/.js/target akka-circe/target lagom-api-circe/.js/target akka-components-persistence-projection-lagom/target akka-components/target lagom-server-circe-testkit/target akka-components-lagom/target schevo-circe-example-akka/target schevo-circe/.jvm/target elastic/lagom/api/.jvm/target logstage-elastic/target common-tzdb/.js/target akka-components-persistence-cassandra-lagom/target elastic/lagom/api/.js/target akka-components-persistence-projection-common/target project/target
+        run: tar cf targets.tar akka-components-testkit/target akka-components-persistence-projection-api/.jvm/target target elastic/testkit/target schevo/.js/target elastic/core/target akka-components-persistence-projection-api/.js/target akka-components-persistence-r2dbc-common/target common-circe/.js/target akka-stream-utils/jvm/target akka-components-persistence-projection/target akka-components-persistence-projection-r2dbc/target akka-components-persistence-projection-cassandra/target akka-components-persistence-projection-tapir/target schevo-circe/.js/target akka-components-persistence-r2dbc-tapir/target schevo/.jvm/target akka-components-persistence-utils/target common-circe/.jvm/target akka-circe/target akka-components/target elastic/tapir/target schevo-circe-example-akka/target schevo-circe/.jvm/target logstage-elastic/target common-tzdb/.js/target akka-components-persistence-projection-common/target project/target
 
       - name: Upload target directories
         uses: actions/upload-artifact@v4
@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.16]
+        scala: [3.6.4]
         java: [temurin@17]
     runs-on: ${{ matrix.os }}
     steps:
@@ -90,12 +90,12 @@ jobs:
 
       - run: docker compose up -d
 
-      - name: Download target directories (2.13.16)
+      - name: Download target directories (3.6.4)
         uses: actions/download-artifact@v4
         with:
-          name: target-${{ matrix.os }}-2.13.16-${{ matrix.java }}
+          name: target-${{ matrix.os }}-3.6.4-${{ matrix.java }}
 
-      - name: Inflate target directories (2.13.16)
+      - name: Inflate target directories (3.6.4)
         run: |
           tar xf targets.tar
           rm targets.tar

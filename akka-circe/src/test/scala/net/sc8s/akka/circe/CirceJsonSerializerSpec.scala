@@ -161,7 +161,7 @@ object CirceJsonSerializerSpec {
   val discriminator = "class"
 
   // necessary when introducing schema evolution to an existing class
-  implicit val configuration = Configuration.default.withDiscriminator(discriminator)
+  implicit val configuration: Configuration = Configuration.default.withDiscriminator(discriminator)
 
   case class SimpleCaseClass(string: String)
   object SimpleCaseClass {
@@ -191,9 +191,6 @@ object CirceJsonSerializerSpec {
   }
 
   sealed trait Command
-  object Command {
-    implicit val codec: Codec[Command] = deriveConfiguredCodec
-  }
 
   // used to be this, but moved to Vx.V0 for migration purposes
   //case object Vz extends Command
@@ -201,10 +198,6 @@ object CirceJsonSerializerSpec {
   object Vx {
     sealed trait Versioned extends Command {
       def migrate: Versioned
-    }
-
-    object Versioned {
-      implicit val codec: Codec[Versioned] = deriveConfiguredCodec
     }
 
     case object V0 extends Versioned {
@@ -218,5 +211,13 @@ object CirceJsonSerializerSpec {
     case class V2(string: String) extends Versioned {
       override def migrate = this
     }
+
+    object Versioned {
+      implicit val codec: Codec[Versioned] = deriveConfiguredCodec
+    }
+  }
+
+  object Command {
+    implicit val codec: Codec[Command] = deriveConfiguredCodec
   }
 }

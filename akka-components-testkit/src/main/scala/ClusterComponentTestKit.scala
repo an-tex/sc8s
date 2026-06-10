@@ -98,7 +98,7 @@ trait ClusterComponentTestKit {
      innerComponent: outerComponent.BaseComponent,
      _entityId: outerComponent.EntityId,
    ): ActorRef[outerComponent.SerializableCommand] = spawnComponentWithEntityRefProbes(outerComponent)(innerComponent, _entityId, {
-    _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
+   (_: outerComponent.EntityId) => TestProbe[outerComponent.SerializableCommand]()
   })
 
   def spawnComponentWithEntityRefProbes[
@@ -144,7 +144,7 @@ trait ClusterComponentTestKit {
      _entityId: outerComponent.EntityId
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
     spawnComponentWithEntityRefProbes(outerComponent)(innerComponent, _entityId, {
-      _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
+      (_: outerComponent.EntityId) => TestProbe[outerComponent.SerializableCommand]()
     })
 
   def createProbe[
@@ -152,15 +152,15 @@ trait ClusterComponentTestKit {
   ](
      outerComponent: OuterComponentT
    ) = {
-    val testProbe = TestProbe[outerComponent.SerializableCommand]
+    val testProbe = TestProbe[outerComponent.SerializableCommand]()
     new SingletonComponent[OuterComponentT] {
-      override val actorRef: ActorRef[outerComponent.SerializableCommand] = testProbe.ref
+      override lazy val actorRef: ActorRef[outerComponent.SerializableCommand] = testProbe.ref
 
       override private[components] lazy val innerComponent = ???
-      override private[components] lazy val component: outerComponent.type = outerComponent
+      override private[components] val component: outerComponent.type = outerComponent
 
       override private[components] val serializers = Nil
-      override private[components] val managedProjections = Nil
+      override private[components] lazy val managedProjections = Nil
     } -> testProbe
   }
 
@@ -173,18 +173,18 @@ trait ClusterComponentTestKit {
    )(
      implicit classTag: ClassTag[outerComponent.SerializableCommand]
    ) = {
-    val testProbe = TestProbe[outerComponent.SerializableCommand]
+    val testProbe = TestProbe[outerComponent.SerializableCommand]()
 
     val autoPilotRef = testKit.spawn(Behaviors.monitor(testProbe.ref, autoPilot))
 
     new SingletonComponent[OuterComponentT] {
-      override val actorRef: ActorRef[outerComponent.SerializableCommand] = autoPilotRef
+      override lazy val actorRef: ActorRef[outerComponent.SerializableCommand] = autoPilotRef
 
       override private[components] lazy val innerComponent = ???
-      override private[components] lazy val component: outerComponent.type = outerComponent
+      override private[components] val component: outerComponent.type = outerComponent
 
       override private[components] val serializers = Nil
-      override private[components] val managedProjections = Nil
+      override private[components] lazy val managedProjections = Nil
     } -> testProbe
   }
 
@@ -202,10 +202,10 @@ trait ClusterComponentTestKit {
         EntityTypeKey[outerComponent.SerializableCommand]("any"), outerComponent.entityIdCodec.encode(entityId), entityRefProbes(entityId).ref)
 
       override private[components] lazy val innerComponent = ???
-      override private[components] lazy val component: outerComponent.type = outerComponent
+      override private[components] val component: outerComponent.type = outerComponent
 
       override private[components] val serializers = Nil
-      override private[components] val managedProjections = Nil
+      override private[components] lazy val managedProjections = Nil
     }
   }
 
@@ -221,7 +221,7 @@ trait ClusterComponentTestKit {
    )(
      projection: Projection[outerComponent.Event, innerComponent.ComponentContextS with ComponentContext.Projection], events: Source[(outerComponent.EntityId, outerComponent.Event), NotUsed],
      entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand] = {
-       _: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
+       (_: outerComponent.EntityId) => TestProbe[outerComponent.SerializableCommand]()
      }
    ) = {
     TestProjection(ProjectionId(projection.name, "tag0"), TestSourceProvider[Offset, EventEnvelope[outerComponent.Event]](
@@ -233,6 +233,7 @@ trait ClusterComponentTestKit {
       val projectionContext = new ComponentContext with ComponentContext.Sharded[outerComponent.SerializableCommand, outerComponent.EntityId] with ComponentContext.EventSourced with ComponentContext.Projection {
         override val name = projection.name
         override implicit val actorSystem = self.system
+        override protected lazy val loggerClass = projection.name
         override val persistenceId = PersistenceId.ofUniqueId(envelope.persistenceId)
         override val entityId = outerComponent.entityIdCodec.decode(persistenceId.entityId).get
 
@@ -265,6 +266,7 @@ trait ClusterComponentTestKit {
       val projectionContext = new ComponentContext with ComponentContext.EventSourced with ComponentContext.Projection {
         override val name = projection.name
         override implicit val actorSystem = self.system
+        override protected lazy val loggerClass = projection.name
         override val persistenceId = PersistenceId.ofUniqueId(envelope.persistenceId)
       }
       projection.handler.lift(envelope.event -> projectionContext).getOrElse(Future.successful(Done))

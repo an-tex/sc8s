@@ -21,7 +21,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.Future
 
-class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedR2dbc.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
+class ClusterComponentTestKitSpec extends CirceScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedR2dbc.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
   "ComponentTestKit" should {
     "support Singleton" in {
       val value1 = spawnComponent(Singleton)(new Singleton.Component)

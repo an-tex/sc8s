@@ -1,11 +1,10 @@
 package net.sc8s.elastic.testkit
 
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import cats.implicits.{catsStdInstancesForFuture, toTraverseOps}
-import com.sksamuel.elastic4s.ElasticClient
+import com.sksamuel.elastic4s.{ElasticClient, ElasticProperties}
 import com.sksamuel.elastic4s.ElasticDsl._
-import com.sksamuel.elastic4s.akka.{AkkaHttpClient, AkkaHttpClientSettings}
+import com.sksamuel.elastic4s.http.JavaClient
 import com.sksamuel.elastic4s.requests.mappings.MappingDefinition
 import net.sc8s.elastic.{Index, IndexSetup}
 import org.scalatest.Inspectors.forAll
@@ -15,13 +14,13 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.util.Random
 
 trait ElasticIndexTesting extends BeforeAndAfterEach with BeforeAndAfterAll with EitherValues {
-  _: Suite with ScalaTestWithActorTestKit =>
+  self: Suite with ScalaTestWithActorTestKit =>
 
   val elasticIndices: Set[Index]
 
   implicit lazy val elasticClient: ElasticClient[Future] = {
     implicit val executionContext: ExecutionContextExecutor = system.executionContext
-    ElasticClient(AkkaHttpClient(AkkaHttpClientSettings())(system.toClassic))
+    ElasticClient(JavaClient(ElasticProperties("http://localhost:9200")))
   }
 
   implicit lazy val indexSetup: IndexSetup = IndexSetup(

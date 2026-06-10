@@ -2,12 +2,12 @@ package net.sc8s.akka.components.persistence.projection.tapir
 
 import akka.actor.typed.ActorSystem
 import cats.implicits.catsSyntaxEitherId
+import io.circe.Json
+import io.circe.syntax.EncoderOps
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.components.persistence.projection.api.ProjectionService.ProjectionsStatus
 import net.sc8s.akka.components.persistence.projection.common.ProjectionManagement
 import sttp.tapir.EndpointIO.Example
 import sttp.tapir._
-import sttp.tapir.generic.auto._
 import sttp.tapir.json.circe._
 import sttp.tapir.server.ServerEndpoint
 
@@ -49,14 +49,14 @@ class ClusterComponentsPersistenceProjectionEndpoints(
     endpoint
       .get
       .in(projectionPath)
-      .out(jsonBody[ProjectionsStatus])
+      .out(jsonBody[Json])
       .errorOut(stringBody)
 
   private val projectionsStatus =
     endpoint
       .get
       .in("projection")
-      .out(jsonBody[List[ProjectionsStatus]])
+      .out(jsonBody[Json])
 
   val endpoints: Seq[Endpoint[_, _, _, _, _]] = Seq(
     rebuildProjection,
@@ -70,7 +70,7 @@ class ClusterComponentsPersistenceProjectionEndpoints(
     rebuildProjection.serverLogic[Future](projectionManagement.rebuildProjection(_).map(_.map(_ => ()))),
     pauseProjection.serverLogic[Future](projectionManagement.pauseProjection(_).map(_.map(_ => ()))),
     resumeProjection.serverLogic[Future](projectionManagement.resumeProjection(_).map(_.map(_ => ()))),
-    projectionStatus.serverLogic[Future](projectionManagement.projectionStatus),
-    projectionsStatus.serverLogic[Future](_ => projectionManagement.projectionsStatus.map(_.asRight)),
+    projectionStatus.serverLogic[Future](projectionManagement.projectionStatus(_).map(_.map(_.asJson))),
+    projectionsStatus.serverLogic[Future](_ => projectionManagement.projectionsStatus.map(_.asJson.asRight)),
   )
 }

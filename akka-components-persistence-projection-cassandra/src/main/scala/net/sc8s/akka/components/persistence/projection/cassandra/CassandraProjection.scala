@@ -23,7 +23,7 @@ trait CassandraProjection extends EventSourcedT.ProjectionT {
 
   override private[components] def managedProjectionFactory(
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
-                                                             actorSystem: ActorSystem[_]
+                                                             _actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
     val projectionIds = (0 until numberOfProjectionInstances).map(tagIndex =>
       ProjectionId(projection.name, generateTag(outerSelf.name, tagIndex))
@@ -33,23 +33,23 @@ trait CassandraProjection extends EventSourcedT.ProjectionT {
       projection.name,
       projectionIds,
       numberOfProjectionInstances,
-      new ProjectionStatusObserver[EventEnvelope[EventT]]()(actorSystem) {
+      new ProjectionStatusObserver[EventEnvelope[EventT]]()(_actorSystem) {
         override def extractSequenceNr(envelope: EventEnvelope[EventT]) = envelope.sequenceNr
 
         override def extractOffset(envelope: EventEnvelope[EventT]) = envelope.offset
       },
-      actorSystem
+      _actorSystem
     ) {
       override def projectionFactory(i: Int) = {
         val projectionId = projectionIds(i)
         CassandraProjection
           .atLeastOnce(
             projectionId,
-            EventSourcedProvider.eventsByTag(actorSystem, CassandraReadJournal.Identifier, projectionId.key),
+            EventSourcedProvider.eventsByTag(_actorSystem, CassandraReadJournal.Identifier, projectionId.key),
             () => (envelope: EventEnvelope[EventT]) => {
               projection.handler.applyOrElse(
-                envelope.event -> projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem),
-                { _: (EventT, ComponentContextS with ComponentContext.Projection) => eventualDone }
+                envelope.event -> projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), _actorSystem),
+                (_: (EventT, ComponentContextS with ComponentContext.Projection)) => eventualDone
               )
             }
           )

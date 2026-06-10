@@ -1,7 +1,6 @@
 package net.sc8s.elastic
 
 import com.github.dwickern.macros.NameOf.qualifiedNameOf
-import com.github.dwickern.macros.NameOfImpl
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.analysis.Analysis
@@ -22,8 +21,8 @@ import net.sc8s.schevo.circe.SchevoCirce
 
 import java.time.format.DateTimeFormatter
 import scala.concurrent.Future
-import scala.language.experimental.macros
-import scala.reflect.runtime.universe.{TypeTag, typeOf}
+import scala.reflect.ClassTag
+import scala.reflect.Selectable.reflectiveSelectable
 
 abstract class Index(
                       // baseName without prefixes, should not be accessible from outside to avoid accidental access of non-prefixed indices
@@ -42,7 +41,7 @@ abstract class Index(
   }
    */
 
-  override type Latest <: LatestT with Version {
+  override type Latest <: LatestT & Version {
     // the id occurs twice in the hit.id and inside the document itself. in the first iteration the id was saved only in the hit.id but in the case of e.g. JsonId's this makes subsets of the id not queryable (as elastic handles the JsonId as a String) so let's live with this duplication
     val id: Id
   }
@@ -70,7 +69,7 @@ abstract class Index(
   //override val latestVersion = latestVersionHelper[LatestCaseClass]
   val latestVersion: String
 
-  def latestVersionHelper[T <: LatestCaseClass : TypeTag] = typeOf[T].typeSymbol.name.decodedName.toString
+  def latestVersionHelper[T <: LatestCaseClass : ClassTag] = summon[ClassTag[T]].runtimeClass.getSimpleName
 
   implicit val codec: Codec[Latest]
 
@@ -135,7 +134,7 @@ abstract class Index(
 
   def updateFieldRequest(id: Id, field: Latest => Any, value: Any) = updateRequest(id, _ doc qualifiedNameOf[Latest](field) -> value)
 
-  def fieldName(expr: Latest => Any): String = macro NameOfImpl.qualifiedNameOf
+  def fieldName(expr: Latest => Any): String = qualifiedNameOf[Latest](expr)
 
   def search(searchRequest: SearchRequest => SearchRequest = identity) = execute(searchRequest(ElasticDsl.search(name))).map(_.hits.hits.toSeq.map(_.to[Latest]))
 

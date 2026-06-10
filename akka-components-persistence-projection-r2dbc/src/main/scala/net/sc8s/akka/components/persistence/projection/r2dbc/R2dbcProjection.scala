@@ -18,7 +18,7 @@ import net.sc8s.akka.components.persistence.projection.{ManagedProjection, Proje
 import scala.concurrent.{ExecutionContext, Future}
 
 private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
-  _: EventSourcedT#EventSourcedBaseComponentT
+  self: EventSourcedT#EventSourcedBaseComponentT
     with EventSourcedT#BaseComponent =>
 
   // override this if you e.g. want to use a readonly endpoint for the projections https://discuss.lightbend.com/t/r2dbc-projections-use-read-only-hot-standby-replicas-for-projections-query/10860 . or override it in the config to customize all projections
@@ -27,7 +27,7 @@ private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
 
 object R2dbcProjection {
   private[r2dbc] trait FromSnapshot {
-    _: EventSourcedT#EventSourcedBaseComponentT
+    self: EventSourcedT#EventSourcedBaseComponentT
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     // without the type parameter you "sometimes" get an AbstractMethodError exception :( https://github.com/scala/bug/issues/11833
@@ -36,17 +36,17 @@ object R2dbcProjection {
 }
 
 trait R2dbcShardedProjection extends R2dbcProjection {
-  _: EventSourcedT#EventSourcedBaseComponentT
+  self: EventSourcedT#EventSourcedBaseComponentT
     with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent =>
 
   private[this] val eventualDone = Future.successful(Done)
 
   override private[components] def managedProjectionFactory(
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
-                                                             actorSystem: ActorSystem[_]
+                                                             _actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
-    val numberOfProjectionInstances = actorSystem.settings.config.getInt(s"${readJournalPluginId.stripSuffix(".query")}.numberOfProjectionInstances")
-    val sliceRanges = EventSourcedProvider.sliceRanges(actorSystem, readJournalPluginId, numberOfProjectionInstances)
+    val numberOfProjectionInstances = _actorSystem.settings.config.getInt(s"${readJournalPluginId.stripSuffix(".query")}.numberOfProjectionInstances")
+    val sliceRanges = EventSourcedProvider.sliceRanges(_actorSystem, readJournalPluginId, numberOfProjectionInstances)
 
     val projectionIds = sliceRanges.map(sliceRange =>
       ProjectionId(projection.name, s"${projection.name}-${sliceRange.min}-${sliceRange.max}")
@@ -56,12 +56,12 @@ trait R2dbcShardedProjection extends R2dbcProjection {
       projection.name,
       projectionIds,
       numberOfProjectionInstances,
-      new ProjectionStatusObserver[EventEnvelope[EventT]]()(actorSystem) {
+      new ProjectionStatusObserver[EventEnvelope[EventT]]()(_actorSystem) {
         override def extractSequenceNr(envelope: EventEnvelope[EventT]) = envelope.sequenceNr
 
         override def extractOffset(envelope: EventEnvelope[EventT]) = envelope.offset
       },
-      actorSystem
+      _actorSystem
     ) {
 
       override def projectionFactory(i: Int) = {
@@ -72,11 +72,11 @@ trait R2dbcShardedProjection extends R2dbcProjection {
           .atLeastOnce(
             projectionId,
             None,
-            createSourceProvider(minSlice, maxSlice, actorSystem),
+            createSourceProvider(minSlice, maxSlice, _actorSystem),
             () => (_: R2dbcSession, envelope: EventEnvelope[EventT]) =>
               projection.handler.applyOrElse(
-                envelope.event -> projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem),
-                { _: (EventT, ComponentContextS with ComponentContext.Projection) => eventualDone }
+                envelope.event -> projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), _actorSystem),
+                (_: (EventT, ComponentContextS with ComponentContext.Projection)) => eventualDone
               )
           )
       }
@@ -95,7 +95,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 
 object R2dbcShardedProjection {
   trait FromSnapshot extends R2dbcShardedProjection with R2dbcProjection.FromSnapshot {
-    _: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
+    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
@@ -112,7 +112,7 @@ object R2dbcShardedProjection {
 
 // this needs to be handled separately https://discuss.lightbend.com/t/r2dbc-eventsbyslices-query-for-projections-with-cluster-singleton-without-entitytype/10089
 trait R2dbcSingletonProjection extends R2dbcProjection {
-  _: EventSourcedT#EventSourcedBaseComponentT
+  self: EventSourcedT#EventSourcedBaseComponentT
     with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent =>
 
   private class EventsByPersistenceIdSourceProvider(
@@ -141,7 +141,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 
   override private[components] def managedProjectionFactory(
                                                              projection: Projection[EventT, ComponentContextS with ComponentContext.Projection],
-                                                             actorSystem: ActorSystem[_]
+                                                             _actorSystem: ActorSystem[_]
                                                            ): ManagedProjection[EventEnvelope[EventT]] = {
     val projectionIds = Seq(
       ProjectionId(projection.name, s"${projection.name}-singleton")
@@ -151,12 +151,12 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
       projection.name,
       projectionIds,
       1, // singleton projection parallelism is currently limited to 1 due to the EventsByPersistenceIdSourceProvider
-      new ProjectionStatusObserver[EventEnvelope[EventT]]()(actorSystem) {
+      new ProjectionStatusObserver[EventEnvelope[EventT]]()(_actorSystem) {
         override def extractSequenceNr(envelope: EventEnvelope[EventT]) = envelope.sequenceNr
 
         override def extractOffset(envelope: EventEnvelope[EventT]) = envelope.offset
       },
-      actorSystem
+      _actorSystem
     ) {
 
       override def projectionFactory(i: Int) = {
@@ -167,12 +167,12 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
             None,
             new EventsByPersistenceIdSourceProvider(
               persistenceId,
-              actorSystem,
+              _actorSystem,
             ),
             () => (_: R2dbcSession, envelope: EventEnvelope[EventT]) =>
               projection.handler(
                 envelope.event,
-                projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), actorSystem)
+                projectionContext(projection.name, PersistenceId.ofUniqueId(envelope.persistenceId), _actorSystem)
               )
           )
       }
@@ -182,7 +182,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 
 object R2dbcSingletonProjection {
   trait FromSnapshot extends R2dbcSingletonProjection with R2dbcProjection.FromSnapshot {
-    _: EventSourcedT#EventSourcedBaseComponentT
+    self: EventSourcedT#EventSourcedBaseComponentT
       with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 

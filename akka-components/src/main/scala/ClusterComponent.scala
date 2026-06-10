@@ -83,7 +83,7 @@ object ClusterComponent {
   }
 
   trait SameSerializableCommand {
-    _: ComponentT =>
+    self: ComponentT =>
     override type SerializableCommand = Command
   }
 
@@ -143,7 +143,7 @@ object ClusterComponent {
       }
 
       trait ProjectionT {
-        _: EventSourcedT#EventSourcedBaseComponentT =>
+        self: EventSourcedT#EventSourcedBaseComponentT =>
 
         // Set[_] so you can use `com.softwaremill.macwire#wireSet`
         val projections: Set[Projection[EventT, ComponentContextS with ComponentContext.Projection]]
@@ -162,14 +162,14 @@ object ClusterComponent {
   }
 
   trait ComponentContext extends Logging {
-    protected val loggerClass: String
+    protected lazy val loggerClass: String
   }
 
   object ComponentContext {
     trait Actor[Command] extends ComponentContext {
       val actorContext: ActorContext[Command]
 
-      implicit lazy val materializer = Materializer(actorContext)
+      implicit lazy val materializer: Materializer = Materializer(actorContext)
 
       protected override def logContext = super.logContext + CustomContext(
         "actorPath" -> actorContext.self.path.toStringWithoutAddress,
@@ -198,7 +198,7 @@ object ClusterComponent {
     }
 
     trait ShardedEntity[SerializableCommand] {
-      _: Sharded[SerializableCommand, _] =>
+      self: Sharded[SerializableCommand, ?] =>
       val entityContext: EntityContext[SerializableCommand]
     }
 
@@ -217,11 +217,11 @@ object ClusterComponent {
   sealed trait Component[OuterComponentT <: ComponentT] {
     private[components] val component: OuterComponentT
 
-    private[components] val innerComponent: component.BaseComponent
+    private[components] lazy val innerComponent: component.BaseComponent
 
     private[components] val serializers: Seq[CirceSerializer[_]]
 
-    private[components] val managedProjections: Seq[ManagedProjection[_]]
+    private[components] lazy val managedProjections: Seq[ManagedProjection[_]]
 
     private[components] def delayedInit(): Unit = managedProjections.foreach(_.init())
 
@@ -229,7 +229,7 @@ object ClusterComponent {
   }
 
   trait SingletonComponent[OuterComponentT <: Singleton.SingletonT] extends Component[OuterComponentT] {
-    val actorRef: ActorRef[component.SerializableCommand]
+    lazy val actorRef: ActorRef[component.SerializableCommand]
   }
 
   private def supervised[T](behavior: Behavior[T]) =
@@ -330,7 +330,7 @@ object ClusterComponent {
         override private[components] def behaviorTransformer = (context, behavior) => {
           val transformedBehavior = super.behaviorTransformer(context, behavior)
           transformedBehavior.receiveSignal(
-            withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, componentCodePositionMaterializer)
+            withDefaultSignalHandler(transformedBehavior.signalHandler)(context.log, outerSelf.componentCodePositionMaterializer)
           )
         }
       }
@@ -339,10 +339,6 @@ object ClusterComponent {
     object EventSourced {
       abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
-        trait BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
-          // this looks odd (as it's the same as in super) but it helps IntelliJ pull the right ComponentContextS (and not the ohne from ClusterComponent.ComponentT.EventSourcedT.EventSourcedBaseComponentT)
-          override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
-        }
       }
     }
   }
@@ -393,15 +389,15 @@ object ClusterComponent {
     }
 
     trait StringEntityId {
-      _: ShardedT =>
+      self: ShardedT =>
 
       override type EntityId = String
 
-      override implicit val entityIdCodec = EntityIdCodec[String](identity, Success(_))
+      override implicit val entityIdCodec: EntityIdCodec[String] = EntityIdCodec[String](identity, Success(_))
     }
 
     trait LongEntityId {
-      _: ShardedT =>
+      self: ShardedT =>
 
       override type EntityId = Long
 
@@ -409,7 +405,7 @@ object ClusterComponent {
     }
 
     trait IntEntityId {
-      _: ShardedT =>
+      self: ShardedT =>
 
       override type EntityId = Int
 
@@ -417,7 +413,7 @@ object ClusterComponent {
     }
 
     trait JsonEntityId {
-      _: ShardedT =>
+      self: ShardedT =>
 
       /**
        * The placeholder that will replace any | in the produced String as this character is illegal due to Akka's entityId encoding.
@@ -568,7 +564,7 @@ object ClusterComponent {
             withDefaultSignalHandler(transformedBehavior.signalHandler.orElse {
               case (_, RecoveryCompleted) =>
               // don't log recovery for sharded components as there might be a lot
-            }: PartialFunction[(State, Signal), Unit])(context.log, componentCodePositionMaterializer)
+            }: PartialFunction[(State, Signal), Unit])(context.log, outerSelf.componentCodePositionMaterializer)
           )
         }
       }
@@ -577,10 +573,6 @@ object ClusterComponent {
     object EventSourced {
       abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
-        trait BaseComponent extends super.BaseComponent with SnapshotsBaseComponentT {
-          // this looks odd (as it's the same as in super) but it helps IntelliJ pull the right ComponentContextS (and not the ohne from ClusterComponent.ComponentT.EventSourcedT.EventSourcedBaseComponentT)
-          override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
-        }
       }
     }
   }

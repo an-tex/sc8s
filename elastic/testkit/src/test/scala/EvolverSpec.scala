@@ -1,9 +1,9 @@
 package net.sc8s.elastic
 
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import com.sksamuel.elastic4s.ElasticClient
+import com.sksamuel.elastic4s.{ElasticClient, ElasticProperties}
+import com.sksamuel.elastic4s.http.JavaClient
 import com.sksamuel.elastic4s.ElasticDsl.{RichFuture => _, _}
-import com.sksamuel.elastic4s.akka.{AkkaHttpClient, AkkaHttpClientSettings}
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.{ElasticField, KeywordField, TextField}
 import com.sksamuel.elastic4s.handlers.index.Field
@@ -14,9 +14,9 @@ import io.circe.parser._
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Json}
 import net.sc8s.akka.components.testkit.ClusterComponentTestKit
+import net.sc8s.akka.components.testkit.CirceScalaTestWithActorTestKit
 import net.sc8s.elastic.Evolver.Command.{EvolveDocuments, MigrateIndices, RunBatchUpdates}
 import net.sc8s.elastic.Index.BatchUpdate
-import net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit
 import net.sc8s.logstage.elastic.Logging
 import org.scalatest.Inspectors._
 import org.scalatest.matchers.should.Matchers
@@ -28,9 +28,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.chaining.scalaUtilChainingOps
 
-class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with AnyWordSpecLike with Matchers with Logging with ClusterComponentTestKit {
+class EvolverSpec extends CirceScalaTestWithActorTestKit(Evolver.serializers) with AnyWordSpecLike with Matchers with Logging with ClusterComponentTestKit {
 
-  implicit lazy val elasticClient: ElasticClient[Future] = ElasticClient(AkkaHttpClient(AkkaHttpClientSettings())(system.toClassic))
+  implicit lazy val elasticClient: ElasticClient[Future] = ElasticClient(JavaClient(ElasticProperties("http://localhost:9200")))
 
   implicit lazy val indexSetup: IndexSetup = IndexSetup(
     elasticClient,

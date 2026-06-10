@@ -20,7 +20,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
   implicit val consoleLogger: IzLogger = IzLogger(Level.Trace, SimpleConsoleSink)
 
   "StreamOps" should {
-    val mapAsyncOperation = { element: Int => Future.successful(element * 2) }
+    val mapAsyncOperation = (element: Int) => Future.successful(element * 2)
 
     "Seq" in {
       val input = Seq(Seq(1, 2), Nil, Seq(3))
@@ -60,7 +60,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     "Option" in {
       val input = Seq(Some(1), None, Some(2))
 
-      val flatMapAsyncOperation = { element: Int => Future.successful(Some(element * 2).filter(_ == 4)) }
+      val flatMapAsyncOperation = (element: Int) => Future.successful(Some(element * 2).filter(_ == 4))
       val flatMapResult = Seq(None, None, Some(4))
       val mapResult = Seq(Some(2), None, Some(4))
 
@@ -184,7 +184,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     "Either" in {
       val input = Seq(Right(1), Left(true), Right(2))
 
-      val flatMapAsyncOperation = { element: Int => Future.successful(if (element == 2) Right(element * 2) else Left(false)) }
+      val flatMapAsyncOperation = (element: Int) => Future.successful(if (element == 2) Right(element * 2) else Left(false))
       val flatMapResult = Seq(Left(false), Left(true), Right(4))
       val mapResult = Seq(Right(2), Left(true), Right(4))
 
@@ -331,7 +331,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
       val exception2 = new Exception
       val input: Seq[Try[Int]] = Seq(Success(1), Failure(exception), Success(2))
 
-      val flatMapAsyncOperation = { element: Int => Future.successful(if (element == 2) Success(element * 2) else Failure(exception2)) }
+      val flatMapAsyncOperation = (element: Int) => Future.successful(if (element == 2) Success(element * 2) else Failure(exception2))
       val mapResult = Seq(Success(2), Failure(exception), Success(4))
       val flatMapResult = Seq(Failure(exception2), Failure(exception), Success(4))
 

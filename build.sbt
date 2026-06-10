@@ -9,44 +9,24 @@ lazy val sc8s = (project in file("."))
   .aggregate(
     `akka-circe`,
     `akka-components`,
-    `akka-components-lagom`,
     `akka-components-testkit`,
-    `akka-components-persistence-cassandra-lagom-api`.js,
-    `akka-components-persistence-cassandra-lagom-api`.jvm,
-    `akka-components-persistence-cassandra-lagom`,
     `akka-components-persistence-projection`,
     `akka-components-persistence-projection-cassandra`,
     `akka-components-persistence-projection-r2dbc`,
     `akka-components-persistence-projection-api`.js,
     `akka-components-persistence-projection-api`.jvm,
-    `akka-components-persistence-cassandra-lagom-api`.js,
-    `akka-components-persistence-cassandra-lagom-api`.jvm,
-    `akka-components-persistence-cassandra-lagom`,
-    `akka-components-persistence-r2dbc-lagom-api`.js,
-    `akka-components-persistence-r2dbc-lagom-api`.jvm,
     `akka-components-persistence-r2dbc-common`,
-    `akka-components-persistence-r2dbc-lagom`,
     `akka-components-persistence-r2dbc-tapir`,
-    `akka-components-persistence-projection-lagom-api`.js,
-    `akka-components-persistence-projection-lagom-api`.jvm,
     `akka-components-persistence-projection-common`,
-    `akka-components-persistence-projection-lagom`,
     `akka-components-persistence-projection-tapir`,
     `akka-components-persistence-utils`,
-    `akka-stream-utils`.js,
     `akka-stream-utils`.jvm,
     `common-circe`.js,
     `common-circe`.jvm,
     `common-tzdb`.js,
     `elastic-core`,
-    `elastic-lagom-api`.js,
-    `elastic-lagom-api`.jvm,
-    `elastic-lagom-service`,
+    `elastic-tapir`,
     `elastic-testkit`,
-    `lagom-api-circe`.js,
-    `lagom-api-circe`.jvm,
-    `lagom-server-circe-testkit`,
-    `lagom-server-circe`,
     `logstage-elastic`,
     `schevo`.js,
     `schevo`.jvm,
@@ -121,17 +101,7 @@ lazy val `akka-components` = project
     ),
     idePackagePrefix := Some("net.sc8s.akka.components")
   )
-  .dependsOn(`akka-circe`, `akka-components-persistence-projection`, `lagom-server-circe`, `akka-components-persistence-utils`)
-
-lazy val `akka-components-lagom` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      lagom.scaladslServer,
-      macwire.macros
-    ),
-    idePackagePrefix := Some("net.sc8s.akka.components.lagom")
-  )
-  .dependsOn(`akka-components`)
+  .dependsOn(`akka-circe`, `akka-components-persistence-projection`, `akka-components-persistence-utils`)
 
 lazy val `akka-components-testkit` = project
   .settings(
@@ -148,42 +118,7 @@ lazy val `akka-components-testkit` = project
     dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
     idePackagePrefix := Some("net.sc8s.akka.components.testkit")
   )
-  .dependsOn(`akka-components`, `lagom-server-circe-testkit`, `akka-components-persistence-projection-cassandra` % Test, `akka-components-persistence-projection-r2dbc` % Test)
-
-lazy val `akka-components-persistence-cassandra-lagom-api` = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("akka-components-persistence-cassandra-lagom-api"))
-  .jvmSettings(libraryDependencies += lagom.scaladslApi)
-  .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
-  .settings(
-    libraryDependencies ++= Seq(
-      circe.core.value,
-      circe.parser.value,
-    ),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.cassandra.lagom.api")
-  )
-  .dependsOn(`common-circe`, `lagom-api-circe`)
-
-lazy val `akka-components-persistence-cassandra-lagom` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      lagom.scaladslServer,
-      macwire.macros,
-      akka.persistenceCassandra,
-    ),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.cassandra.lagom")
-  )
-  .dependsOn(`akka-components`, `akka-components-persistence-cassandra-lagom-api`.jvm)
-
-lazy val `akka-components-persistence-r2dbc-lagom-api` = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("akka-components-persistence-r2dbc-lagom-api"))
-  .jvmSettings(libraryDependencies += lagom.scaladslApi)
-  .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
-  .settings(
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.lagom.api")
-  )
-  .dependsOn(`common-circe`, `lagom-api-circe`)
+  .dependsOn(`akka-components`, `akka-components-persistence-projection-cassandra` % Test, `akka-components-persistence-projection-r2dbc` % Test)
 
 lazy val `akka-components-persistence-r2dbc-common` = project
   .settings(
@@ -195,16 +130,6 @@ lazy val `akka-components-persistence-r2dbc-common` = project
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.common")
   )
   .dependsOn(`akka-components`)
-
-lazy val `akka-components-persistence-r2dbc-lagom` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      lagom.scaladslServer,
-    ),
-    dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.r2dbc.lagom")
-  )
-  .dependsOn(`akka-components`, `akka-components-persistence-r2dbc-lagom-api`.jvm, `akka-components-persistence-r2dbc-common`)
 
 lazy val `akka-components-persistence-r2dbc-tapir` = project
   .settings(
@@ -268,20 +193,6 @@ lazy val `akka-components-persistence-projection-r2dbc` = project
     dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
   ).dependsOn(`akka-components`, `akka-circe`, `akka-components-persistence-projection`, `logstage-elastic`)
 
-lazy val `akka-components-persistence-projection-lagom-api` = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("akka-components-persistence-projection-lagom-api"))
-  .jvmSettings(libraryDependencies += lagom.scaladslApi)
-  .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
-  .settings(
-    libraryDependencies ++= Seq(
-      circe.core.value,
-      circe.parser.value,
-    ),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.lagom.api")
-  )
-  .dependsOn(`common-circe`, `lagom-api-circe`, `akka-components-persistence-projection-api`)
-
 lazy val `akka-components-persistence-projection-common` = project
   .settings(
     libraryDependencies ++= Seq(
@@ -292,16 +203,6 @@ lazy val `akka-components-persistence-projection-common` = project
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.common")
   )
   .dependsOn(`akka-components`, `akka-components-persistence-projection`, `akka-components-persistence-projection-api`.jvm, `logstage-elastic`)
-
-lazy val `akka-components-persistence-projection-lagom` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      lagom.scaladslServer,
-      macwire.macros
-    ),
-    idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.lagom")
-  )
-  .dependsOn(`akka-components`, `akka-components-persistence-projection-lagom-api`.jvm, `akka-components-persistence-projection-common`, `akka-components-lagom`)
 
 lazy val `akka-components-persistence-projection-tapir` = project
   .settings(
@@ -321,41 +222,6 @@ lazy val `akka-components-persistence-utils` = project
     ),
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.utils")
   )
-
-lazy val `lagom-server-circe` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      lagom.scaladslServer
-    ),
-    idePackagePrefix := Some("net.sc8s.lagom.circe")
-  )
-  .dependsOn(`akka-circe`)
-
-lazy val `lagom-server-circe-testkit` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      play.core,
-      akka.persistenceTyped,
-      akka.persistenceTestkit,
-      scalaTest.value,
-    ),
-    idePackagePrefix := Some("net.sc8s.lagom.circe.testkit")
-  )
-  .dependsOn(`lagom-server-circe`)
-
-lazy val `lagom-api-circe` = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("lagom-api-circe"))
-  .jvmSettings(libraryDependencies += lagom.scaladslApi)
-  .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
-  .settings(
-    libraryDependencies ++= Seq(
-      circe.core.value,
-      circe.parser.value,
-    ),
-    idePackagePrefix := Some("net.sc8s.lagom.circe")
-  )
-  .dependsOn(`common-circe`)
 
 lazy val `common-circe` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -383,7 +249,7 @@ lazy val `logstage-elastic` = project
     idePackagePrefix := Some("net.sc8s.logstage.elastic")
   )
 
-lazy val `akka-stream-utils` = crossProject(JSPlatform, JVMPlatform)
+lazy val `akka-stream-utils` = crossProject(JVMPlatform)
   .crossType(CrossType.Full)
   .in(file("akka-stream-utils"))
   .jvmSettings(
@@ -394,7 +260,6 @@ lazy val `akka-stream-utils` = crossProject(JSPlatform, JVMPlatform)
       akka.testkitTyped % Test,
     )
   )
-  .jsSettings(libraryDependencies += akka.js.stream.value)
   .settings(
     libraryDependencies ++= Seq(
       logstage.core.value,
@@ -414,7 +279,7 @@ lazy val `elastic-core` = (project in file("elastic/core"))
       akka.testkitTyped % Test,
       elastic4s.core,
       elastic4s.jsonCirce,
-      elastic4s.clientAkka % Test,
+      elastic4s.clientJava % Test,
       elastic4s.testkit % Test,
       elastic4s.elasticTestFramework % Test,
       elastic4s.httpStreams,
@@ -436,7 +301,7 @@ lazy val `elastic-testkit` = (project in file("elastic/testkit"))
       akka.testkitTyped,
       elastic4s.core,
       elastic4s.jsonCirce,
-      elastic4s.clientAkka,
+      elastic4s.clientJava,
       elastic4s.testkit,
       elastic4s.elasticTestFramework,
       elastic4s.httpStreams,
@@ -452,26 +317,14 @@ lazy val `elastic-testkit` = (project in file("elastic/testkit"))
   )
   .dependsOn(`elastic-core`, `schevo-circe`.jvm, `akka-components-testkit` % Test)
 
-lazy val `elastic-lagom-api` =
-  crossProject(JSPlatform, JVMPlatform)
-    .crossType(CrossType.Pure)
-    .in(file("elastic/lagom/api"))
-    .jvmSettings(libraryDependencies += lagom.scaladslApi)
-    .jsSettings(libraryDependencies += lagom.js.scalaDslApi.value)
-    .settings(
-      idePackagePrefix := Some("net.sc8s.elastic.lagom.api")
-    )
-
-lazy val `elastic-lagom-service` = (project in file("elastic/lagom/service"))
+lazy val `elastic-tapir` = (project in file("elastic/tapir"))
   .settings(
     libraryDependencies ++= Seq(
-      elastic4s.core,
-      elastic4s.clientAkka,
-      macwire.macros
+      tapir.core.value
     ),
-    idePackagePrefix := Some("net.sc8s.elastic.lagom")
+    idePackagePrefix := Some("net.sc8s.elastic.tapir")
   )
-  .dependsOn(`elastic-core`, `elastic-lagom-api`.jvm)
+  .dependsOn(`elastic-core`)
 
 // empty project to avoid regeneration in other projects https://github.com/cquiroz/sbt-tzdb/issues/88
 lazy val `common-tzdb` = crossProject(JSPlatform)
@@ -486,7 +339,7 @@ lazy val `common-tzdb` = crossProject(JSPlatform)
 lazy val akkaToken = sys.env.getOrElse("AKKA_TOKEN", throw new Exception("AKKA_TOKEN environment variable is required"))
 
 inThisBuild(Seq(
-  scalaVersion := scala213,
+  scalaVersion := scala3,
   organization := "net.sc8s",
   homepage := Some(url("https://github.com/an-tex/sc8s")),
   licenses := List("MIT" -> url("https://opensource.org/licenses/MIT")),
@@ -526,6 +379,10 @@ inThisBuild(Seq(
     // circe-derivation depends on 0.13.0 which is binary compatible to 0.14.x https://github.com/circe/circe-derivation/issues/346
     // needs to be added here instead of Dependencies.overrides due to .value call
     circe.core.value
+  ),
+  scalacOptions ++= Seq(
+    "-Xmax-inlines",
+    "128",
   ),
   githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17")),
 ))

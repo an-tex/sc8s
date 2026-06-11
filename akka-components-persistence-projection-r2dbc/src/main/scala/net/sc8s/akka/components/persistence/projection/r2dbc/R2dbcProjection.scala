@@ -95,7 +95,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 
 object R2dbcShardedProjection {
   trait FromSnapshot extends R2dbcShardedProjection with R2dbcProjection.FromSnapshot {
-    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced.WithSnapshots#BaseComponent
+    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =

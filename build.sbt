@@ -11,7 +11,6 @@ lazy val sc8s = (project in file("."))
     `akka-components`,
     `akka-components-testkit`,
     `akka-components-persistence-projection`,
-    `akka-components-persistence-projection-cassandra`,
     `akka-components-persistence-projection-r2dbc`,
     `akka-components-persistence-projection-api`.js,
     `akka-components-persistence-projection-api`.jvm,
@@ -118,7 +117,7 @@ lazy val `akka-components-testkit` = project
     dependencyOverrides ++= Dependencies.akka.createOverrides(licensed = true),
     idePackagePrefix := Some("net.sc8s.akka.components.testkit")
   )
-  .dependsOn(`akka-components`, `akka-components-persistence-projection-cassandra` % Test, `akka-components-persistence-projection-r2dbc` % Test)
+  .dependsOn(`akka-components`, `akka-components-persistence-projection-r2dbc` % Test)
 
 lazy val `akka-components-persistence-r2dbc-common` = project
   .settings(
@@ -165,19 +164,6 @@ lazy val `akka-components-persistence-projection-api` = crossProject(JSPlatform,
     idePackagePrefix := Some("net.sc8s.akka.components.persistence.projection.api"),
   )
   .dependsOn(`common-circe`)
-
-lazy val `akka-components-persistence-projection-cassandra` = project
-  .settings(
-    libraryDependencies ++= Seq(
-      akka.clusterShardingTyped,
-      akka.persistenceCassandra,
-      akka.projection.cassandra,
-      akka.projection.eventsourced,
-      circe.core.value,
-      circe.generic.value,
-      circe.genericExtras.value,
-    ),
-  ).dependsOn(`akka-components`, `akka-circe`, `akka-components-persistence-projection`, `logstage-elastic`)
 
 lazy val `akka-components-persistence-projection-r2dbc` = project
   .settings(

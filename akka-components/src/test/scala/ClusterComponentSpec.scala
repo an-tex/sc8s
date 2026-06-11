@@ -4,7 +4,7 @@ import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.sharding.typed.ClusterShardingSettings.PassivationStrategySettings
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.softwaremill.macwire._
 import com.typesafe.config.ConfigFactory
 import io.circe.Codec
@@ -130,8 +130,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                 {
                   case (state, event) => state
                 })
-
-              override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
               override val name = "singleton"
             }
@@ -465,8 +463,6 @@ class ClusterComponentSpec extends ScalaTestWithActorTestKit(ConfigFactory.parse
                   case (state, event) => state
                 })
 
-              override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
-
               override val name = randomName
             }
 
@@ -563,4 +559,3 @@ object ClusterComponentSpec {
 
   def randomName = s"sharded-${Random.alphanumeric.take(8).mkString}"
 }
-

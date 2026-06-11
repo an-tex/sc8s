@@ -20,7 +20,7 @@ trait ElasticIndexTesting extends BeforeAndAfterEach with BeforeAndAfterAll with
 
   implicit lazy val elasticClient: ElasticClient[Future] = {
     implicit val executionContext: ExecutionContextExecutor = system.executionContext
-    ElasticClient(JavaClient(ElasticProperties("http://localhost:9200")))
+    ElasticClient(JavaClient(ElasticProperties("http://localhost:9220")))
   }
 
   implicit lazy val indexSetup: IndexSetup = IndexSetup(

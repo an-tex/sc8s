@@ -1,6 +1,5 @@
 package net.sc8s.elastic
 
-import com.github.dwickern.macros.NameOf.qualifiedNameOf
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.analysis.Analysis
@@ -129,12 +128,12 @@ abstract class Index(
 
   def updateRequest(id: Id, transformRequest: UpdateRequest => UpdateRequest = identity) = transformRequest(updateById(name, encodeId(id)) refresh indexSetup.refreshPolicy)
 
-  def updateField(id: Id, field: Latest => Any, value: Any) =
+  inline def updateField(id: Id, inline field: Latest => Any, value: Any) =
     execute(updateFieldRequest(id, field, value))
 
-  def updateFieldRequest(id: Id, field: Latest => Any, value: Any) = updateRequest(id, _ doc qualifiedNameOf[Latest](field) -> value)
+  inline def updateFieldRequest(id: Id, inline field: Latest => Any, value: Any) = updateRequest(id, _ doc fieldName(field) -> value)
 
-  def fieldName(expr: Latest => Any): String = qualifiedNameOf[Latest](expr)
+  inline def fieldName(inline expr: Latest => Any): String = ${IndexMacros.fieldNameImpl[Latest]('expr)}
 
   def search(searchRequest: SearchRequest => SearchRequest = identity) = execute(searchRequest(ElasticDsl.search(name))).map(_.hits.hits.toSeq.map(_.to[Latest]))
 
@@ -178,5 +177,36 @@ object Index {
 
   implicit class KeywordSuffix(field: String) {
     def keyword = field + ".keyword"
+  }
+}
+
+private object IndexMacros {
+  import scala.quoted.*
+
+  def fieldNameImpl[T: Type](expr: Expr[T => Any])(using Quotes): Expr[String] = {
+    import quotes.reflect.*
+
+    def unwrap(term: Term): Term = term match {
+      case Inlined(_, _, inner) => unwrap(inner)
+      case Block(Nil, inner) => unwrap(inner)
+      case Typed(inner, _) => unwrap(inner)
+      case Apply(inner, Nil) => unwrap(inner)
+      case TypeApply(inner, _) => unwrap(inner)
+      case inner => inner
+    }
+
+    def path(term: Term): List[String] = unwrap(term) match {
+      case Select(inner, field) => path(inner) :+ field
+      case Ident(_) => Nil
+      case inner =>
+        report.errorAndAbort(s"Unsupported field selector: ${Printer.TreeShortCode.show(inner)}")
+    }
+
+    unwrap(expr.asTerm) match {
+      case Lambda(_, body) =>
+        Expr(path(body).mkString("."))
+      case term =>
+        report.errorAndAbort(s"Expected a lambda selector, got: ${Printer.TreeShortCode.show(term)}")
+    }
   }
 }

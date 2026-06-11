@@ -8,6 +8,7 @@ import izumi.logstage.api.IzLogger
 import izumi.logstage.api.Log.Level
 import izumi.logstage.sink.ConsoleSink.SimpleConsoleSink
 import net.sc8s.akka.stream.implicits._
+import net.sc8s.akka.stream.sourceWithContextImplicits.{FlowMonadOps, FlowWrapperOps}
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
 import org.scalatest.wordspec.AnyWordSpecLike
 
@@ -49,7 +50,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         )
       )
 
-      checkTable[Int, Seq](input, operations)
+      checkTable(input, operations)
     }
     "Seq flattenF" in {
       Source(Seq(Seq(1), Nil, Seq(2)))
@@ -129,7 +130,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         )
       )
 
-      checkTable[Int, Option](input, operations)
+      checkTable(input, operations)
     }
     "Option flattenF" in {
       Source(Seq(Some(1), None, Some(2)))
@@ -157,7 +158,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     }
     "Option foldF with no Some" in {
       Source(Seq(None, None))
-        .foldF(Seq.empty[Int])(_ :+ _)
+        .foldF(Seq.empty[Int])((acc: Seq[Int], value: Int) => acc :+ value)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(None, None, Some(Nil))
     }
@@ -169,7 +170,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     }
     "Option foldS with no Some" in {
       Source(Seq(None, None))
-        .foldS(Seq.empty[Int])(_ :+ _)
+        .foldS(Seq.empty[Int])((acc: Seq[Int], value: Int) => acc :+ value)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(None, None)
     }
@@ -254,7 +255,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         )
       )
 
-      checkTable2[Boolean, Int, Either](input, operations)
+      checkTable2(input, operations)
     }
     "Either collectLeftF" in {
       Source(Seq(Right(1), Left(true), Right(2)))
@@ -294,7 +295,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     }
     "Either foldF with no Rights" in {
       Source(Seq(Left(false), Left(true)))
-        .foldF(Seq.empty[Int])(_ :+ _)
+        .foldF(Seq.empty[Int])((acc: Seq[Int], value: Int) => acc :+ value)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Left(true), Left(false), Right(Nil))
     }
@@ -306,7 +307,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     }
     "Either foldS with no Rights" in {
       Source(Seq(Left(false), Left(true)))
-        .foldS(Seq.empty[Int])(_ :+ _)
+        .foldS(Seq.empty[Int])((acc: Seq[Int], value: Int) => acc :+ value)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Left(true), Left(false))
     }
@@ -397,7 +398,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
         )
       )
 
-      checkTable[Int, Try](input, operations)
+      checkTable(input, operations)
     }
     "Try flattenF" in {
       Source(Seq(Success(1), Failure(new Exception), Success(2)))
@@ -432,7 +433,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
       val exception1 = new Exception
       val exception2 = new Exception
       Source(Seq(Failure(exception1), Failure(exception2)))
-        .foldF(Seq.empty[Int])(_ :+ _)
+        .foldF(Seq.empty[Int])((acc: Seq[Int], value: Int) => acc :+ value)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2), Success(Nil))
     }
@@ -448,7 +449,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
       val exception1 = new Exception
       val exception2 = new Exception
       Source(Seq(Failure(exception1), Failure(exception2)))
-        .foldS(Seq.empty[Int])(_ :+ _)
+        .foldS(Seq.empty[Int])((acc: Seq[Int], value: Int) => acc :+ value)
         .runWith(Sink.seq)
         .futureValue should contain theSameElementsAs Seq(Failure(exception1), Failure(exception2))
     }
@@ -493,7 +494,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     }
   }
 
-  private def checkTable[S, T[_]](input: Seq[T[S]], operations: TableFor2[Source[T[S], NotUsed] => Source[T[_], NotUsed], Seq[T[_]]]) = {
+  private def checkTable[S, U, T[_]](input: Seq[T[S]], operations: TableFor2[Source[T[S], NotUsed] => Source[T[U], NotUsed], Seq[T[U]]]) = {
     forAll(operations) { case (operation, output) =>
       operation(Source(input))
         .runWith(Sink.seq)
@@ -501,7 +502,7 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
     }
   }
 
-  private def checkTable2[L, R, T[_, _]](input: Seq[T[L, R]], operations: TableFor2[Source[T[L, R], NotUsed] => Source[T[_, _], NotUsed], Seq[T[_, _]]]) = {
+  private def checkTable2[L, R, L2, R2, T[_, _]](input: Seq[T[L, R]], operations: TableFor2[Source[T[L, R], NotUsed] => Source[T[L2, R2], NotUsed], Seq[T[L2, R2]]]) = {
     forAll(operations) { case (operation, output) =>
       operation(Source(input))
         .runWith(Sink.seq)

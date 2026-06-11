@@ -301,7 +301,7 @@ lazy val `elastic-testkit` = (project in file("elastic/testkit"))
     ),
     idePackagePrefix := Some("net.sc8s.elastic.testkit")
   )
-  .dependsOn(`elastic-core`, `schevo-circe`.jvm, `akka-components-testkit` % Test)
+  .dependsOn(`elastic-core`, `schevo-circe`.jvm, `akka-components-testkit` % "test->test")
 
 lazy val `elastic-tapir` = (project in file("elastic/tapir"))
   .settings(

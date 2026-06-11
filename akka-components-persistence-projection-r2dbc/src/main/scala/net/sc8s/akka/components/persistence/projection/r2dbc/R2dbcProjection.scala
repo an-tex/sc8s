@@ -95,7 +95,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 
 object R2dbcShardedProjection {
   trait FromSnapshot extends R2dbcShardedProjection with R2dbcProjection.FromSnapshot {
-    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
+    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced.WithSnapshots#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
@@ -183,7 +183,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 object R2dbcSingletonProjection {
   trait FromSnapshot extends R2dbcSingletonProjection with R2dbcProjection.FromSnapshot {
     self: EventSourcedT#EventSourcedBaseComponentT
-      with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent
+      with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced.WithSnapshots#BaseComponent
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createEventSource(persistenceId: PersistenceId, sequence: Sequence, eventQueries: R2dbcReadJournal) =

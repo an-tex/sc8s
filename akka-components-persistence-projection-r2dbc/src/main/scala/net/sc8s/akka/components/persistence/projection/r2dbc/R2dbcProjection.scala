@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
   self: EventSourcedT#EventSourcedBaseComponentT
-    with EventSourcedT#BaseComponent =>
+    with EventSourcedT#BaseComponentT =>
 
   // override this if you e.g. want to use a readonly endpoint for the projections https://discuss.lightbend.com/t/r2dbc-projections-use-read-only-hot-standby-replicas-for-projections-query/10860 . or override it in the config to customize all projections
   val readJournalPluginId = "net.sc8s.akka.components.persistence.projection.r2dbc.default.query"
@@ -30,14 +30,13 @@ object R2dbcProjection {
     self: EventSourcedT#EventSourcedBaseComponentT
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
-    // without the type parameter you "sometimes" get an AbstractMethodError exception :( https://github.com/scala/bug/issues/11833
-    def transformSnapshot[State <: StateT](state: State): EventT
+    def transformSnapshot(state: StateT): EventT
   }
 }
 
 trait R2dbcShardedProjection extends R2dbcProjection {
   self: EventSourcedT#EventSourcedBaseComponentT
-    with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent =>
+    with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourcedT#BaseComponentBase =>
 
   private[this] val eventualDone = Future.successful(Done)
 
@@ -95,7 +94,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
 
 object R2dbcShardedProjection {
   trait FromSnapshot extends R2dbcShardedProjection with R2dbcProjection.FromSnapshot {
-    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent
+    self: net.sc8s.akka.components.ClusterComponent.Sharded.EventSourcedT#BaseComponentBase
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createSourceProvider(minSlice: Int, maxSlice: Int, actorSystem: ActorSystem[_]): SourceProvider[Offset, EventEnvelope[EventT]] =
@@ -113,7 +112,7 @@ object R2dbcShardedProjection {
 // this needs to be handled separately https://discuss.lightbend.com/t/r2dbc-eventsbyslices-query-for-projections-with-cluster-singleton-without-entitytype/10089
 trait R2dbcSingletonProjection extends R2dbcProjection {
   self: EventSourcedT#EventSourcedBaseComponentT
-    with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent =>
+    with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourcedT#BaseComponentBase =>
 
   private class EventsByPersistenceIdSourceProvider(
                                                      persistenceId: PersistenceId,
@@ -183,7 +182,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 object R2dbcSingletonProjection {
   trait FromSnapshot extends R2dbcSingletonProjection with R2dbcProjection.FromSnapshot {
     self: EventSourcedT#EventSourcedBaseComponentT
-      with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent
+      with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourcedT#BaseComponentBase
       with EventSourcedT.SnapshotsT#SnapshotsBaseComponentT =>
 
     override private[r2dbc] def createEventSource(persistenceId: PersistenceId, sequence: Sequence, eventQueries: R2dbcReadJournal) =

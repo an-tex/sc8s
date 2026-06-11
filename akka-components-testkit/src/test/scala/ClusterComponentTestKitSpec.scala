@@ -4,7 +4,7 @@ import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import akka.stream.scaladsl.Source
 import com.softwaremill.macwire.wireSet
 import io.circe.Codec
@@ -12,7 +12,7 @@ import io.circe.generic.semiauto.deriveCodec
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
 import net.sc8s.akka.components.persistence.projection.r2dbc.{R2dbcShardedProjection, R2dbcSingletonProjection}
-import net.sc8s.akka.components.testkit.ClusterComponentTestKitSpec._
+import net.sc8s.akka.components.testkit.ClusterComponentTestKitSpec.*
 import net.sc8s.logstage.elastic.Logging
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.matchers.should.Matchers
@@ -291,6 +291,8 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
+      
+      override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
 
       override val name = "name"
     }
@@ -449,6 +451,8 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
+
+      override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
 
       override val name = "name"
     }

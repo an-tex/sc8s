@@ -43,11 +43,11 @@ trait ClusterComponentTestKit {
   )
 
   def spawnComponent[
-    OuterComponentT <: Singleton.EventSourced
+    OuterComponentT <: Singleton.EventSourcedT
   ](
      outerComponent: OuterComponentT
    )(
-     innerComponent: outerComponent.BaseComponent
+     innerComponent: outerComponent.BaseComponentBase
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
     EventSourcedBehaviorTestKit(system,
       Behaviors.setup[outerComponent.Command](_actorContext =>
@@ -102,11 +102,11 @@ trait ClusterComponentTestKit {
   })
 
   def spawnComponentWithEntityRefProbes[
-    OuterComponentT <: Sharded.EventSourced
+    OuterComponentT <: Sharded.EventSourcedT
   ](
      outerComponent: OuterComponentT,
    )(
-     innerComponent: outerComponent.BaseComponent,
+     innerComponent: outerComponent.BaseComponentBase,
      _entityId: outerComponent.EntityId,
      entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand]
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
@@ -136,11 +136,11 @@ trait ClusterComponentTestKit {
     )
 
   def spawnComponent[
-    OuterComponentT <: Sharded.EventSourced
+    OuterComponentT <: Sharded.EventSourcedT
   ](
      outerComponent: OuterComponentT,
    )(
-     innerComponent: outerComponent.BaseComponent,
+     innerComponent: outerComponent.BaseComponentBase,
      _entityId: outerComponent.EntityId
    ): EventSourcedBehaviorTestKit[outerComponent.Command, outerComponent.Event, outerComponent.State] =
     spawnComponentWithEntityRefProbes(outerComponent)(innerComponent, _entityId, {
@@ -212,12 +212,12 @@ trait ClusterComponentTestKit {
   lazy val projectionTestKit = ProjectionTestKit(system)
 
   def testProjection[
-    OuterComponentT <: Sharded.EventSourced,
+    OuterComponentT <: Sharded.EventSourcedT,
   ](
      outerComponent: OuterComponentT
    )
    (
-     innerComponent: outerComponent.BaseComponent,
+     innerComponent: outerComponent.BaseComponentBase,
    )(
      projection: Projection[outerComponent.Event, innerComponent.ComponentContextS with ComponentContext.Projection], events: Source[(outerComponent.EntityId, outerComponent.Event), NotUsed],
      entityRefProbes: outerComponent.EntityId => TestProbe[outerComponent.SerializableCommand] = {
@@ -253,7 +253,7 @@ trait ClusterComponentTestKit {
      outerComponent: OuterComponentT
    )
    (
-     innerComponent: outerComponent.BaseComponent,
+     innerComponent: outerComponent.BaseComponentBase,
    )(
      projection: Projection[outerComponent.Event, innerComponent.ComponentContextS with ComponentContext.Projection], events: Source[outerComponent.Event, NotUsed],
    ) = {

@@ -64,7 +64,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
       ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
     }
     "Singleton with projections from snapshot" in {
-      object ComponentObject extends ClusterComponent.Singleton.EventSourced with ClusterComponent.SameSerializableCommand {
+      object ComponentObject extends ClusterComponent.Singleton.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand {
         case class Command()
         implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
 
@@ -72,6 +72,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
         implicit val eventCodec: Codec[Event] = deriveCodec
 
         case class State()
+        implicit val stateCodec: Codec[State] = deriveCodec
 
         class Component(dependency: Dependency) extends BaseComponent with R2dbcSingletonProjection {
           override val behavior = componentContext => EventSourcedBehavior(
@@ -96,6 +97,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
         }
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()
+        override val stateSerializer = CirceSerializer()
       }
 
       ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
@@ -139,7 +141,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
       ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
     }
     "Sharded with projections from snapshot" in {
-      object ComponentObject extends ClusterComponent.Sharded.EventSourced with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
+      object ComponentObject extends ClusterComponent.Sharded.EventSourced.WithSnapshots with ClusterComponent.SameSerializableCommand with ClusterComponent.Sharded.StringEntityId {
         case class Command()
         implicit val commandCodec: Codec[SerializableCommand] = deriveCodec
 
@@ -173,6 +175,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()
+        override val stateSerializer = CirceSerializer()
       }
       ComponentObject.init(new ComponentObject.Component(new Dependency)).delayedInit()
     }

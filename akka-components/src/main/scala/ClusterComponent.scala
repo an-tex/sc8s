@@ -294,10 +294,11 @@ object ClusterComponent {
       }
     }
 
-    abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends SingletonT with ComponentT.EventSourcedT {
+
+    private[components] abstract class EventSourcedT(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends SingletonT with ComponentT.EventSourcedT {
       outerSelf =>
 
-      trait BaseComponent extends super.SingletonBaseComponentT with super.EventSourcedBaseComponentT {
+      trait BaseComponentBase extends super.SingletonBaseComponentT with super.EventSourcedBaseComponentT {
         self =>
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
@@ -336,9 +337,16 @@ object ClusterComponent {
       }
     }
 
+    abstract class EventSourced(override implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourcedT {
+      trait BaseComponent extends super.BaseComponentBase
+    }
+
     object EventSourced {
-      abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
-        outerSelf =>
+      abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourcedT with ComponentT.EventSourcedT.SnapshotsT {
+        trait BaseComponent extends super.BaseComponentBase with SnapshotsBaseComponentT {
+          // this looks odd (as it's the same as in super) but it helps IntelliJ pull the right ComponentContextS (and not the ohne from ClusterComponent.ComponentT.EventSourcedT.EventSourcedBaseComponentT)
+          override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
+        }
       }
     }
   }
@@ -504,9 +512,10 @@ object ClusterComponent {
       }
     }
 
-    abstract class EventSourced(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends ShardedT with ComponentT.EventSourcedT {
+    private[components] abstract class EventSourcedT(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends ShardedT with ComponentT.EventSourcedT {
       outerSelf =>
-      trait BaseComponent extends super.ShardedBaseComponentT with super.EventSourcedBaseComponentT {
+      // this indirection is necessary as we can't shadow BaseComponent in subtypes any more as with scala 2
+      trait BaseComponentBase extends super.ShardedBaseComponentT with super.EventSourcedBaseComponentT {
         self =>
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
@@ -570,9 +579,18 @@ object ClusterComponent {
       }
     }
 
+    abstract class EventSourced(override implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourcedT {
+      trait BaseComponent extends BaseComponentBase
+    }
+
     object EventSourced {
-      abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourced with ComponentT.EventSourcedT.SnapshotsT {
+      abstract class WithSnapshots(implicit override val componentCodePositionMaterializer: CodePositionMaterializer) extends EventSourcedT with ComponentT.EventSourcedT.SnapshotsT {
         outerSelf =>
+
+        trait BaseComponent extends BaseComponentBase with SnapshotsBaseComponentT {
+          // this looks odd (as it's the same as in super) but it helps IntelliJ pull the right ComponentContextS (and not the ohne from ClusterComponent.ComponentT.EventSourcedT.EventSourcedBaseComponentT)
+          override type ComponentContextS = ComponentContext with ComponentContext.Sharded[outerSelf.SerializableCommand, outerSelf.EntityId] with ComponentContext.EventSourced
+        }
       }
     }
   }

@@ -2,7 +2,7 @@ package net.sc8s.akka.components.persistence.projection.r2dbc
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import com.typesafe.config.ConfigFactory
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
@@ -93,6 +93,8 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
               }
             ))
 
+          override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
+
           override val name = "singletonSnapshot"
         }
         override val commandSerializer = CirceSerializer()
@@ -169,6 +171,8 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
                 case (event, projectionContext) => Future.successful(Done)
               }
             ))
+
+          override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
           override val name = randomName
         }

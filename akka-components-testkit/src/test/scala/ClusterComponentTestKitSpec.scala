@@ -4,7 +4,7 @@ import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import akka.stream.scaladsl.Source
 import com.softwaremill.macwire.wireSet
 import io.circe.Codec
@@ -292,8 +292,6 @@ object ClusterComponentTestKitSpec {
         }
       )
 
-      override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
-
       override val name = "name"
     }
     override val stateSerializer = CirceSerializer()
@@ -451,8 +449,6 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
-
-      override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
 
       override val name = "name"
     }

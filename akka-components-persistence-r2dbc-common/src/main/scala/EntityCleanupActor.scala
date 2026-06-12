@@ -22,7 +22,7 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.{Failure, Success}
 
 trait EventsCleanup {
-  _: ClusterComponent.ComponentT.EventSourcedT#EventSourcedBaseComponentT =>
+  self: ClusterComponent.ComponentT.EventSourcedT#EventSourcedBaseComponentT =>
 
   val cleanupEventsBeforeAgo: FiniteDuration
 }

@@ -11,9 +11,8 @@ import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
 import net.sc8s.akka.circe.CirceSerializer
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.components.persistence.projection.cassandra.CassandraProjection
 import net.sc8s.akka.components.persistence.projection.r2dbc.{R2dbcShardedProjection, R2dbcSingletonProjection}
-import net.sc8s.akka.components.testkit.ClusterComponentTestKitSpec._
+import net.sc8s.akka.components.testkit.ClusterComponentTestKitSpec.*
 import net.sc8s.logstage.elastic.Logging
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.matchers.should.Matchers
@@ -21,14 +20,14 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.Future
 
-class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedR2dbc.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
+class ClusterComponentTestKitSpec extends CirceScalaTestWithActorTestKit(ClusterComponentTestKitSpec.Singleton.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedR2dbc.serializers ++ ClusterComponentTestKitSpec.SingletonEventSourcedWithSnapshots.serializers ++ ClusterComponentTestKitSpec.ShardedEventSourcedWithCustomEntityId.serializers) with AnyWordSpecLike with Matchers with ClusterComponentTestKit with Logging with MockFactory {
   "ComponentTestKit" should {
     "support Singleton" in {
       val value1 = spawnComponent(Singleton)(new Singleton.Component)
       value1 ! Command()
     }
     "support EventSourced Singleton" in {
-      spawnComponent(SingletonEventSourcedCassandra)(new SingletonEventSourcedCassandra.Component(mock[ProjectionTarget]))
+      spawnComponent(SingletonEventSourcedR2dbc)(new SingletonEventSourcedR2dbc.Component(mock[ProjectionTarget]))
         .runCommand(Command())
         .event shouldBe Event()
     }
@@ -39,8 +38,8 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
     }
     "support EventSourced Singleton with cassandra projection testing" in {
       val projectionTarget = mock[ProjectionTarget]
-      val component = new SingletonEventSourcedCassandra.Component(projectionTarget)
-      val projection = testProjection(SingletonEventSourcedCassandra)(component)(component.projection, Source(Seq(
+      val component = new SingletonEventSourcedR2dbc.Component(projectionTarget)
+      val projection = testProjection(SingletonEventSourcedR2dbc)(component)(component.projection, Source(Seq(
         Event(),
         Event(),
       )))
@@ -73,7 +72,7 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       spawnComponent(Sharded)(new Sharded.Component, "entityId") ! Command()
     }
     "support EventSourced Sharded" in {
-      spawnComponent(ShardedEventSourcedCassandra)(new ShardedEventSourcedCassandra.Component(mock[ProjectionTarget]), "entityId")
+      spawnComponent(ShardedEventSourcedR2dbc)(new ShardedEventSourcedR2dbc.Component(mock[ProjectionTarget]), "entityId")
         .runCommand(Command())
         .event shouldBe Event()
     }
@@ -91,8 +90,8 @@ class ClusterComponentTestKitSpec extends net.sc8s.lagom.circe.testkit.ScalaTest
       val projectionTarget = mock[ProjectionTarget]
       val entityId1 = "entityId1"
       val entityId2 = "entityId2"
-      val component = new ShardedEventSourcedCassandra.Component(projectionTarget)
-      val projection = testProjection(ShardedEventSourcedCassandra)(component)(component.projection, Source(Seq(
+      val component = new ShardedEventSourcedR2dbc.Component(projectionTarget)
+      val projection = testProjection(ShardedEventSourcedR2dbc)(component)(component.projection, Source(Seq(
         entityId1 -> Event(),
         entityId2 -> Event(),
       )))
@@ -246,7 +245,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(projectionTarget: ProjectionTarget) extends BaseComponent with CassandraProjection {
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent with R2dbcSingletonProjection {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),
@@ -292,7 +291,7 @@ object ClusterComponentTestKitSpec {
           case (state, event) => state
         }
       )
-
+      
       override val retentionCriteria = RetentionCriteria.snapshotEvery(10, 2)
 
       override val name = "name"
@@ -327,7 +326,7 @@ object ClusterComponentTestKitSpec {
 
     override type State = ClusterComponentTestKitSpec.State
 
-    class Component(projectionTarget: ProjectionTarget) extends BaseComponent with CassandraProjection {
+    class Component(projectionTarget: ProjectionTarget) extends BaseComponent with R2dbcShardedProjection {
       override val behavior = context => EventSourcedBehavior(
         context.persistenceId,
         State(),

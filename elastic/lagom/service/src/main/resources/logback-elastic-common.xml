@@ -1,3 +1,0 @@
-<included>
-    <logger name="com.sksamuel.elastic4s.streams.PublishActor" level="WARN"/>
-</included>

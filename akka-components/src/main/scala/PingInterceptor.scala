@@ -9,7 +9,7 @@ import scala.reflect.ClassTag
 
 // don't use this for EventSourcedBehaviors as it would return a ping even if the recovery fails. As the RecoveryCompleted signal can't be intercepted, there's no generic way to do this.
 trait PingInterceptor {
-  _: ClusterComponent.ComponentT#BaseComponentT =>
+  self: ClusterComponent.ComponentT#BaseComponentT =>
 
   /*
   * Add once to the initial behavior of a component to intercept Ping commands and reply with Done.

@@ -28,7 +28,7 @@ abstract class ProjectionStatusObserver[Envelope](implicit actorSystem: ActorSys
 
   private val distributedData = DistributedData(actorSystem)
 
-  private implicit val selfUniqueAddress = distributedData.selfUniqueAddress
+  private implicit val selfUniqueAddress: akka.cluster.ddata.SelfUniqueAddress = distributedData.selfUniqueAddress
 
   private val key = LWWMapKey[ProjectionId, ProjectionStatus]("projectionsStatus")
 

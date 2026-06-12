@@ -4,6 +4,7 @@ import io.circe.generic.extras.semiauto._
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
 import io.circe.{Codec, Decoder}
+import cats.syntax.functor._
 import net.sc8s.circe.CodecConfiguration._
 import org.scalatest.EitherValues
 import org.scalatest.matchers.should.Matchers
@@ -109,7 +110,21 @@ object SchevoCirceSpec {
 
     sealed trait Version extends VersionT
 
-    implicit val codec: Codec[Latest] = evolvingCodec(deriveConfiguredCodec[Version])
+    private implicit lazy val version2Codec: Codec[Version2] = deriveConfiguredCodec
+    private implicit lazy val version1Codec: Codec[Version1] = deriveConfiguredCodec
+    private implicit lazy val version0Codec: Codec[Version0] = deriveConfiguredCodec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[Version2].widen[Version]
+        .or(Decoder[Version1].widen[Version])
+        .or(Decoder[Version0].widen[Version]),
+      io.circe.Encoder.instance {
+        case v2: Version2 => v2.asJson
+        case v1: Version1 => v1.asJson
+        case v0: Version0 => v0.asJson
+      }
+    )
+    implicit val codec: Codec[Latest] = evolvingCodec
 
     case class Other(versioned: Latest)
     object Other {
@@ -142,8 +157,23 @@ object SchevoCirceSpec {
 
     sealed trait Version extends VersionT
 
+    private implicit lazy val version2Codec: Codec[Version2] = deriveConfiguredCodec
+    private implicit lazy val version1Codec: Codec[Version1] = deriveConfiguredCodec
+    private implicit lazy val unversionedCodec: Codec[Unversioned] = Unversioned.codec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[Version2].widen[Version]
+        .or(Decoder[Version1].widen[Version])
+        .or(Decoder[Unversioned].widen[Version]),
+      io.circe.Encoder.instance {
+        case v2: Version2 => v2.asJson
+        case v1: Version1 => v1.asJson
+        case v0: Unversioned => v0.asJson
+      }
+    )
+
     @nowarn
-    implicit val codec: Codec[Latest] = evolvingCodec(classOf[Unversioned])(deriveConfiguredCodec)
+    implicit val codec: Codec[Latest] = evolvingCodec(classOf[Unversioned])
 
     case class Other(versioned: Latest)
     object Other {

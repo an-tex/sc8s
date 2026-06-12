@@ -2,7 +2,7 @@ import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 import sbt._
 
 object Dependencies {
-  val scala213 = "2.13.16"
+  val scala3 = "3.6.4"
 
   val scalaTest = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
   val specs2 = Def.setting("org.scalatest" %%% "scalatest" % "3.2.19")
@@ -19,49 +19,28 @@ object Dependencies {
     [error] 	    +- org.scalatest:scalatest-core_2.13:3.2.13           (depends on 2.1.0)
     [error] 	    +- com.typesafe.play:twirl-api_2.13:1.5.1             (depends on 1.2.0)
     [error] 	    +- com.typesafe.play:play-ws-standalone-xml_2.13:2.1.6 (depends on 1.2.0)
-    [error] 	    +- com.lightbend.lagom:lagom-api_2.13:1.6.7           (depends on 1.2.0)
-    [error] 	    +- com.lightbend.lagom:lagom-akka-management-core_2.13:1.6.7 (depends on 1.2.0)
     but safe to upgrade as there were no code changes necessary:
     - https://github.com/playframework/twirl/pull/525/files
-    - https://github.com/lagom/lagom/pull/3333/files
      */
     scalaXml,
   )
 
-  object play {
-    // same as lagom uses
-    val core = "com.typesafe.play" %% "play" % "2.8.22"
-  }
-
-  object lagom {
-    private val lagomVersion = "1.6.7"
-    val scaladslServer = "com.lightbend.lagom" %% "lagom-scaladsl-server" % lagomVersion
-    val scaladslApi = "com.lightbend.lagom" %% "lagom-scaladsl-api" % lagomVersion
-
-    object js {
-      private val lagomJsVersion = "0.5.1-1.6.5"
-
-      val scalaDslApi = Def.setting("com.github.mliarakos.lagomjs" %%% "lagomjs-scaladsl-api" % lagomJsVersion)
-      val scalaDslClient = Def.setting("com.github.mliarakos.lagomjs" %%% "lagomjs-scaladsl-client" % lagomJsVersion)
-    }
-  }
-
   object akka {
-    private val akkaVersion = "2.6.20"
-    private val akkaLicensedVersion = "2.9.5"
+    private val akkaVersion = "2.10.19"
+    private val akkaLicensedVersion = "2.10.19"
 
-    private val akkaHttpVersion = "10.2.10"
-    private val akkaHttpLicensedVersion = "10.6.3"
+    private val akkaHttpVersion = "10.7.4"
+    private val akkaHttpLicensedVersion = "10.7.4"
 
-    private val r2dbcVersion = "0.7.7"
-    private val r2dbcLicensedVersion = "1.2.4"
+    private val r2dbcVersion = "1.3.14"
+    private val r2dbcLicensedVersion = "1.3.14"
 
     private val akkaJs = "2.2.6.14"
 
     val actor = "com.typesafe.akka" %% "akka-actor" % akkaVersion
     val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % akkaVersion
     val http = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
-    val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.0.6"
+    val persistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "1.3.5"
     val persistenceR2dbc = "com.lightbend.akka" %% "akka-persistence-r2dbc" % r2dbcVersion
     val persistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion
     val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akkaVersion
@@ -118,12 +97,12 @@ object Dependencies {
     val overrides = createOverrides(licensed = false)
 
     object projection {
-      val projectionVersion = "1.2.5"
-      val projectionLicensedVersion = "1.5.4"
+      val projectionVersion = "1.6.23"
+      val projectionLicensedVersion = "1.6.23"
 
       val eventsourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % projectionVersion
       val cassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % projectionVersion
-      val r2dbc = "com.lightbend.akka" %% "akka-projection-r2dbc" % r2dbcVersion
+      val r2dbc = "com.lightbend.akka" %% "akka-projection-r2dbc" % projectionVersion
       val testKit = "com.lightbend.akka" %% "akka-projection-testkit" % projectionVersion
     }
 
@@ -145,7 +124,7 @@ object Dependencies {
 
     val core = Def.setting("io.circe" %%% "circe-core" % circeVersion)
     val generic = Def.setting("io.circe" %%% "circe-generic" % circeVersion)
-    val genericExtras = Def.setting("io.circe" %%% "circe-generic-extras" % "0.14.4")
+    val genericExtras = Def.setting("io.circe" %%% "circe-generic-extras" % "0.14.5-RC1")
     val parser = Def.setting("io.circe" %%% "circe-parser" % circeVersion)
   }
 
@@ -173,8 +152,8 @@ object Dependencies {
     private val elastic4s = "9.1.0"
     private val elasticsearch = "9.0.3"
 
-    val clientAkka = "nl.gn0s1s" %% "elastic4s-client-akka" % elastic4s
-    val clientJava = "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" % elastic4s
+    val clientAkka = ("nl.gn0s1s" %% "elastic4s-client-akka" % elastic4s).cross(CrossVersion.for3Use2_13)
+    val clientJava = "nl.gn0s1s" %% "elastic4s-client-esjava" % elastic4s
     val core = "nl.gn0s1s" %% "elastic4s-core" % elastic4s
     val elasticTestFramework = "org.elasticsearch.test" % "framework" % elasticsearch
     val httpStreams = "nl.gn0s1s" %% "elastic4s-reactivestreams-akka" % elastic4s

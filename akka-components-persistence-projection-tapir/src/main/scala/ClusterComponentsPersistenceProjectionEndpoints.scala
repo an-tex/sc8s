@@ -3,12 +3,12 @@ package net.sc8s.akka.components.persistence.projection.tapir
 import akka.actor.typed.ActorSystem
 import cats.implicits.catsSyntaxEitherId
 import net.sc8s.akka.components.ClusterComponent
-import net.sc8s.akka.components.persistence.projection.api.ProjectionService.ProjectionsStatus
+import net.sc8s.akka.components.persistence.projection.api.ProjectionService.{ProjectionStatus, ProjectionsStatus}
 import net.sc8s.akka.components.persistence.projection.common.ProjectionManagement
 import sttp.tapir.EndpointIO.Example
-import sttp.tapir._
-import sttp.tapir.generic.auto._
-import sttp.tapir.json.circe._
+import sttp.tapir.*
+import sttp.tapir.generic.auto.*
+import sttp.tapir.json.circe.*
 import sttp.tapir.server.ServerEndpoint
 
 import scala.concurrent.Future
@@ -57,6 +57,10 @@ class ClusterComponentsPersistenceProjectionEndpoints(
       .get
       .in("projection")
       .out(jsonBody[List[ProjectionsStatus]])
+
+  implicit val projectionStatusSchema: Schema[ProjectionStatus] = Schema.derived[ProjectionStatus]
+
+  implicit val projectionsStatusSchema: Schema[ProjectionsStatus] = Schema.derived[ProjectionsStatus]
 
   val endpoints: Seq[Endpoint[_, _, _, _, _]] = Seq(
     rebuildProjection,

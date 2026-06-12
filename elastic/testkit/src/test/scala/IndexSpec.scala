@@ -2,9 +2,10 @@ package net.sc8s.elastic
 
 import akka.actor.Status.Success
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
+import cats.syntax.functor._
 import com.sksamuel.elastic4s.{Hit, Indexable}
 import com.softwaremill.macwire.wireSet
-import io.circe.Codec
+import io.circe.{Codec, Decoder}
 import io.circe.generic.extras.semiauto._
 import io.circe.syntax._
 import net.sc8s.elastic.testkit.ElasticIndexTesting
@@ -94,9 +95,20 @@ object IndexSpec {
 
     override val latestVersion = latestVersionHelper[LatestCaseClass]
 
-    override implicit val codec: Codec[Latest] = evolvingCodec {
-      import io.circe.generic.extras.auto._
-      deriveConfiguredCodec[Version]
-    }
+    private implicit lazy val nestedMember2Codec: Codec[NestedMember2] = deriveConfiguredCodec
+    private implicit lazy val nestedMember1Codec: Codec[NestedMember1] = deriveConfiguredCodec
+    private implicit lazy val documentV2Codec: Codec[DocumentV2] = deriveConfiguredCodec
+    private implicit lazy val documentV1Codec: Codec[DocumentV1] = deriveConfiguredCodec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[DocumentV2].widen[Version]
+        .or(Decoder[DocumentV1].widen[Version]),
+      io.circe.Encoder.instance {
+        case v2: DocumentV2 => v2.asJson
+        case v1: DocumentV1 => v1.asJson
+      }
+    )
+
+    override implicit val codec: Codec[Latest] = evolvingCodec
   }
 }

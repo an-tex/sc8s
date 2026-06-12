@@ -1,9 +1,10 @@
 package net.sc8s.elastic
 
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import com.sksamuel.elastic4s.ElasticClient
+import cats.syntax.functor._
+import com.sksamuel.elastic4s.{ElasticClient, ElasticProperties}
+import com.sksamuel.elastic4s.http.JavaClient
 import com.sksamuel.elastic4s.ElasticDsl.{RichFuture => _, _}
-import com.sksamuel.elastic4s.akka.{AkkaHttpClient, AkkaHttpClientSettings}
 import com.sksamuel.elastic4s.circe._
 import com.sksamuel.elastic4s.fields.{ElasticField, KeywordField, TextField}
 import com.sksamuel.elastic4s.handlers.index.Field
@@ -12,11 +13,11 @@ import com.typesafe.config.ConfigFactory
 import io.circe.generic.extras.semiauto._
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
-import io.circe.{Codec, Json}
+import io.circe.{Codec, Decoder, Json}
 import net.sc8s.akka.components.testkit.ClusterComponentTestKit
+import net.sc8s.akka.components.testkit.CirceScalaTestWithActorTestKit
 import net.sc8s.elastic.Evolver.Command.{EvolveDocuments, MigrateIndices, RunBatchUpdates}
 import net.sc8s.elastic.Index.BatchUpdate
-import net.sc8s.lagom.circe.testkit.ScalaTestWithActorTestKit
 import net.sc8s.logstage.elastic.Logging
 import org.scalatest.Inspectors._
 import org.scalatest.matchers.should.Matchers
@@ -28,9 +29,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.chaining.scalaUtilChainingOps
 
-class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with AnyWordSpecLike with Matchers with Logging with ClusterComponentTestKit {
+class EvolverSpec extends CirceScalaTestWithActorTestKit(Evolver.serializers) with AnyWordSpecLike with Matchers with Logging with ClusterComponentTestKit {
 
-  implicit lazy val elasticClient: ElasticClient[Future] = ElasticClient(AkkaHttpClient(AkkaHttpClientSettings())(system.toClassic))
+  implicit lazy val elasticClient: ElasticClient[Future] = ElasticClient(JavaClient(ElasticProperties("http://localhost:9220")))
 
   implicit lazy val indexSetup: IndexSetup = IndexSetup(
     elasticClient,
@@ -211,7 +212,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
         response.result.filter(_.alias.pipe(elasticIndices.map(_.name).contains)).map(aliasResponse => elasticClient.execute(removeAlias(aliasResponse.alias, aliasResponse.index)))
       ))
       .flatMap(_ =>
-        elasticClient.execute(catIndices()).flatMap(response => if (response.result.nonEmpty) elasticClient.execute(deleteIndex(response.result.filter(_.index.pipe(index => elasticIndices.map(_.name).exists(index.startsWith))).map(_.index): _*)) else Future.successful())
+        elasticClient.execute(catIndices()).flatMap(response => if (response.result.nonEmpty) elasticClient.execute(deleteIndex(response.result.filter(_.index.pipe(index => elasticIndices.map(_.name).exists(index.startsWith))).map(_.index)*)) else Future.successful(()))
       )
       .futureValue
   }
@@ -235,7 +236,7 @@ class EvolverSpec extends ScalaTestWithActorTestKit(Evolver.serializers) with An
         |""".stripMargin
     )))
 
-    val evolver = spawnEvolver(indices: _ *)
+    val evolver = spawnEvolver(indices*)
 
     // wait for automatic migration to finish
     eventually(aliases().map(_.alias) should contain theSameElementsAs allOrCustomIndices(indices).map(_.name))
@@ -272,10 +273,22 @@ object EvolverSpec {
 
     override val latestVersion = latestVersionHelper[LatestCaseClass]
 
-    override implicit val codec: Codec[Latest] = evolvingCodec {
-      import io.circe.generic.extras.auto._
-      deriveConfiguredCodec[Version]
-    }
+    private implicit lazy val documentV3Codec: Codec[DocumentV3] = deriveConfiguredCodec
+    private implicit lazy val documentV2Codec: Codec[DocumentV2] = deriveConfiguredCodec
+    private implicit lazy val documentV1Codec: Codec[DocumentV1] = deriveConfiguredCodec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[DocumentV3].widen[Version]
+        .or(Decoder[DocumentV2].widen[Version])
+        .or(Decoder[DocumentV1].widen[Version]),
+      io.circe.Encoder.instance {
+        case v3: DocumentV3 => v3.asJson
+        case v2: DocumentV2 => v2.asJson
+        case v1: DocumentV1 => v1.asJson
+      }
+    )
+
+    override implicit val codec: Codec[Latest] = evolvingCodec
   }
 
   class TestIndex1(implicit val indexSetup: IndexSetup) extends TestIndex1Base
@@ -307,10 +320,16 @@ object EvolverSpec {
 
     override val latestVersion = latestVersionHelper[LatestCaseClass]
 
-    override implicit val codec: Codec[Latest] = evolvingCodec {
-      import io.circe.generic.extras.auto._
-      deriveConfiguredCodec[Version]
-    }
+    private implicit lazy val documentCodec: Codec[Document] = deriveConfiguredCodec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[Document].widen[Version],
+      io.circe.Encoder.instance {
+        case document: Document => document.asJson
+      }
+    )
+
+    override implicit val codec: Codec[Latest] = evolvingCodec
   }
 
   class TestIndex3(implicit val indexSetup: IndexSetup) extends TestIndex1Base {
@@ -345,10 +364,16 @@ object EvolverSpec {
 
     override val latestVersion = latestVersionHelper[LatestCaseClass]
 
-    override implicit val codec: Codec[Latest] = evolvingCodec {
-      import io.circe.generic.extras.auto._
-      deriveConfiguredCodec[Version]
-    }
+    private implicit lazy val documentV1Codec: Codec[DocumentV1] = deriveConfiguredCodec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[DocumentV1].widen[Version],
+      io.circe.Encoder.instance {
+        case v1: DocumentV1 => v1.asJson
+      }
+    )
+
+    override implicit val codec: Codec[Latest] = evolvingCodec
   }
 
   class IndexV2(implicit val indexSetup: IndexSetup) extends Index.StringId("index") {
@@ -377,10 +402,19 @@ object EvolverSpec {
 
     override val latestVersion = latestVersionHelper[LatestCaseClass]
 
-    override implicit val codec: Codec[Latest] = evolvingCodec {
-      import io.circe.generic.extras.auto._
-      deriveConfiguredCodec[Version]
-    }
+    private implicit lazy val documentV2Codec: Codec[DocumentV2] = deriveConfiguredCodec
+    private implicit lazy val documentV1Codec: Codec[DocumentV1] = deriveConfiguredCodec
+
+    private implicit lazy val versionCodec: Codec[Version] = Codec.from(
+      Decoder[DocumentV2].widen[Version]
+        .or(Decoder[DocumentV1].widen[Version]),
+      io.circe.Encoder.instance {
+        case v2: DocumentV2 => v2.asJson
+        case v1: DocumentV1 => v1.asJson
+      }
+    )
+
+    override implicit val codec: Codec[Latest] = evolvingCodec
   }
 }
 

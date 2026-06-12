@@ -1,7 +1,5 @@
 package net.sc8s.elastic
 
-import com.github.dwickern.macros.NameOf.qualifiedNameOf
-import com.github.dwickern.macros.NameOfImpl
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.analysis.Analysis
@@ -22,8 +20,8 @@ import net.sc8s.schevo.circe.SchevoCirce
 
 import java.time.format.DateTimeFormatter
 import scala.concurrent.Future
-import scala.language.experimental.macros
-import scala.reflect.runtime.universe.{TypeTag, typeOf}
+import scala.reflect.ClassTag
+import scala.reflect.Selectable.reflectiveSelectable
 
 abstract class Index(
                       // baseName without prefixes, should not be accessible from outside to avoid accidental access of non-prefixed indices
@@ -42,7 +40,7 @@ abstract class Index(
   }
    */
 
-  override type Latest <: LatestT with Version {
+  override type Latest <: LatestT & Version {
     // the id occurs twice in the hit.id and inside the document itself. in the first iteration the id was saved only in the hit.id but in the case of e.g. JsonId's this makes subsets of the id not queryable (as elastic handles the JsonId as a String) so let's live with this duplication
     val id: Id
   }
@@ -70,7 +68,7 @@ abstract class Index(
   //override val latestVersion = latestVersionHelper[LatestCaseClass]
   val latestVersion: String
 
-  def latestVersionHelper[T <: LatestCaseClass : TypeTag] = typeOf[T].typeSymbol.name.decodedName.toString
+  def latestVersionHelper[T <: LatestCaseClass : ClassTag] = summon[ClassTag[T]].runtimeClass.getSimpleName
 
   implicit val codec: Codec[Latest]
 
@@ -130,12 +128,12 @@ abstract class Index(
 
   def updateRequest(id: Id, transformRequest: UpdateRequest => UpdateRequest = identity) = transformRequest(updateById(name, encodeId(id)) refresh indexSetup.refreshPolicy)
 
-  def updateField(id: Id, field: Latest => Any, value: Any) =
+  inline def updateField(id: Id, inline field: Latest => Any, value: Any) =
     execute(updateFieldRequest(id, field, value))
 
-  def updateFieldRequest(id: Id, field: Latest => Any, value: Any) = updateRequest(id, _ doc qualifiedNameOf[Latest](field) -> value)
+  inline def updateFieldRequest(id: Id, inline field: Latest => Any, value: Any) = updateRequest(id, _ doc fieldName(field) -> value)
 
-  def fieldName(expr: Latest => Any): String = macro NameOfImpl.qualifiedNameOf
+  inline def fieldName(inline expr: Latest => Any): String = ${IndexMacros.fieldNameImpl[Latest]('expr)}
 
   def search(searchRequest: SearchRequest => SearchRequest = identity) = execute(searchRequest(ElasticDsl.search(name))).map(_.hits.hits.toSeq.map(_.to[Latest]))
 
@@ -179,5 +177,36 @@ object Index {
 
   implicit class KeywordSuffix(field: String) {
     def keyword = field + ".keyword"
+  }
+}
+
+private object IndexMacros {
+  import scala.quoted.*
+
+  def fieldNameImpl[T: Type](expr: Expr[T => Any])(using Quotes): Expr[String] = {
+    import quotes.reflect.*
+
+    def unwrap(term: Term): Term = term match {
+      case Inlined(_, _, inner) => unwrap(inner)
+      case Block(Nil, inner) => unwrap(inner)
+      case Typed(inner, _) => unwrap(inner)
+      case Apply(inner, Nil) => unwrap(inner)
+      case TypeApply(inner, _) => unwrap(inner)
+      case inner => inner
+    }
+
+    def path(term: Term): List[String] = unwrap(term) match {
+      case Select(inner, field) => path(inner) :+ field
+      case Ident(_) => Nil
+      case inner =>
+        report.errorAndAbort(s"Unsupported field selector: ${Printer.TreeShortCode.show(inner)}")
+    }
+
+    unwrap(expr.asTerm) match {
+      case Lambda(_, body) =>
+        Expr(path(body).mkString("."))
+      case term =>
+        report.errorAndAbort(s"Expected a lambda selector, got: ${Printer.TreeShortCode.show(term)}")
+    }
   }
 }

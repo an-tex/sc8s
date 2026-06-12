@@ -74,7 +74,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
         case class State()
         implicit val stateCodec: Codec[State] = deriveCodec
 
-        class Component(dependency: Dependency) extends BaseComponent with R2dbcSingletonProjection with R2dbcSingletonProjection.FromSnapshot {
+        class Component(dependency: Dependency) extends BaseComponent with R2dbcSingletonProjection {
           override val behavior = componentContext => EventSourcedBehavior(
             componentContext.persistenceId,
             State(),
@@ -87,7 +87,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
           override val projections = Set(
             ClusterComponent.Projection(
-              "projectionSingleton",
+              "projectionSingletonSnapshot",
               {
                 case (event, projectionContext) => Future.successful(Done)
               }
@@ -95,9 +95,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
 
-          override def transformSnapshot[State](state: State) = Event()
-
-          override val name = "singleton"
+          override val name = "singletonSnapshot"
         }
         override val commandSerializer = CirceSerializer()
         override val eventSerializer = CirceSerializer()
@@ -155,7 +153,7 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
         case class State()
         implicit val stateCodec: Codec[State] = deriveCodec
 
-        class Component(dependency: Dependency) extends BaseComponent with R2dbcShardedProjection.FromSnapshot {
+        class Component(dependency: Dependency) extends BaseComponent with R2dbcShardedProjection {
           override val behavior = componentContext => EventSourcedBehavior(
             componentContext.persistenceId,
             State(),
@@ -168,15 +166,13 @@ class R2DbcProjectionSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseS
 
           override val projections = Set(
             ClusterComponent.Projection(
-              "projectionSharded",
+              "projectionShardedSnapshot",
               {
                 case (event, projectionContext) => Future.successful(Done)
               }
             ))
 
           override val retentionCriteria = RetentionCriteria.snapshotEvery(100, 2)
-
-          override def transformSnapshot[State](state: State) = Event()
 
           override val name = randomName
         }

@@ -298,6 +298,7 @@ object ClusterComponent {
     private[components] abstract class EventSourcedT(implicit val componentCodePositionMaterializer: CodePositionMaterializer) extends SingletonT with ComponentT.EventSourcedT {
       outerSelf =>
 
+      // this indirection is necessary as we can't shadow BaseComponent in subtypes any more as with scala 2
       trait BaseComponentBase extends super.SingletonBaseComponentT with super.EventSourcedBaseComponentT {
         self =>
 

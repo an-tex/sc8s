@@ -15,7 +15,8 @@ object RetryUtils {
 
   def retryWithBackoff[T, M](
                               source: () => Source[T, M],
-                              message: Throwable => Log.Message = exception => s"$exception - retrying...",
+                              tag: String = "retryingFailedOperation",
+                              message: Throwable => Log.Message = exception => s"$exception",
                               restartSettings: RestartSettings = defaultRestartSettings
                             )(
                               implicit mat: Materializer,
@@ -29,7 +30,7 @@ object RetryUtils {
         case Failure(exception) => log
           // additional context for filtering
           .withCustomContext("retryWithBackoff" -> true)
-          .log(Log.Level.Warn)(message(exception))
+          .log(Log.Level.Warn)(s"$tag" + message(exception))
         case _ =>
       }
       src
@@ -37,7 +38,8 @@ object RetryUtils {
 
   def retryWithBackoffF[T](
                             future: () => Future[T],
-                            message: Throwable => Log.Message = exception => s"$exception - retrying...",
+                            tag: String = "retryingFailedOperation",
+                            message: Throwable => Log.Message = exception => s"$exception",
                             restartSettings: RestartSettings = defaultRestartSettings
                           )(
                             implicit mat: Materializer,
@@ -45,11 +47,12 @@ object RetryUtils {
                             log: IzLogger,
                             pos: CodePositionMaterializer
                           ): Source[T, NotUsed] =
-    retryWithBackoff(() => Source.future(future()), message, restartSettings)
+    retryWithBackoff(() => Source.future(future()), tag, message, restartSettings)
 
   def retryWithBackoffFuture[Out](
                                    future: () => Future[Out],
-                                   message: Throwable => Log.Message = exception => s"$exception - retrying...",
+                                   tag: String = "retryingFailedOperation",
+                                   message: Throwable => Log.Message = exception => s"$exception",
                                    restartSettings: RestartSettings = defaultRestartSettings
                                  )(
                                    implicit mat: Materializer,
@@ -57,11 +60,12 @@ object RetryUtils {
                                    log: IzLogger,
                                    pos: CodePositionMaterializer
                                  ): Future[Out] =
-    retryWithBackoff(() => Source.future(future()), message, restartSettings).runWith(Sink.head)
+    retryWithBackoff(() => Source.future(future()), tag, message, restartSettings).runWith(Sink.head)
 
   def retryWithBackoffSeq[T](
                               future: () => Future[Seq[T]],
-                              message: Throwable => Log.Message = exception => s"$exception - retrying...",
+                              tag: String = "retryingFailedOperation",
+                              message: Throwable => Log.Message = exception => s"$exception",
                               restartSettings: RestartSettings = defaultRestartSettings
                             )(
                               implicit mat: Materializer,
@@ -69,5 +73,5 @@ object RetryUtils {
                               log: IzLogger,
                               pos: CodePositionMaterializer
                             ): Source[T, NotUsed] =
-    retryWithBackoff(() => Source.futureSource(future().map(Source(_))), message, restartSettings)
+    retryWithBackoff(() => Source.futureSource(future().map(Source(_))), tag, message, restartSettings)
 }

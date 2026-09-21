@@ -471,7 +471,8 @@ object StreamOps {
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                           implicit mat: Materializer,
                                           ec: ExecutionContext,
@@ -479,13 +480,14 @@ object StreamOps {
                                           pos: CodePositionMaterializer
                                         ): s.Repr[Out2] =
         s.mapAsync(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def mapAsyncUnorderedRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                    implicit mat: Materializer,
                                                    ec: ExecutionContext,
@@ -493,7 +495,7 @@ object StreamOps {
                                                    pos: CodePositionMaterializer
                                                  ): s.Repr[Out2] =
         s.mapAsyncUnordered(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
     }
 
@@ -539,7 +541,8 @@ object StreamOps {
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                            implicit mat: Materializer,
                                            ec: ExecutionContext,
@@ -547,13 +550,14 @@ object StreamOps {
                                            pos: CodePositionMaterializer
                                          ): s.Repr[F[Out2]] =
         mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[F[Out2]],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                implicit mat: Materializer,
                                                ec: ExecutionContext,
@@ -561,13 +565,14 @@ object StreamOps {
                                                pos: CodePositionMaterializer
                                              ): s.Repr[F[Out2]] =
         flatMapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                     implicit mat: Materializer,
                                                     ec: ExecutionContext,
@@ -575,13 +580,14 @@ object StreamOps {
                                                     pos: CodePositionMaterializer
                                                   ): s.Repr[F[Out2]] =
         mapAsyncUnorderedF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def flatMapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[F[Out2]],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                         implicit mat: Materializer,
                                                         ec: ExecutionContext,
@@ -589,7 +595,7 @@ object StreamOps {
                                                         pos: CodePositionMaterializer
                                                       ): s.Repr[F[Out2]] =
         flatMapAsyncUnorderedF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       //def groupByF[K](maxSubstreams: Int, f: Out => K): SubFlow[F[Out], Mat, s.Repr, s.Closed] = {
@@ -652,7 +658,8 @@ object StreamOps {
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                            implicit mat: Materializer,
                                            ec: ExecutionContext,
@@ -660,13 +667,14 @@ object StreamOps {
                                            pos: CodePositionMaterializer
                                          ): s.Repr[F[OutA, Out2]] =
         mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[F[OutA, Out2]],
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                implicit mat: Materializer,
                                                ec: ExecutionContext,
@@ -674,13 +682,14 @@ object StreamOps {
                                                pos: CodePositionMaterializer
                                              ): s.Repr[F[OutA, Out2]] =
         flatMapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                     implicit mat: Materializer,
                                                     ec: ExecutionContext,
@@ -688,13 +697,14 @@ object StreamOps {
                                                     pos: CodePositionMaterializer
                                                   ): s.Repr[F[OutA, Out2]] =
         mapAsyncUnorderedF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def flatMapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[F[OutA, Out2]],
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                         implicit mat: Materializer,
                                                         ec: ExecutionContext,
@@ -702,7 +712,7 @@ object StreamOps {
                                                         pos: CodePositionMaterializer
                                                       ): s.Repr[F[OutA, Out2]] =
         flatMapAsyncUnorderedF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
     }
 
@@ -883,7 +893,8 @@ object StreamOps {
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                           implicit mat: Materializer,
                                           ec: ExecutionContext,
@@ -891,7 +902,7 @@ object StreamOps {
                                           pos: CodePositionMaterializer
                                         ): s.Repr[Out2, Ctx] =
         s.mapAsync(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
     }
 
@@ -922,7 +933,8 @@ object StreamOps {
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                            implicit mat: Materializer,
                                            ec: ExecutionContext,
@@ -930,13 +942,14 @@ object StreamOps {
                                            pos: CodePositionMaterializer
                                          ): s.Repr[F[Out2], Ctx] =
         mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[F[Out2]],
         message: Out => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                implicit mat: Materializer,
                                                ec: ExecutionContext,
@@ -944,7 +957,7 @@ object StreamOps {
                                                pos: CodePositionMaterializer
                                              ): s.Repr[F[Out2], Ctx] =
         flatMapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
     }
 
@@ -979,7 +992,8 @@ object StreamOps {
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                            implicit mat: Materializer,
                                            ec: ExecutionContext,
@@ -987,13 +1001,14 @@ object StreamOps {
                                            pos: CodePositionMaterializer
                                          ): s.Repr[F[OutA, Out2], Ctx] =
         mapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[F[OutA, Out2]],
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception - retrying...",
-        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings
+        restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
+        failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
       )(
                                                implicit mat: Materializer,
                                                ec: ExecutionContext,
@@ -1001,7 +1016,7 @@ object StreamOps {
                                                pos: CodePositionMaterializer
                                              ): s.Repr[F[OutA, Out2], Ctx] =
         flatMapAsyncF(parallelism)({ element =>
-          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings)
+          RetryUtils.retryWithBackoffFuture(() => f(element), message(element), restartSettings, failWithoutRetry)
         })
     }
 

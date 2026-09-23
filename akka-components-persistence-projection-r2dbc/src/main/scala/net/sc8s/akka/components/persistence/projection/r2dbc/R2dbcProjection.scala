@@ -106,7 +106,7 @@ trait R2dbcShardedProjection extends R2dbcProjection {
   _: EventSourcedT#EventSourcedBaseComponentT
     with net.sc8s.akka.components.ClusterComponent.Sharded.EventSourced#BaseComponent =>
 
-  override private[r2dbc] val entityType: String = typeKey.name
+  override private[r2dbc] lazy val entityType: String = typeKey.name
 }
 
 object R2dbcShardedProjection {
@@ -120,7 +120,7 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
   _: EventSourcedT#EventSourcedBaseComponentT
     with net.sc8s.akka.components.ClusterComponent.Singleton.EventSourced#BaseComponent =>
 
-  override private[r2dbc] val entityType: String = name
+  override private[r2dbc] lazy val entityType: String = name
 
   if (legacyPersistenceIdHandling) throw new IllegalArgumentException("Legacy persistenceId handling is not supported for R2dbcSingletonProjection")
 }

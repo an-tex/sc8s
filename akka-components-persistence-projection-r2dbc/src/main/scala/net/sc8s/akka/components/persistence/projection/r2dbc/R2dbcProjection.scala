@@ -1,21 +1,19 @@
 package net.sc8s.akka.components.persistence.projection.r2dbc
 
+import akka.Done
 import akka.actor.typed.ActorSystem
+import akka.persistence.query.Offset
 import akka.persistence.query.typed.EventEnvelope
-import akka.persistence.query.{Offset, PersistenceQuery, Sequence}
-import akka.persistence.r2dbc.query.scaladsl.R2dbcReadJournal
 import akka.persistence.typed.PersistenceId
 import akka.projection.ProjectionId
 import akka.projection.eventsourced.scaladsl.EventSourcedProvider
 import akka.projection.r2dbc.scaladsl.{R2dbcSession, R2dbcProjection => AkkaR2dbcProjection}
 import akka.projection.scaladsl.SourceProvider
-import akka.stream.scaladsl.Source
-import akka.{Done, NotUsed, projection}
 import net.sc8s.akka.components.ClusterComponent.ComponentT.EventSourcedT
 import net.sc8s.akka.components.ClusterComponent.{ComponentContext, Projection}
 import net.sc8s.akka.components.persistence.projection.{ManagedProjection, ProjectionStatusObserver}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 private[r2dbc] trait R2dbcProjection extends EventSourcedT.ProjectionT {
   _: EventSourcedT#EventSourcedBaseComponentT
@@ -122,7 +120,11 @@ trait R2dbcSingletonProjection extends R2dbcProjection {
 
   override private[r2dbc] lazy val entityType: String = name
 
-  if (legacyPersistenceIdHandling) throw new IllegalArgumentException("Legacy persistenceId handling is not supported for R2dbcSingletonProjection")
+  override private[components] def managedProjections(implicit actorSystem: ActorSystem[_]) = {
+    // don't make this check directly in the class body as you wouldn't see the overridden value
+    if (legacyPersistenceIdHandling) throw new IllegalArgumentException("Legacy persistenceId handling is not supported for R2dbcSingletonProjection")
+    super.managedProjections
+  }
 }
 
 object R2dbcSingletonProjection {

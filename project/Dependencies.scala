@@ -30,7 +30,7 @@ object Dependencies {
 
   object play {
     // same as lagom uses
-    val core = "com.typesafe.play" %% "play" % "2.8.22"
+    val core = "com.typesafe.play" %% "play" % "2.9.8"
   }
 
   object lagom {

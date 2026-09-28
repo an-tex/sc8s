@@ -2,6 +2,7 @@ package net.sc8s.akka.stream
 
 import akka.NotUsed
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
+import akka.stream.RestartSettings
 import akka.stream.scaladsl.{Flow, FlowWithContext, Sink, Source}
 import cats.implicits.{catsStdInstancesForEither, catsStdInstancesForOption, catsStdInstancesForTry, catsStdTraverseFilterForOption}
 import izumi.logstage.api.IzLogger
@@ -11,6 +12,7 @@ import net.sc8s.akka.stream.implicits._
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor2}
 import org.scalatest.wordspec.AnyWordSpecLike
 
+import scala.concurrent.duration.{DurationDouble, DurationInt}
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -490,6 +492,40 @@ class StreamOpsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with 
       FlowWithContext[Option[Int], Boolean].flatMapF(Option(_))
       FlowWithContext[Option[Int], Boolean].mapAsyncF(1)(Future.successful)
       Flow[Int].mapAsyncUnorderedRetryWithBackoff(8)(Future.successful)
+    }
+    "failWithoutRetry" in {
+      case class RetryException() extends Exception("retry")
+      case class FatalException() extends Exception("fatal")
+      val failWithoutRetry: PartialFunction[Throwable, Boolean] = {
+        case FatalException() => true
+      }
+
+      var retries = 0
+      var skippedRetries = 0
+
+      Source(Seq(1, 2))
+        .mapAsyncRetryWithBackoff(1)(
+          { i =>
+            if (i == 1) {
+              if (retries == 2) Future.successful(i)
+              else {
+                retries += 1
+                Future.failed(RetryException())
+              }
+            }
+            else {
+              skippedRetries += 1
+              Future.failed(FatalException())
+            }
+          },
+          restartSettings = RestartSettings(0.1.seconds, 0.1.seconds, 0.1).withMaxRestarts(3, 1.seconds),
+          failWithoutRetry = failWithoutRetry
+        )
+        .runWith(Sink.seq)
+        .failed
+        .futureValue shouldBe a[FatalException]
+      retries shouldBe 2
+      skippedRetries shouldBe 1
     }
   }
 

@@ -5,6 +5,7 @@ import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{Materializer, RestartSettings}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
+import net.sc8s.akka.stream.implicits.SourceIterableOnceOps
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
@@ -17,14 +18,15 @@ object RetryUtils {
                               source: () => Source[T, M],
                               tag: String = "retryingFailedOperation",
                               message: Throwable => Log.Message = exception => s"$exception",
-                              restartSettings: RestartSettings = defaultRestartSettings
+                              restartSettings: RestartSettings = defaultRestartSettings,
+                              failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
                             )(
                               implicit mat: Materializer,
                               ec: ExecutionContext,
                               log: IzLogger,
                               pos: CodePositionMaterializer
-                            ): Source[T, NotUsed] =
-    RestartSource.onFailuresWithBackoff(restartSettings) { () =>
+                            ): Source[T, NotUsed] = {
+    def createCommonSource = {
       val (eventualDone, src) = source().watchTermination()(Keep.right).preMaterialize()
       eventualDone.onComplete {
         case Failure(exception) => log
@@ -36,42 +38,63 @@ object RetryUtils {
       src
     }
 
+    // optimization to avoid unnecessary Either allocation
+    if (failWithoutRetry == PartialFunction.empty)
+      RestartSource.onFailuresWithBackoff(restartSettings) { () =>
+        createCommonSource
+      }
+    else
+      RestartSource.onFailuresWithBackoff(restartSettings) { () =>
+        createCommonSource
+          .map(Right(_))
+          .recover {
+            case exception if failWithoutRetry.unapply(exception).contains(true) => Left(exception)
+          }
+      }.map {
+        case Right(value) => value
+        case Left(exception) => throw exception
+      }
+  }
+
   def retryWithBackoffF[T](
                             future: () => Future[T],
                             tag: String = "retryingFailedOperation",
                             message: Throwable => Log.Message = exception => s"$exception",
-                            restartSettings: RestartSettings = defaultRestartSettings
+                            restartSettings: RestartSettings = defaultRestartSettings,
+                            failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
                           )(
                             implicit mat: Materializer,
                             ec: ExecutionContext,
                             log: IzLogger,
                             pos: CodePositionMaterializer
                           ): Source[T, NotUsed] =
-    retryWithBackoff(() => Source.future(future()), tag, message, restartSettings)
+    retryWithBackoff(() => Source.future(future()), tag, message, restartSettings, failWithoutRetry)
 
   def retryWithBackoffFuture[Out](
                                    future: () => Future[Out],
                                    tag: String = "retryingFailedOperation",
                                    message: Throwable => Log.Message = exception => s"$exception",
-                                   restartSettings: RestartSettings = defaultRestartSettings
+                                   restartSettings: RestartSettings = defaultRestartSettings,
+                                   failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
                                  )(
                                    implicit mat: Materializer,
                                    ec: ExecutionContext,
                                    log: IzLogger,
                                    pos: CodePositionMaterializer
                                  ): Future[Out] =
-    retryWithBackoff(() => Source.future(future()), tag, message, restartSettings).runWith(Sink.head)
+    retryWithBackoff(() => Source.future(future()), tag, message, restartSettings, failWithoutRetry).runWith(Sink.head)
 
   def retryWithBackoffSeq[T](
                               future: () => Future[Seq[T]],
                               tag: String = "retryingFailedOperation",
                               message: Throwable => Log.Message = exception => s"$exception",
-                              restartSettings: RestartSettings = defaultRestartSettings
+                              restartSettings: RestartSettings = defaultRestartSettings,
+                              failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
                             )(
                               implicit mat: Materializer,
                               ec: ExecutionContext,
                               log: IzLogger,
                               pos: CodePositionMaterializer
                             ): Source[T, NotUsed] =
-    retryWithBackoff(() => Source.futureSource(future().map(Source(_))), tag, message, restartSettings)
+    retryWithBackoff(() => Source.futureSource(future().map(Source(_))), tag, message, restartSettings, failWithoutRetry)
 }

@@ -302,7 +302,11 @@ object ClusterComponent {
 
         override private[components] type ComponentContextS = ComponentContext with ComponentContext.EventSourced
 
-        private[components] lazy val persistenceId = PersistenceId.ofUniqueId(name)
+        val legacyPersistenceIdHandling: Boolean = false
+
+        private[components] lazy val persistenceId =
+          if (legacyPersistenceIdHandling) PersistenceId.ofUniqueId(name)
+          else PersistenceId(name, "singleton") // this allows using projections with r2dbc as it needs an entityType for eventsBySlices query
 
         override private[components] type BehaviorComponentContextS = ComponentContext with ComponentContext.Actor[Command] with ComponentContext.EventSourced
 

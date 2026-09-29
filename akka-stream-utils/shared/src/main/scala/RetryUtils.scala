@@ -16,7 +16,7 @@ object RetryUtils {
 
   def retryWithBackoff[T, M](
                               source: () => Source[T, M],
-                              tag: String = "retryingFailedOperation",
+                              tag: String = "failedOperationRetrying",
                               message: Throwable => Log.Message = exception => s"$exception",
                               restartSettings: RestartSettings = defaultRestartSettings,
                               failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -58,7 +58,7 @@ object RetryUtils {
 
   def retryWithBackoffF[T](
                             future: () => Future[T],
-                            tag: String = "retryingFailedOperation",
+                            tag: String = "failedOperationRetrying",
                             message: Throwable => Log.Message = exception => s"$exception",
                             restartSettings: RestartSettings = defaultRestartSettings,
                             failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -72,7 +72,7 @@ object RetryUtils {
 
   def retryWithBackoffFuture[Out](
                                    future: () => Future[Out],
-                                   tag: String = "retryingFailedOperation",
+                                   tag: String = "failedOperationRetrying",
                                    message: Throwable => Log.Message = exception => s"$exception",
                                    restartSettings: RestartSettings = defaultRestartSettings,
                                    failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -86,7 +86,7 @@ object RetryUtils {
 
   def retryWithBackoffSeq[T](
                               future: () => Future[Seq[T]],
-                              tag: String = "retryingFailedOperation",
+                              tag: String = "failedOperationRetrying",
                               message: Throwable => Log.Message = exception => s"$exception",
                               restartSettings: RestartSettings = defaultRestartSettings,
                               failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,

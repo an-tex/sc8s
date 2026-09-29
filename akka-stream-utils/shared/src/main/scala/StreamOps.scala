@@ -470,7 +470,7 @@ object StreamOps {
 
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -486,7 +486,7 @@ object StreamOps {
 
       def mapAsyncUnorderedRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -542,7 +542,7 @@ object StreamOps {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -558,7 +558,7 @@ object StreamOps {
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[F[Out2]],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -574,7 +574,7 @@ object StreamOps {
 
       def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -590,7 +590,7 @@ object StreamOps {
 
       def flatMapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[F[Out2]],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -663,7 +663,7 @@ object StreamOps {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -679,7 +679,7 @@ object StreamOps {
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[F[OutA, Out2]],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -695,7 +695,7 @@ object StreamOps {
 
       def mapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -711,7 +711,7 @@ object StreamOps {
 
       def flatMapAsyncUnorderedRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[F[OutA, Out2]],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -902,7 +902,7 @@ object StreamOps {
 
       def mapAsyncRetryWithBackoff[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -943,7 +943,7 @@ object StreamOps {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -959,7 +959,7 @@ object StreamOps {
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: Out => Future[F[Out2]],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: Out => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -1004,7 +1004,7 @@ object StreamOps {
 
       def mapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[Out2],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -1020,7 +1020,7 @@ object StreamOps {
 
       def flatMapAsyncRetryWithBackoffF[Out2](parallelism: Int)(
         f: OutB => Future[F[OutA, Out2]],
-        tag: String = "retryingFailedOperation",
+        tag: String = "failedOperationRetrying",
         message: OutB => Throwable => Log.Message = _ => exception => s"$exception",
         restartSettings: RestartSettings = RetryUtils.defaultRestartSettings,
         failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,

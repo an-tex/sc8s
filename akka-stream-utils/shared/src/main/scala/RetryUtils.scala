@@ -32,7 +32,7 @@ object RetryUtils {
         case Failure(exception) => log
           // additional context for filtering
           .withCustomContext("retryWithBackoff" -> true)
-          .log(Log.Level.Warn)(s"$tag" + message(exception))
+          .log(Log.Level.Warn)(Log.Message(s"$tag") + message(exception))
         case _ =>
       }
       src

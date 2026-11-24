@@ -5,7 +5,6 @@ import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{Materializer, RestartSettings}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.logstage.api.{IzLogger, Log}
-import net.sc8s.akka.stream.implicits.SourceIterableOnceOps
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
@@ -16,7 +15,7 @@ object RetryUtils {
 
   def retryWithBackoff[T, M](
                               source: () => Source[T, M],
-                              tag: String = "failedOperationRetrying",
+                              tag: String = "operationFailed",
                               message: Throwable => Log.Message = exception => s"$exception",
                               restartSettings: RestartSettings = defaultRestartSettings,
                               failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -27,19 +26,21 @@ object RetryUtils {
                               pos: CodePositionMaterializer
                             ): Source[T, NotUsed] = {
     def createCommonSource = {
-      val (eventualDone, src) = source().watchTermination()(Keep.right).preMaterialize()
+      val (eventualDone, restartingSource) = source().watchTermination()(Keep.right).preMaterialize()
       eventualDone.onComplete {
-        case Failure(exception) => log
-          // additional context for filtering
-          .withCustomContext("retryWithBackoff" -> true)
-          .log(Log.Level.Warn)(Log.Message(s"$tag") + message(exception))
+        case Failure(exception) =>
+          // this log will also appear for the last retry which won't be retried. can't treat it separately as retry decision is handled inside RestartSource
+          log
+            // additional context for filtering
+            .withCustomContext("retryWithBackoff" -> true)
+            .log(Log.Level.Warn)(Log.Message(s"${s"${tag}Retrying" -> "tag"}") + message(exception))
         case _ =>
       }
-      src
+      restartingSource
     }
 
     // optimization to avoid unnecessary Either allocation
-    if (failWithoutRetry == PartialFunction.empty)
+    val restartingSource = if (failWithoutRetry == PartialFunction.empty)
       RestartSource.onFailuresWithBackoff(restartSettings) { () =>
         createCommonSource
       }
@@ -54,11 +55,20 @@ object RetryUtils {
         case Right(value) => value
         case Left(exception) => throw exception
       }
+
+    val (eventualDone, supervisorSource) = restartingSource.watchTermination()(Keep.right).preMaterialize()
+
+    eventualDone.onComplete {
+      case Failure(exception) =>
+        log.log(Log.Level.Error)(Log.Message(s"$tag") + message(exception))
+      case _ =>
+    }
+    supervisorSource
   }
 
   def retryWithBackoffF[T](
                             future: () => Future[T],
-                            tag: String = "failedOperationRetrying",
+                            tag: String = "operationFailed",
                             message: Throwable => Log.Message = exception => s"$exception",
                             restartSettings: RestartSettings = defaultRestartSettings,
                             failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -72,7 +82,7 @@ object RetryUtils {
 
   def retryWithBackoffFuture[Out](
                                    future: () => Future[Out],
-                                   tag: String = "failedOperationRetrying",
+                                   tag: String = "operationFailed",
                                    message: Throwable => Log.Message = exception => s"$exception",
                                    restartSettings: RestartSettings = defaultRestartSettings,
                                    failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
@@ -86,7 +96,7 @@ object RetryUtils {
 
   def retryWithBackoffSeq[T](
                               future: () => Future[Seq[T]],
-                              tag: String = "failedOperationRetrying",
+                              tag: String = "operationFailed",
                               message: Throwable => Log.Message = exception => s"$exception",
                               restartSettings: RestartSettings = defaultRestartSettings,
                               failWithoutRetry: PartialFunction[Throwable, Boolean] = PartialFunction.empty,
